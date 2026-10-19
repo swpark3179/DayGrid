@@ -33,13 +33,17 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - UI 문자열은 한국어로 쓴다. 주 시작 요일 기본값은 일요일이다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
-- 목록 행을 밀 때는 텍스트에서 `swipeLeft()`를 하지 말고, 셀 좌표로 끈다. `ScreenshotTests.drag(_:from:to:)`를 쓰고, 왼쪽으로 밀 때는 85% → 15%, 오른쪽으로 밀 때는 15% → 85%로 끈다. 작은 텍스트에서 밀면 끄는 거리가 짧아 탭으로 처리된다.
+- UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–24. 새 화면은 25부터 붙인다.
+  - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
+- 목록 행을 밀 때는 텍스트에서 `swipeLeft()`를 하지 말고, 셀 좌표로 끈다. `drag(_:from:to:)`를 쓰고, 왼쪽으로 밀 때는 85% → 15%, 오른쪽으로 밀 때는 15% → 85%로 끈다. 작은 텍스트에서 밀면 끄는 거리가 짧아 탭으로 처리된다.
   - 끝까지 끌면 첫 번째 동작이 전체 밀기로 바로 실행될 수 있다. 버튼이 나타나면 누르고, 결과(행이 사라짐 등)로 확인한다.
   - 폼 아래쪽 요소(편집 화면의 삭제 버튼 등)는 화면 밖이면 접근성 트리에 없다. 스크롤하거나 화면 안의 요소로 확인한다.
 - CI가 실패하면 "Show test failures" 단계(`xcresulttool get test-results summary`)와 "Export screenshots" 단계의 UI 계층 출력에서 원인을 본다.
 - 편집 화면은 `ItemDraft`(값 타입)를 고치고, 저장할 때만 `apply(to:)`로 모델에 반영한다.
 - 마크다운 서식 변환은 Core `MarkdownFormatter`(UTF-16 범위)가 한다. 화면 코드에서 문자열을 직접 고치지 않는다. 목록 행의 첫 줄은 `MarkdownSummary.firstLine(of:)`로 구한다.
 - 지금은 CI 결과를 기다리지 않고 진행한다(사용자 결정). 미룬 확인 항목은 `docs/ROADMAP.md`의 "나중에 할 테스트"에 적는다.
+- 실기기 확인 항목은 `docs/DEVICE_CHECKLIST.md`에 모은다. 새 기능의 기기 확인도 여기에 더한다.

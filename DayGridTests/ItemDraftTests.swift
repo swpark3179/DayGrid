@@ -233,4 +233,26 @@ struct ItemDraftTests {
         #expect(!copy.isCompleted)
         #expect(try context.fetch(FetchDescriptor<Item>()).count == 2)
     }
+
+    @Test func remindersRoundTripThroughTheDraft() {
+        let item = Item(title: "치과")
+        context.insert(item)
+        item.scheduleTimed(
+            start: day(2026, 10, 5).date(hour: 14, in: seoul),
+            end: day(2026, 10, 5).date(hour: 15, in: seoul),
+            timeZone: seoul
+        )
+
+        var draft = ItemDraft(item: item, timeZone: seoul)
+        #expect(draft.reminderMask == 0)
+        draft.reminderMask = ReminderOption.mask(of: [.tenMinutesBefore, .oneDayBefore])
+        draft.apply(to: item, categories: [], timeZone: seoul)
+        #expect(ReminderOption.options(in: item.reminderMask) == [.tenMinutesBefore, .oneDayBefore])
+
+        let reopened = ItemDraft(item: item, timeZone: seoul)
+        #expect(reopened.reminderMask == item.reminderMask)
+
+        let copy = item.duplicate()
+        #expect(copy.reminderMask == item.reminderMask)
+    }
 }

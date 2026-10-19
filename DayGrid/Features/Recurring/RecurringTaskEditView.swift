@@ -43,7 +43,8 @@ struct RecurringTaskEditView: View {
         _end = State(initialValue: task?.endDay?.date(hour: 12))
         _categoryID = State(initialValue: task?.category?.id)
         _isActive = State(initialValue: task?.isActive ?? true)
-        _notifies = State(initialValue: (task?.notifyMinute ?? 9 * 60) >= 0)
+        // 새 반복 할일은 알림을 끈 채로 시작한다. 알림 권한은 사용자가 알림을 켤 때만 묻는다.
+        _notifies = State(initialValue: (task?.notifyMinute ?? -1) >= 0)
         _notifyMinute = State(initialValue: max(0, task?.notifyMinute ?? 9 * 60))
     }
 
@@ -89,6 +90,11 @@ struct RecurringTaskEditView: View {
 
                 Section {
                     Toggle("알림", isOn: $notifies)
+                        .onChange(of: notifies) { _, isOn in
+                            if isOn {
+                                Task { await NotificationScheduler.shared.requestAuthorization() }
+                            }
+                        }
                     if notifies {
                         DatePicker("시각", selection: notifyTimeBinding, displayedComponents: .hourAndMinute)
                     }
@@ -228,9 +234,6 @@ struct RecurringTaskEditView: View {
             modelContext.insert(item)
         }
         try? modelContext.save()
-        if notifies {
-            Task { await NotificationScheduler.shared.requestAuthorization() }
-        }
         dismiss()
     }
 }

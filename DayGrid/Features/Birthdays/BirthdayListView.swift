@@ -41,6 +41,7 @@ struct BirthdayListView: View {
                 }
             }
         }
+        .accessibilityIdentifier("birthdays.list")
         .navigationTitle("생일")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
