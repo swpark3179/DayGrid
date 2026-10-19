@@ -13,6 +13,13 @@ struct LaunchOptionsTests {
         let options = LaunchOptions(arguments: ["DayGrid"])
         #expect(options.fixedToday == nil)
         #expect(!options.seedSampleData)
+        #expect(!options.forcesDarkAppearance)
+    }
+
+    @Test func parsesColorScheme() {
+        #expect(LaunchOptions(arguments: ["DayGrid", "-UITestColorScheme", "dark"]).forcesDarkAppearance)
+        #expect(!LaunchOptions(arguments: ["DayGrid", "-UITestColorScheme", "light"]).forcesDarkAppearance)
+        #expect(!LaunchOptions(arguments: ["DayGrid", "-UITestColorScheme"]).forcesDarkAppearance)
     }
 
     @Test(arguments: [

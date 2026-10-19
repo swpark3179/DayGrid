@@ -28,6 +28,13 @@ struct LocalDateValidationTests {
         #expect(date(2026, 12, 1).numberOfDaysInMonth == 31)
     }
 
+    @Test func monthIndexRoundTrip() {
+        #expect(date(2026, 10, 19).monthIndex == 2026 * 12 + 9)
+        #expect(LocalDate(firstDayOfMonthIndex: date(2026, 10, 19).monthIndex) == date(2026, 10, 1))
+        #expect(LocalDate(firstDayOfMonthIndex: date(2026, 1, 31).monthIndex - 1) == date(2025, 12, 1))
+        #expect(LocalDate(firstDayOfMonthIndex: date(2026, 12, 5).monthIndex + 1) == date(2027, 1, 1))
+    }
+
     @Test func firstAndLastDayOfMonth() {
         #expect(date(2026, 10, 19).firstDayOfMonth == date(2026, 10, 1))
         #expect(date(2026, 10, 19).lastDayOfMonth == date(2026, 10, 31))

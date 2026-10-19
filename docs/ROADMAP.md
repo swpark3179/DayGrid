@@ -25,7 +25,7 @@
 project.yml                      # XcodeGen 스펙 (앱/테스트 타깃, Info.plist 키, entitlements)
 DayGrid/                         # 앱 타깃
   App/        DayGridApp.swift, RootView (탭: 달력 · 나중에 · 반복 · 설정)
-  Models/     SwiftData @Model (Category, Item, PersonalHoliday, Person, RecurringTask, RecurrenceCompletion)
+  Models/     SwiftData @Model (ItemCategory, Item, PersonalHoliday, Person, RecurringTask, RecurrenceCompletion)
   Features/   Calendar/, DayDetail/, ItemEditor/, Inbox/, Recurring/, Birthdays/, Settings/
   Services/   NotificationScheduler, ContactsImporter, HolidayProvider
   Resources/  holidays/KR.json, markdown/(preview.html, markdown-it, DOMPurify, style.css), Assets
@@ -41,9 +41,9 @@ docs/ROADMAP.md, CLAUDE.md
 ## 핵심 데이터 모델
 | 모델 | 주요 필드 | 비고 |
 |---|---|---|
-| `Category` | name, colorHex, sortOrder | 기본 카테고리를 고정 UUID로 시드한다. 나중에 iCloud 병합 시 중복을 막기 위해서다. |
-| `Item` (일정 + 할일 통합) | title, body(markdown?), isTask(체크박스 여부), isAllDay, startDay/endDay(LocalDate), start/end(Date?), completedAt, category, reminderOffsets, inboxOrder | **날짜가 없으면 "나중에 할일"**이다. 날짜를 배정하면 날짜 필드만 채우고, 보류하면 비운다. 보류할 때는 직전 시간과 기간을 힌트로 보관한다. |
-| `PersonalHoliday` | name, startDay, endDay | 회사 휴가 같은 개인 휴일. 달력에서 공휴일처럼 표시한다. |
+| `ItemCategory` | name, colorHex, sortOrder | 기본 카테고리를 고정 UUID로 시드한다. 나중에 iCloud 병합 시 중복을 막기 위해서다. |
+| `Item` (일정 + 할일 통합) | title, body(markdown?), isTask(체크박스 여부), isAllDay, startDayKey/endDayKey(yyyymmdd, 0 = 날짜 없음), startDate/endDate(Date?), completedAt, category, reminderOffsets, inboxOrder | **날짜가 없으면 "나중에 할일"**이다. 날짜를 배정하면 날짜 필드만 채우고, 보류하면 비운다. 보류할 때는 직전 시간과 기간을 힌트로 보관한다. |
+| `PersonalHoliday` | name, startDay, endDay | 회사 휴가 같은 개인 휴일. 달력에서 공휴일처럼 표시한다. Phase 6에서 추가한다. |
 | `Person` | name, month, day, year?, isLunar, isLeapMonth, contactIdentifier?, notifyDaysBefore | 연락처에서 가져온 사람과 직접 입력한 사람을 같은 모델로 다룬다. |
 | `RecurringTask` | title, body?, category, rule(daily/weekly/monthly), weekdays[], dayOfMonth, startDay, endDay?, notifyMinutes(기본 09:00), isActive | |
 | `RecurrenceCompletion` | task, occurrenceDay(해당 주기의 시작일), completedAt, completedDay | |
@@ -67,7 +67,7 @@ docs/ROADMAP.md, CLAUDE.md
 - **완료 기준:** CI green, 빈 앱 스크린샷이 아티팩트에 올라온다.
 
 ### Phase 1 — 데이터 모델과 달력 첫 화면
-- 위 SwiftData 모델(이 단계에서는 Category, Item, PersonalHoliday)과 기본 카테고리 시드, 설정의 카테고리 관리(이름, 색상)를 만든다.
+- 위 SwiftData 모델(이 단계에서는 ItemCategory, Item)과 기본 카테고리 시드, 설정의 카테고리 관리(이름, 색상), 주 시작 요일 설정을 만든다. `PersonalHoliday`는 실제로 쓰는 Phase 6에서 추가한다.
 - `MonthGridLayout`(core)
   - 주 단위로 일정 구간을 잘라 막대로 만들고, 레인을 탐욕 배치한다. 시작이 빠르고 긴 일정이 먼저다.
   - 칸마다 최대 N줄까지 그리고 나머지는 "+N"으로 표시한다.
@@ -119,7 +119,7 @@ docs/ROADMAP.md, CLAUDE.md
 - 공휴일
   - `scripts/fetch_holidays.py`(공공데이터포털 특일정보 API, 키는 사용자가 제공)로 2025~2030년 `KR.json`을 만들어 번들에 넣는다.
   - 앱은 이 저장소의 raw JSON을 ETag 기반으로 가끔 갱신해 임시공휴일까지 반영한다. 별도 서버나 앱 내 API 키가 필요 없다.
-- 달력에서 공휴일과 개인 휴일은 날짜 숫자를 빨간색으로 하고 이름을 표시한다. 개인 휴일(기간)은 편집 화면을 만든다.
+- 달력에서 공휴일과 개인 휴일은 날짜 숫자를 빨간색으로 하고 이름을 표시한다. 개인 휴일(기간)은 `PersonalHoliday` 모델을 추가하고 편집 화면을 만든다.
 - 생일
   - 가져오기: `ContactsImporter`가 `CNContactBirthdayKey`와 `CNContactNonGregorianBirthdayKey`를 읽는다. iOS 18의 제한 접근도 대응하고, 다시 가져올 때는 `contactIdentifier`로 갱신한다.
   - 직접 추가와 편집: 양력/음력, 윤달 여부를 입력한다.
