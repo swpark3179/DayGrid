@@ -159,6 +159,7 @@ private struct InboxRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                BodySummaryLine(item: item)
             }
             Spacer(minLength: 0)
         }

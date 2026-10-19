@@ -29,6 +29,13 @@ targets:
     platform: iOS
     sources:
       - path: DayGrid
+        excludes:
+          - "Resources/markdown"
+          - "Resources/markdown/**"
+      # 본문 미리보기(markdown-it, DOMPurify, preview.html). 폴더째 번들의 markdown/에 들어간다.
+      - path: DayGrid/Resources/markdown
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: DayGridCore
     settings:

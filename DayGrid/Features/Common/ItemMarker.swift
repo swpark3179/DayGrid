@@ -22,3 +22,17 @@ struct ItemMarker: View {
         }
     }
 }
+
+/// 본문이 있으면 문서 아이콘과 첫 줄을 한 줄로 보여준다.
+struct BodySummaryLine: View {
+    let item: Item
+
+    var body: some View {
+        if let summary = item.bodySummary {
+            Label(summary, systemImage: "doc.text")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+}

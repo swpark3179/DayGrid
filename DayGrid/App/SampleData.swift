@@ -11,9 +11,10 @@ enum SampleData {
             categories.first { $0.name == name }
         }
 
-        func allDay(_ title: String, _ categoryName: String, _ startOffset: Int, _ endOffset: Int? = nil) {
+        func allDay(_ title: String, _ categoryName: String, _ startOffset: Int, _ endOffset: Int? = nil, body: String? = nil) {
             let item = Item(title: title, category: category(categoryName))
             item.scheduleAllDay(from: today.adding(days: startOffset), through: today.adding(days: endOffset ?? startOffset))
+            item.body = body
             context.insert(item)
         }
 
@@ -34,15 +35,16 @@ enum SampleData {
         timed("은행 업무", "기타", 0, 16)
         timed("독서 모임", "개인", 3, 20)            // 10/22
         allDay("캠핑", "가족", 5, 6)                // 10/24–10/25
-        allDay("출장", "업무", 9, 15)               // 10/28–11/3
+        allDay("출장", "업무", 9, 15, body: tripBody) // 10/28–11/3
         allDay("보고서 제출", "업무", 11)            // 10/30: "+N" 확인용
         timed("세미나", "업무", 11, 9)
         timed("병원", "건강", 11, 15)
         timed("저녁 약속", "개인", 11, 19)
 
-        func inbox(_ title: String, _ categoryName: String, order: Double, isDone: Bool = false) {
+        func inbox(_ title: String, _ categoryName: String, order: Double, isDone: Bool = false, body: String? = nil) {
             let item = Item(title: title, isTask: true, category: category(categoryName))
             item.inboxOrder = order
+            item.body = body
             if isDone {
                 item.completedAt = today.date(hour: 9, in: timeZone)
             }
@@ -50,7 +52,7 @@ enum SampleData {
         }
 
         inbox("책 반납하기", "개인", order: 0)
-        inbox("선물 고르기", "가족", order: 1)
+        inbox("선물 고르기", "가족", order: 1, body: "- [x] 엄마: 스카프\n- [ ] 아빠: 책\n- [ ] 동생: 이어폰")
         inbox("건강검진 예약", "건강", order: 2)
         let cleaning = Item(title: "대청소", category: category("가족"))
         cleaning.scheduleAllDay(from: today.adding(days: 12), through: today.adding(days: 13))
@@ -59,4 +61,21 @@ enum SampleData {
         inbox("우산 사기", "기타", order: 4, isDone: true)
         try context.save()
     }
+
+    /// 본문 미리보기 스크린샷용: 제목, 표, HTML, 체크리스트, 링크가 들어 있다.
+    private static let tripBody = """
+        # 부산 출장
+        <mark>10월 28일 09:00</mark> 서울역 출발, 숙소는 **해운대**.
+
+        | 날짜 | 일정 |
+        |---|---|
+        | 10/28 | 고객사 미팅 |
+        | 10/29 | 공장 방문 |
+
+        - [x] 기차표 예매
+        - [ ] 발표 자료 출력
+        - [ ] 명함 챙기기
+
+        > 비용은 [경비 시스템](https://example.com)에 올린다.
+        """
 }

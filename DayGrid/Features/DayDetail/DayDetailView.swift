@@ -105,6 +105,7 @@ private struct AgendaRowView: View {
                 Text(ItemTimeText.describe(item, row: row))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                BodySummaryLine(item: item)
             }
             Spacer(minLength: 0)
         }
