@@ -14,6 +14,7 @@ struct MonthPageView: View {
     @Query private var items: [Item]
     @Query private var personalHolidays: [PersonalHoliday]
     @Query private var people: [Person]
+    @Query private var recurringCompletions: [RecurrenceCompletion]
 
     init(
         month: LocalDate,
@@ -30,6 +31,11 @@ struct MonthPageView: View {
         let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
         _items = Query(filter: Item.predicate(overlapping: visibleDays), sort: \Item.startDayKey)
         _personalHolidays = Query(filter: PersonalHoliday.predicate(overlapping: visibleDays))
+        let lower = visibleDays.lowerBound.yyyymmdd
+        let upper = visibleDays.upperBound.yyyymmdd
+        _recurringCompletions = Query(filter: #Predicate<RecurrenceCompletion> { completion in
+            completion.completedDayKey >= lower && completion.completedDayKey <= upper
+        })
     }
 
     var body: some View {
@@ -70,7 +76,8 @@ struct MonthPageView: View {
             in: visibleDays,
             holidays: holidayService.holidays(in: visibleDays),
             personalHolidays: personalHolidays.compactMap { $0.mark },
-            birthdays: people.map { (name: $0.name, birthday: $0.birthday) }
+            birthdays: people.map { (name: $0.name, birthday: $0.birthday) },
+            recurringCompletions: recurringCompletions.compactMap { LocalDate(yyyymmdd: $0.completedDayKey) }
         )
     }
 }

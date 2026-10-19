@@ -3,7 +3,7 @@ import SwiftData
 
 enum AppModelContainer {
     static var schema: Schema {
-        Schema([ItemCategory.self, Item.self, PersonalHoliday.self, Person.self])
+        Schema([ItemCategory.self, Item.self, PersonalHoliday.self, Person.self, RecurringTask.self, RecurrenceCompletion.self])
     }
 
     /// 앱이 쓰는 저장소. iCloud 동기화는 Phase 9에서 켠다.

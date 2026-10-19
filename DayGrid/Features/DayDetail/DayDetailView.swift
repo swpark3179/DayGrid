@@ -13,6 +13,11 @@ struct DayDetailView: View {
     @Query private var items: [Item]
     @Query private var personalHolidays: [PersonalHoliday]
     @Query(sort: \Person.name) private var people: [Person]
+    @Query(
+        filter: #Predicate<RecurringTask> { $0.isActive == true },
+        sort: [SortDescriptor(\RecurringTask.sortOrder), SortDescriptor(\RecurringTask.createdAt)]
+    ) private var recurringTasks: [RecurringTask]
+    @Environment(AppClock.self) private var clock
     @State private var editorMode: ItemEditorView.Mode?
 
     init(date: LocalDate) {
@@ -39,6 +44,7 @@ struct DayDetailView: View {
                 section("종일 · 기간", rows: agenda.spanning, itemsByID: itemsByID)
                 section("시간", rows: agenda.timed, itemsByID: itemsByID)
                 section("할일", rows: agenda.tasks, itemsByID: itemsByID)
+                recurringSection
             }
             .accessibilityIdentifier("dayDetail.list")
             .navigationTitle(date.koreanMonthDayWeekdayText)
@@ -56,6 +62,19 @@ struct DayDetailView: View {
             }
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
+            }
+        }
+    }
+
+    /// 이 날이 속한 주기가 있는 반복 할일. 그 주기가 지금 주기면 체크할 수 있다.
+    @ViewBuilder
+    private var recurringSection: some View {
+        let tasks = recurringTasks.filter { $0.cycleStatus(on: date, today: clock.today) != nil }
+        if !tasks.isEmpty {
+            Section("반복 할일") {
+                ForEach(tasks) { task in
+                    RecurringTaskRow(task: task, date: date, today: clock.today)
+                }
             }
         }
     }
