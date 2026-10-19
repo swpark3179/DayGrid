@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsTab: View {
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
+    @Environment(AppClock.self) private var clock
 
     var body: some View {
         NavigationStack {
@@ -13,6 +14,14 @@ struct SettingsTab: View {
                     }
                     NavigationLink("카테고리") {
                         CategoryListView()
+                    }
+                }
+                Section("기념일") {
+                    NavigationLink("생일") {
+                        BirthdayListView(today: clock.today)
+                    }
+                    NavigationLink("개인 휴일") {
+                        PersonalHolidayListView()
                     }
                 }
                 Section("정보") {

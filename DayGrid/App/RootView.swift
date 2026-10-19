@@ -10,6 +10,7 @@ enum AppTab: Hashable {
 
 struct RootView: View {
     @Environment(AppClock.self) private var clock
+    @Environment(HolidayService.self) private var holidays
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .calendar
     @State private var inboxFocusRequest = 0
@@ -29,9 +30,13 @@ struct RootView: View {
                 SettingsTab()
             }
         }
+        .task {
+            await holidays.refreshIfNeeded()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 clock.refresh()
+                Task { await holidays.refreshIfNeeded() }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: DispatchQueue.main)) { _ in

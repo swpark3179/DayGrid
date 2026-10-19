@@ -7,6 +7,7 @@ struct WeekRowView: View {
     let today: LocalDate
     let laneLimit: Int
     let itemsByID: [UUID: Item]
+    var marks: [LocalDate: DayMark] = [:]
     var onSelectDay: (LocalDate) -> Void = { _ in }
     var onAddItem: (LocalDate) -> Void = { _ in }
 
@@ -26,7 +27,7 @@ struct WeekRowView: View {
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(week.days) { day in
-                        DayNumberView(day: day, isToday: day.date == today)
+                        DayNumberView(day: day, isToday: day.date == today, mark: marks[day.date])
                             .frame(width: columnWidth, height: geometry.size.height, alignment: .top)
                     }
                 }
@@ -65,7 +66,7 @@ struct WeekRowView: View {
                 // 맨 위에 날짜별 버튼을 깐다. 탭하면 하루 상세, 길게 누르면 메뉴로 바로 추가.
                 HStack(spacing: 0) {
                     ForEach(week.days) { day in
-                        DayHitTarget(date: day.date, onSelect: onSelectDay, onAdd: onAddItem)
+                        DayHitTarget(date: day.date, mark: marks[day.date], onSelect: onSelectDay, onAdd: onAddItem)
                             .frame(width: columnWidth, height: geometry.size.height)
                     }
                 }
@@ -80,6 +81,7 @@ struct WeekRowView: View {
 
 private struct DayHitTarget: View {
     let date: LocalDate
+    let mark: DayMark?
     let onSelect: (LocalDate) -> Void
     let onAdd: (LocalDate) -> Void
 
@@ -99,33 +101,52 @@ private struct DayHitTarget: View {
                 onSelect(date)
             }
         }
-        .accessibilityLabel(date.koreanMonthDayWeekdayText)
+        .accessibilityLabel(accessibilityText)
         .accessibilityIdentifier("calendar.day.\(date.iso8601)")
+    }
+
+    private var accessibilityText: String {
+        guard let spoken = mark?.spokenDescription else { return date.koreanMonthDayWeekdayText }
+        return "\(date.koreanMonthDayWeekdayText), \(spoken)"
     }
 }
 
+/// 날짜 숫자. 공휴일·개인 휴일이면 빨갛게 하고, 옆에 이름이나 🎂를 작게 붙인다.
 private struct DayNumberView: View {
     let day: MonthGrid.Day
     let isToday: Bool
+    let mark: DayMark?
 
     var body: some View {
-        Text("\(day.date.day)")
-            .font(.system(size: 13, weight: isToday ? .bold : .medium))
-            .foregroundStyle(foreground)
-            .frame(width: 22, height: 22)
-            .background {
-                if isToday {
-                    Circle().fill(Color.accentColor)
+        HStack(spacing: 1) {
+            Text("\(day.date.day)")
+                .font(.system(size: 13, weight: isToday ? .bold : .medium))
+                .foregroundStyle(numberColor)
+                .frame(width: 22, height: 22)
+                .background {
+                    if isToday {
+                        Circle().fill(Color.accentColor)
+                    }
                 }
+            if let label = mark?.calendarLabel {
+                Text(label)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(dimmed(mark?.isHoliday == true ? Color.red : Color.secondary))
+                    .lineLimit(1)
             }
-            .padding(.top, 2)
-            .frame(maxWidth: .infinity)
+        }
+        .padding(.top, 2)
+        .padding(.horizontal, 2)
+        .frame(maxWidth: .infinity)
     }
 
-    private var foreground: Color {
+    private var numberColor: Color {
         if isToday { return .white }
-        let color = DayStyle.color(forWeekday: day.date.weekday)
-        return day.isInMonth ? color : color.opacity(0.35)
+        return dimmed(mark?.isHoliday == true ? .red : DayStyle.color(forWeekday: day.date.weekday))
+    }
+
+    private func dimmed(_ color: Color) -> Color {
+        day.isInMonth ? color : color.opacity(0.35)
     }
 }
 

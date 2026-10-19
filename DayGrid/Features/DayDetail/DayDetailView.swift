@@ -9,12 +9,16 @@ struct DayDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(HolidayService.self) private var holidayService
     @Query private var items: [Item]
+    @Query private var personalHolidays: [PersonalHoliday]
+    @Query(sort: \Person.name) private var people: [Person]
     @State private var editorMode: ItemEditorView.Mode?
 
     init(date: LocalDate) {
         self.date = date
         _items = Query(filter: Item.predicate(overlapping: date...date), sort: \Item.startDayKey)
+        _personalHolidays = Query(filter: PersonalHoliday.predicate(overlapping: date...date), sort: \PersonalHoliday.name)
     }
 
     var body: some View {
@@ -23,6 +27,7 @@ struct DayDetailView: View {
 
         NavigationStack {
             List {
+                specialDaysSection
                 if agenda.isEmpty {
                     ContentUnavailableView(
                         "일정 없음",
@@ -51,6 +56,27 @@ struct DayDetailView: View {
             }
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
+            }
+        }
+    }
+
+    /// 공휴일, 개인 휴일, 생일. 하나도 없으면 섹션을 그리지 않는다.
+    @ViewBuilder
+    private var specialDaysSection: some View {
+        let holidays = holidayService.holidays(in: date...date)
+        let birthdayPeople = people.filter { !$0.birthday.occurrences(in: date...date).isEmpty }
+        if !holidays.isEmpty || !personalHolidays.isEmpty || !birthdayPeople.isEmpty {
+            Section("기념일") {
+                ForEach(holidays, id: \.self) { holiday in
+                    SpecialDayRow(title: holiday.name, detail: "공휴일", systemImage: "flag.fill", isHoliday: true)
+                }
+                ForEach(personalHolidays) { holiday in
+                    SpecialDayRow(title: holiday.name, detail: "개인 휴일", systemImage: "sun.max.fill", isHoliday: true)
+                }
+                ForEach(birthdayPeople) { person in
+                    let detail = [person.birthday.koreanText, person.ordinalText(on: date)].compactMap { $0 }.joined(separator: " · ")
+                    SpecialDayRow(title: "\(person.name) 생일", detail: detail, systemImage: "gift.fill", isHoliday: false)
+                }
             }
         }
     }
@@ -86,6 +112,28 @@ struct DayDetailView: View {
                             }
                     }
                 }
+            }
+        }
+    }
+}
+
+private struct SpecialDayRow: View {
+    let title: String
+    let detail: String
+    let systemImage: String
+    let isHoliday: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(isHoliday ? Color.red : Color.pink)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundStyle(isHoliday ? Color.red : Color.primary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

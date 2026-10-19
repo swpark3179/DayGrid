@@ -4,6 +4,7 @@ import SwiftData
 
 /// UI 테스트와 스크린샷용 샘플 일정. 날짜는 모두 `today` 기준 상대값이다(기준일 2026-10-19).
 /// 날짜가 있는 일정 15개와 "나중에" 목록 항목 5개(그중 완료 1개, 미뤄 둔 일정 1개)를 넣는다.
+/// 생일 4명(30일 안에 3명, 음력 1명)과 개인 휴일 1개도 넣는다.
 enum SampleData {
     static func insert(into context: ModelContext, today: LocalDate, timeZone: TimeZone = .current) throws {
         let categories = try context.fetch(FetchDescriptor<ItemCategory>())
@@ -59,6 +60,23 @@ enum SampleData {
         cleaning.moveToInbox(order: 3, timeZone: timeZone)
         context.insert(cleaning)
         inbox("우산 사기", "기타", order: 4, isDone: true)
+
+        func person(_ name: String, _ offset: Int, lunar: Bool = false, birthYear: Int = 0) {
+            let date = today.adding(days: offset)
+            let birthday: Birthday
+            if lunar, let lunarDate = KoreanLunarCalendar.lunarDate(from: date) {
+                birthday = Birthday(month: lunarDate.month, day: lunarDate.day, isLunar: true, isLeapMonth: lunarDate.isLeapMonth)
+            } else {
+                birthday = Birthday(month: date.month, day: date.day)
+            }
+            context.insert(Person(name: name, birthday: birthday, birthYear: birthYear))
+        }
+
+        person("김민수", 3, birthYear: 1990)        // 10/22
+        person("엄마", 8, lunar: true)             // 10/27 (음력 9/17)
+        person("아빠", 20)                          // 11/8
+        person("이지은", 66)                        // 12/24: 30일 밖
+        context.insert(PersonalHoliday(name: "회사 창립기념일", from: today.adding(days: -3), through: today.adding(days: -3)))
         try context.save()
     }
 
