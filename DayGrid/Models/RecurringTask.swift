@@ -84,6 +84,13 @@ extension RecurringTask {
 
     var endDay: LocalDate? { LocalDate(yyyymmdd: endDayKey) }
 
+    /// 사용 중인 반복 할일.
+    static var activePredicate: Predicate<RecurringTask> {
+        #Predicate<RecurringTask> { task in
+            task.isActive == true
+        }
+    }
+
     var recurrence: Recurrence? {
         guard let startDay else { return nil }
         return Recurrence(rule: rule, startDay: startDay, endDay: endDay)
