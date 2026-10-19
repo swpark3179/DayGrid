@@ -21,6 +21,9 @@ struct RecurringTaskEditView: View {
     @State private var end: Date?
     @State private var categoryID: UUID?
     @State private var isActive: Bool
+    @State private var notifies: Bool
+    /// 알림 시각(자정부터 지난 분)
+    @State private var notifyMinute: Int
     @State private var isConfirmingDeletion = false
 
     init(task: RecurringTask?) {
@@ -40,6 +43,8 @@ struct RecurringTaskEditView: View {
         _end = State(initialValue: task?.endDay?.date(hour: 12))
         _categoryID = State(initialValue: task?.category?.id)
         _isActive = State(initialValue: task?.isActive ?? true)
+        _notifies = State(initialValue: (task?.notifyMinute ?? 9 * 60) >= 0)
+        _notifyMinute = State(initialValue: max(0, task?.notifyMinute ?? 9 * 60))
     }
 
     var body: some View {
@@ -80,6 +85,17 @@ struct RecurringTaskEditView: View {
                     Text("기간")
                 } footer: {
                     Text(ruleSummary)
+                }
+
+                Section {
+                    Toggle("알림", isOn: $notifies)
+                    if notifies {
+                        DatePicker("시각", selection: notifyTimeBinding, displayedComponents: .hourAndMinute)
+                    }
+                } header: {
+                    Text("알림")
+                } footer: {
+                    Text("주기가 시작되는 날 이 시각에 한 번 알립니다. 이미 완료한 주기는 알리지 않습니다.")
                 }
 
                 Section {
@@ -177,6 +193,13 @@ struct RecurringTaskEditView: View {
         return text
     }
 
+    private var notifyTimeBinding: Binding<Date> {
+        Binding(
+            get: { clock.today.date(hour: notifyMinute / 60, minute: notifyMinute % 60) },
+            set: { notifyMinute = LocalDate.minuteOfDay($0) }
+        )
+    }
+
     private var startBinding: Binding<Date> {
         Binding(
             get: { start ?? clock.today.date(hour: 12) },
@@ -200,10 +223,14 @@ struct RecurringTaskEditView: View {
         item.endDayKey = hasEnd ? max(startDay, LocalDate(endBinding.wrappedValue)).yyyymmdd : 0
         item.category = categories.first { $0.id == categoryID }
         item.isActive = isActive
+        item.notifyMinute = notifies ? notifyMinute : -1
         if task == nil {
             modelContext.insert(item)
         }
         try? modelContext.save()
+        if notifies {
+            Task { await NotificationScheduler.shared.requestAuthorization() }
+        }
         dismiss()
     }
 }

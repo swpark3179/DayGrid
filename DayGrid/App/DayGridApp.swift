@@ -19,6 +19,7 @@ struct DayGridApp: App {
         if let quickAction = options.quickAction {
             QuickActionCenter.shared.pending = quickAction
         }
+        NotificationScheduler.shared.container = modelContainer
     }
 
     var body: some Scene {
@@ -29,5 +30,10 @@ struct DayGridApp: App {
                 .preferredColorScheme(launchOptions.forcesDarkAppearance ? .dark : nil)
         }
         .modelContainer(modelContainer)
+        // 하루 한 번 알림을 다시 맞춘다(앞으로 30일치만 예약해 두므로).
+        .backgroundTask(.appRefresh(NotificationScheduler.refreshTaskID)) {
+            await NotificationScheduler.shared.sync()
+            await NotificationScheduler.shared.scheduleBackgroundRefresh()
+        }
     }
 }

@@ -56,6 +56,14 @@ struct ItemEditorView: View {
                     }
                 }
 
+                if draft.hasDate {
+                    Section("알림") {
+                        ForEach(draft.isAllDay ? ReminderOption.allDayOptions : ReminderOption.timedOptions, id: \.self) { option in
+                            Toggle(option.koreanText, isOn: reminderBinding(option))
+                        }
+                    }
+                }
+
                 Section {
                     Picker("카테고리", selection: $draft.categoryID) {
                         Text("없음").tag(UUID?.none)
@@ -135,6 +143,21 @@ struct ItemEditorView: View {
 
     private var dateComponents: DatePickerComponents {
         draft.isAllDay ? [.date] : [.date, .hourAndMinute]
+    }
+
+    /// 알림을 처음 켤 때 알림 권한을 묻는다.
+    private func reminderBinding(_ option: ReminderOption) -> Binding<Bool> {
+        Binding(
+            get: { draft.reminderMask & option.bit != 0 },
+            set: { isOn in
+                if isOn {
+                    draft.reminderMask |= option.bit
+                    Task { await NotificationScheduler.shared.requestAuthorization() }
+                } else {
+                    draft.reminderMask &= ~option.bit
+                }
+            }
+        )
     }
 
     private var startBinding: Binding<Date> {

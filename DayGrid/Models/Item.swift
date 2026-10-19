@@ -30,6 +30,8 @@ final class Item {
     var hintDayCount: Int = 0
     var hintStartMinute: Int = 0
     var hintDurationMinutes: Int = 0
+    /// 고른 알림(`ReminderOption.bit`의 합). 0이면 알림 없음.
+    var reminderMask: Int = 0
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
     var category: ItemCategory?
@@ -83,6 +85,7 @@ extension Item {
         copy.hintDayCount = hintDayCount
         copy.hintStartMinute = hintStartMinute
         copy.hintDurationMinutes = hintDurationMinutes
+        copy.reminderMask = reminderMask
         return copy
     }
 

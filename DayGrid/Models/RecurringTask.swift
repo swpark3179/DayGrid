@@ -17,7 +17,7 @@ final class RecurringTask {
     var startDayKey: Int = 0
     /// yyyymmdd(포함). 0이면 끝나지 않는다.
     var endDayKey: Int = 0
-    /// 주기가 시작되는 날 알릴 시각(자정부터 지난 분, Phase 8).
+    /// 주기가 시작되는 날 알릴 시각(자정부터 지난 분). 음수면 알리지 않는다.
     var notifyMinute: Int = 9 * 60
     var isActive: Bool = true
     var sortOrder: Double = 0
