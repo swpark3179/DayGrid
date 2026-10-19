@@ -71,19 +71,30 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["저장"].tap()
 
         let newRow = list.staticTexts["UI Test"]
-        XCTAssertTrue(newRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(newRow.waitForExistence(timeout: 5), "저장한 일정이 하루 상세 목록에 보여야 한다")
         attachScreenshot(of: app, named: "10-day-detail-added")
 
         // 행을 누르면 편집 화면이 열린다
         newRow.tap()
-        XCTAssertTrue(app.navigationBars["일정 편집"].waitForExistence(timeout: 5))
+        let editorBar = app.navigationBars["일정 편집"]
+        XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "행을 누르면 편집 화면이 열려야 한다")
+        XCTAssertTrue(app.buttons["editor.delete"].exists, "편집 화면에는 삭제 버튼이 있어야 한다")
         app.buttons["취소"].tap()
+        XCTAssertTrue(editorBar.waitForNonExistence(timeout: 5), "취소하면 편집 화면이 닫혀야 한다")
 
         // 밀어서 삭제
-        XCTAssertTrue(newRow.waitForExistence(timeout: 5))
-        newRow.swipeLeft()
-        app.buttons["삭제"].tap()
-        XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5))
+        XCTAssertTrue(newRow.waitForExistence(timeout: 5), "편집을 취소해도 일정은 그대로 있어야 한다")
+        // 작은 제목 텍스트에서 swipeLeft()를 하면 끄는 거리가 짧아 탭으로 처리된다. 셀 전체 폭에서 끈다.
+        let cell = list.cells.containing(.staticText, identifier: "UI Test").firstMatch
+        XCTAssertTrue(cell.exists, "새 일정의 행 셀을 찾을 수 있어야 한다")
+        cell.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: cell.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)))
+        XCTAssertFalse(editorBar.exists, "밀기가 탭으로 처리돼 편집 화면이 열리면 안 된다")
+        let deleteAction = list.buttons["삭제"]
+        XCTAssertTrue(deleteAction.waitForExistence(timeout: 5), "밀면 목록 안에 삭제 버튼이 나타나야 한다")
+        deleteAction.tap()
+        XCTAssertTrue(newRow.waitForNonExistence(timeout: 5), "삭제한 일정은 목록에서 사라져야 한다")
+        XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5), "일정이 없으면 빈 화면 안내가 보여야 한다")
     }
 
     @MainActor
