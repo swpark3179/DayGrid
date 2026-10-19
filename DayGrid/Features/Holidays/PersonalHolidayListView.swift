@@ -35,6 +35,7 @@ struct PersonalHolidayListView: View {
                 }
             }
         }
+        .accessibilityIdentifier("holidays.list")
         .navigationTitle("개인 휴일")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

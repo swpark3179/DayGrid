@@ -166,39 +166,4 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["inbox.list"].staticTexts["Shortcut Task"].waitForExistence(timeout: 5))
         attachScreenshot(of: app, named: "15-quick-add-shortcut")
     }
-
-    @MainActor
-    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "-UITestFixedToday", "2026-10-19",
-            "-UITestSeedData",
-            "-AppleLanguages", "(ko)",
-            "-AppleLocale", "ko_KR",
-        ] + extraArguments
-        app.launch()
-        return app
-    }
-
-    /// 목록 행을 셀 좌표로 끈다. 작은 텍스트에서 swipe를 하면 끄는 거리가 짧아 탭으로 처리된다.
-    @MainActor
-    private func drag(_ cell: XCUIElement, from startX: CGFloat, to endX: CGFloat) {
-        XCTAssertTrue(cell.waitForExistence(timeout: 5), "끌 행 셀을 찾을 수 있어야 한다")
-        cell.coordinate(withNormalizedOffset: CGVector(dx: startX, dy: 0.5))
-            .press(forDuration: 0.1, thenDragTo: cell.coordinate(withNormalizedOffset: CGVector(dx: endX, dy: 0.5)))
-    }
-
-    @MainActor
-    private func tabButton(_ title: String, in app: XCUIApplication) -> XCUIElement {
-        let tabBarButton = app.tabBars.buttons[title]
-        return tabBarButton.exists ? tabBarButton : app.buttons[title].firstMatch
-    }
-
-    @MainActor
-    private func attachScreenshot(of app: XCUIApplication, named name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
 }

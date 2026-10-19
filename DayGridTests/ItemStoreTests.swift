@@ -123,5 +123,17 @@ struct ItemStoreTests {
         let cleaning = try #require(inbox.first { $0.title == "대청소" })
         #expect(!cleaning.isTask)
         #expect(cleaning.scheduleHint == ScheduleHint(isAllDay: true, dayCount: 2))
+
+        // 생일 4명(30일 안 3명), 개인 휴일 1개, 반복 할일 3개와 완료 기록 9개
+        let people = try context.fetch(FetchDescriptor<Person>())
+        #expect(Set(people.map(\.name)) == ["김민수", "엄마", "아빠", "이지은"])
+        #expect(people.first { $0.name == "엄마" }?.isLunar == true)
+        let holidays = try context.fetch(FetchDescriptor<PersonalHoliday>())
+        #expect(holidays.map(\.name) == ["회사 창립기념일"])
+        #expect(holidays.first?.startDay == day(2026, 10, 16))
+        let tasks = try context.fetch(FetchDescriptor<RecurringTask>(sortBy: [SortDescriptor(\.startDayKey)]))
+        #expect(tasks.map(\.title) == ["관리비 납부", "헬스장", "물 2L 마시기"])
+        #expect(try context.fetchCount(FetchDescriptor<RecurrenceCompletion>()) == 9)
+        #expect(tasks.map { $0.completions?.count ?? 0 } == [1, 3, 5])
     }
 }
