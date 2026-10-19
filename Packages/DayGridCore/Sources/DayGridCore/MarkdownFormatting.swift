@@ -236,11 +236,11 @@ public enum MarkdownFormatter {
         String(decoding: units, as: UTF16.self)
     }
 
-    private static let newline = UInt16(ascii: "\n")
-    private static let space = UInt16(ascii: " ")
-    private static let hashMark = UInt16(ascii: "#")
-    private static let openBracket = UInt16(ascii: "[")
-    private static let closeBracket = UInt16(ascii: "]")
-    private static let bulletMarks: Set<UInt16> = [UInt16(ascii: "-"), UInt16(ascii: "*"), UInt16(ascii: "+")]
-    private static let checkMarks: Set<UInt16> = [UInt16(ascii: " "), UInt16(ascii: "x"), UInt16(ascii: "X")]
+    private static let newline = UInt16(UInt8(ascii: "\n"))
+    private static let space = UInt16(UInt8(ascii: " "))
+    private static let hashMark = UInt16(UInt8(ascii: "#"))
+    private static let openBracket = UInt16(UInt8(ascii: "["))
+    private static let closeBracket = UInt16(UInt8(ascii: "]"))
+    private static let bulletMarks: Set<UInt16> = [UInt16(UInt8(ascii: "-")), UInt16(UInt8(ascii: "*")), UInt16(UInt8(ascii: "+"))]
+    private static let checkMarks: Set<UInt16> = [UInt16(UInt8(ascii: " ")), UInt16(UInt8(ascii: "x")), UInt16(UInt8(ascii: "X"))]
 }
