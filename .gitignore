@@ -1,0 +1,14 @@
+# Xcode 프로젝트는 project.yml에서 XcodeGen으로 생성한다.
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# 빌드 산출물
+build/
+.build/
+.swiftpm/
+*.xcresult
+
+.DS_Store
+__pycache__/
