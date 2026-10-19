@@ -281,13 +281,20 @@ struct CalendarEntryTests {
     }
 
     @Test func timeZoneDecidesTheDay() {
-        let start = instant(2026, 10, 19, 8) // 서울 08:00 = UTC 전날 23:00
-        let utc = TimeZone(secondsFromGMT: 0)!
-        let entry = CalendarEntry.timed(id: uuid(1), start: start, end: start.addingTimeInterval(3600), timeZone: utc)
-        #expect(entry.startDay == day(2026, 10, 18))
-        #expect(entry.endDay == day(2026, 10, 19))
-        #expect(entry.startMinute == 23 * 60)
-        #expect(entry.style == .bar)
+        // 서울 08:00–10:00 = UTC 전날 23:00–01:00
+        let start = instant(2026, 10, 19, 8)
+        let end = instant(2026, 10, 19, 10)
+
+        let inSeoul = CalendarEntry.timed(id: uuid(1), start: start, end: end, timeZone: seoul)
+        #expect(inSeoul.startDay == day(2026, 10, 19))
+        #expect(inSeoul.endDay == day(2026, 10, 19))
+        #expect(inSeoul.style == .chip)
+
+        let inUTC = CalendarEntry.timed(id: uuid(1), start: start, end: end, timeZone: TimeZone(secondsFromGMT: 0)!)
+        #expect(inUTC.startDay == day(2026, 10, 18))
+        #expect(inUTC.endDay == day(2026, 10, 19))
+        #expect(inUTC.startMinute == 23 * 60)
+        #expect(inUTC.style == .bar)
     }
 
     @Test func singleAllDayEntryIsABar() {
