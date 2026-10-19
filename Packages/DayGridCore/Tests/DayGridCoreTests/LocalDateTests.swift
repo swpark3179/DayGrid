@@ -160,5 +160,7 @@ struct LocalDateKoreanTests {
         #expect(date(2026, 10, 24).koreanWeekdaySymbol == "토")
         #expect(date(2026, 10, 19).koreanMonthTitle == "2026년 10월")
         #expect(date(2026, 1, 5).koreanLongText == "2026년 1월 5일 (월)")
+        #expect(date(2026, 10, 28).koreanMonthDayText == "10월 28일")
+        #expect(date(2026, 10, 19).koreanMonthDayWeekdayText == "10월 19일 (월)")
     }
 }

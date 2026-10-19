@@ -45,6 +45,48 @@ final class ScreenshotTests: XCTestCase {
     }
 
     @MainActor
+    func testDayDetailAndEditing() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
+
+        // 일정이 있는 날의 상세
+        app.buttons["calendar.day.2026-10-19"].tap()
+        XCTAssertTrue(app.navigationBars["10월 19일 (월)"].waitForExistence(timeout: 5))
+        let list = app.descendants(matching: .any)["dayDetail.list"]
+        XCTAssertTrue(list.staticTexts["주간 회의"].waitForExistence(timeout: 5))
+        XCTAssertTrue(list.staticTexts["점심 약속"].exists)
+        attachScreenshot(of: app, named: "08-day-detail")
+        app.buttons["닫기"].tap()
+
+        // 빈 날에 일정 추가
+        app.buttons["calendar.day.2026-10-21"].tap()
+        XCTAssertTrue(app.navigationBars["10월 21일 (수)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["일정 없음"].exists)
+        app.buttons["dayDetail.add"].tap()
+        let titleField = app.textFields["editor.title"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText("UI Test")
+        attachScreenshot(of: app, named: "09-item-editor")
+        app.buttons["저장"].tap()
+
+        let newRow = list.staticTexts["UI Test"]
+        XCTAssertTrue(newRow.waitForExistence(timeout: 5))
+        attachScreenshot(of: app, named: "10-day-detail-added")
+
+        // 행을 누르면 편집 화면이 열린다
+        newRow.tap()
+        XCTAssertTrue(app.navigationBars["일정 편집"].waitForExistence(timeout: 5))
+        app.buttons["취소"].tap()
+
+        // 밀어서 삭제
+        XCTAssertTrue(newRow.waitForExistence(timeout: 5))
+        newRow.swipeLeft()
+        app.buttons["삭제"].tap()
+        XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
