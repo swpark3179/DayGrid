@@ -14,11 +14,15 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 앱(CI macOS 러너): `xcodegen generate` → `xcodebuild test -project DayGrid.xcodeproj -scheme DayGrid -destination id=<시뮬레이터 UDID> CODE_SIGNING_ALLOWED=NO`
 - 스크린샷: UI 테스트가 `XCTAttachment(lifetime: .keepAlways)`로 남기면, CI가 `screenshots` 아티팩트로 올린다. 이름은 `NN-화면` 형식으로 붙인다.
 - 앱 아이콘: `python3 scripts/make_app_icon.py DayGrid/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png`
+- 음력 표: `pip install korean_lunar_calendar==0.4.0` → `python3 scripts/make_lunar_table.py > Packages/DayGridCore/Sources/DayGridCore/KoreanLunarData.swift`. `KoreanLunarData.swift`는 직접 고치지 않는다.
+- 선거일과 임시공휴일: `DayGrid/Resources/holidays/KR-overrides.json`에 더하고 `version`을 올린다. 앱이 main 브랜치의 이 파일을 하루에 한 번까지 받아 온다.
 - 본문 미리보기 JS(markdown-it, DOMPurify): `scripts/vendor_markdown.sh`로만 갱신한다. 버전은 스크립트 안에 고정돼 있다. `DayGrid/Resources/markdown/`은 폴더 참조로 번들에 들어간다(`project.yml`).
 - TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, API 키 클라우드 서명으로 내보내면서 업로드한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
 
 ## 규칙
 - 종일/기간 일정, 휴일, 생일은 `LocalDate`(yyyymmdd)로 다룬다. 시간 일정만 `Date`를 쓴다.
+- 음력은 Core `KoreanLunarCalendar`(한국천문연구원 기준 표)로만 계산한다. `Calendar(identifier: .chinese)`는 한국 음력과 날짜가 다를 수 있어 쓰지 않는다.
+- 공휴일은 Core `KoreanHolidays`가 계산하고, 앱에서는 `HolidayService`(보정 자료, 연도별 캐시)를 거쳐 쓴다. 날짜 칸 표시는 Core `DayMarks`로 모은다.
 - `Item`의 `startDayKey`/`endDayKey`는 yyyymmdd 정수이고 0이면 날짜 없음("나중에 할일")이다. 시간 일정에서는 조회용 색인일 뿐이므로, 표시할 날짜는 `calendarEntry(in:)`로 다시 계산한다.
 - "나중에"로 보낼 때는 `unschedule()`이 아니라 `moveToInbox(order: Item.topInboxOrder(in:))`를 쓴다. 직전 일정의 모양(`ScheduleHint`)이 남아, 다시 날짜를 정할 때 기본값이 된다. 목록 순서는 `inboxOrder` 오름차순이다.
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
@@ -27,7 +31,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - UI 문자열은 한국어로 쓴다. 주 시작 요일 기본값은 일요일이다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - 목록 행을 밀 때는 텍스트에서 `swipeLeft()`를 하지 말고, 셀 좌표로 끈다. `ScreenshotTests.drag(_:from:to:)`를 쓰고, 왼쪽으로 밀 때는 85% → 15%, 오른쪽으로 밀 때는 15% → 85%로 끈다. 작은 텍스트에서 밀면 끄는 거리가 짧아 탭으로 처리된다.

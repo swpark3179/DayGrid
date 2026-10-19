@@ -10,7 +10,10 @@ struct MonthPageView: View {
     let onSelectDay: (LocalDate) -> Void
     let onAddItem: (LocalDate) -> Void
 
+    @Environment(HolidayService.self) private var holidayService
     @Query private var items: [Item]
+    @Query private var personalHolidays: [PersonalHoliday]
+    @Query private var people: [Person]
 
     init(
         month: LocalDate,
@@ -26,6 +29,7 @@ struct MonthPageView: View {
         self.onAddItem = onAddItem
         let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
         _items = Query(filter: Item.predicate(overlapping: visibleDays), sort: \Item.startDayKey)
+        _personalHolidays = Query(filter: PersonalHoliday.predicate(overlapping: visibleDays))
     }
 
     var body: some View {
@@ -40,6 +44,7 @@ struct MonthPageView: View {
                 maxVisibleLanes: laneLimit
             )
             let itemsByID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let marks = dayMarks
 
             VStack(spacing: 0) {
                 ForEach(grid.weeks) { week in
@@ -48,6 +53,7 @@ struct MonthPageView: View {
                         today: today,
                         laneLimit: laneLimit,
                         itemsByID: itemsByID,
+                        marks: marks,
                         onSelectDay: onSelectDay,
                         onAddItem: onAddItem
                     )
@@ -55,5 +61,16 @@ struct MonthPageView: View {
                 }
             }
         }
+    }
+
+    /// 보이는 날짜의 공휴일, 개인 휴일, 생일.
+    private var dayMarks: [LocalDate: DayMark] {
+        let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
+        return DayMarks.make(
+            in: visibleDays,
+            holidays: holidayService.holidays(in: visibleDays),
+            personalHolidays: personalHolidays.compactMap { $0.mark },
+            birthdays: people.map { (name: $0.name, birthday: $0.birthday) }
+        )
     }
 }
