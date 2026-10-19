@@ -222,6 +222,12 @@ extension LocalDate {
         LocalDate(now, in: timeZone)
     }
 
+    /// `date`가 `timeZone`에서 자정부터 지난 분.
+    public static func minuteOfDay(_ date: Date, in timeZone: TimeZone = .current) -> Int {
+        let time = gregorian(in: timeZone).dateComponents([.hour, .minute], from: date)
+        return (time.hour ?? 0) * 60 + (time.minute ?? 0)
+    }
+
     static func gregorian(in timeZone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

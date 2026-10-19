@@ -3,6 +3,7 @@ import Foundation
 import SwiftData
 
 /// UI 테스트와 스크린샷용 샘플 일정. 날짜는 모두 `today` 기준 상대값이다(기준일 2026-10-19).
+/// 날짜가 있는 일정 15개와 "나중에" 목록 항목 5개(그중 완료 1개, 미뤄 둔 일정 1개)를 넣는다.
 enum SampleData {
     static func insert(into context: ModelContext, today: LocalDate, timeZone: TimeZone = .current) throws {
         let categories = try context.fetch(FetchDescriptor<ItemCategory>())
@@ -38,6 +39,24 @@ enum SampleData {
         timed("세미나", "업무", 11, 9)
         timed("병원", "건강", 11, 15)
         timed("저녁 약속", "개인", 11, 19)
+
+        func inbox(_ title: String, _ categoryName: String, order: Double, isDone: Bool = false) {
+            let item = Item(title: title, isTask: true, category: category(categoryName))
+            item.inboxOrder = order
+            if isDone {
+                item.completedAt = today.date(hour: 9, in: timeZone)
+            }
+            context.insert(item)
+        }
+
+        inbox("책 반납하기", "개인", order: 0)
+        inbox("선물 고르기", "가족", order: 1)
+        inbox("건강검진 예약", "건강", order: 2)
+        let cleaning = Item(title: "대청소", category: category("가족"))
+        cleaning.scheduleAllDay(from: today.adding(days: 12), through: today.adding(days: 13))
+        cleaning.moveToInbox(order: 3, timeZone: timeZone)
+        context.insert(cleaning)
+        inbox("우산 사기", "기타", order: 4, isDone: true)
         try context.save()
     }
 }

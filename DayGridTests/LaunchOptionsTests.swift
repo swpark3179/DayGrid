@@ -22,6 +22,12 @@ struct LaunchOptionsTests {
         #expect(!LaunchOptions(arguments: ["DayGrid", "-UITestColorScheme"]).forcesDarkAppearance)
     }
 
+    @Test func parsesQuickAction() {
+        #expect(LaunchOptions(arguments: ["DayGrid", "-UITestQuickAction", "addTask"]).quickAction == .addTask)
+        #expect(LaunchOptions(arguments: ["DayGrid", "-UITestQuickAction", "unknown"]).quickAction == nil)
+        #expect(LaunchOptions(arguments: ["DayGrid"]).quickAction == nil)
+    }
+
     @Test(arguments: [
         ["DayGrid", "-UITestFixedToday"],
         ["DayGrid", "-UITestFixedToday", "2026-02-30"],

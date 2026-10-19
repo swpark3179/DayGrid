@@ -18,7 +18,7 @@ enum ItemTimeText {
         return "\(startDay.koreanMonthDayText) \(time(start, timeZone)) – \(endDay.koreanMonthDayText) \(time(end, timeZone))"
     }
 
-    private static func time(_ date: Date, _ timeZone: TimeZone) -> String {
+    static func time(_ date: Date, _ timeZone: TimeZone = .current) -> String {
         var style = Date.FormatStyle(date: .omitted, time: .shortened)
         style.timeZone = timeZone
         return date.formatted(style)

@@ -44,9 +44,16 @@ struct ItemEditorView: View {
                 }
 
                 Section {
-                    Toggle("종일", isOn: $draft.isAllDay)
-                    DatePicker("시작", selection: startBinding, displayedComponents: dateComponents)
-                    DatePicker("종료", selection: $draft.end, in: draft.earliestEnd()..., displayedComponents: dateComponents)
+                    Toggle("날짜 지정", isOn: $draft.hasDate)
+                    if draft.hasDate {
+                        Toggle("종일", isOn: $draft.isAllDay)
+                        DatePicker("시작", selection: startBinding, displayedComponents: dateComponents)
+                        DatePicker("종료", selection: $draft.end, in: draft.earliestEnd()..., displayedComponents: dateComponents)
+                    }
+                } footer: {
+                    if !draft.hasDate {
+                        Text("날짜를 정하지 않으면 '나중에' 목록에 들어갑니다.")
+                    }
                 }
 
                 Section {
@@ -117,20 +124,23 @@ struct ItemEditorView: View {
     }
 
     private func save() {
+        let topInboxOrder = Item.topInboxOrder(in: modelContext)
         let item: Item
         if let editingItem {
             item = editingItem
         } else {
             item = Item(title: draft.trimmedTitle)
+            item.inboxOrder = topInboxOrder
             modelContext.insert(item)
         }
-        draft.apply(to: item, categories: categories)
+        draft.apply(to: item, categories: categories, inboxOrder: topInboxOrder)
         try? modelContext.save()
         dismiss()
     }
 
     private func saveCopy() {
         let copy = Item(title: draft.trimmedTitle)
+        copy.inboxOrder = Item.topInboxOrder(in: modelContext)
         modelContext.insert(copy)
         draft.apply(to: copy, categories: categories)
         try? modelContext.save()

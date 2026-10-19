@@ -38,6 +38,7 @@ struct ItemDraftTests {
         #expect(LocalDate(draft.start, in: seoul) == day(2026, 10, 21))
         #expect(!draft.isAllDay)
         #expect(!draft.isTask)
+        #expect(draft.hasDate)
         #expect(draft.categoryID == categoryID)
         #expect(!draft.canSave)
     }
@@ -148,6 +149,65 @@ struct ItemDraftTests {
         #expect(copy.startDate == original.startDate)
         #expect(copy.endDate == original.endDate)
         #expect(copy.body == original.body)
+    }
+
+    @Test func undatedItemKeepsItsPlaceInTheInbox() {
+        let item = Item(title: "책", isTask: true)
+        item.inboxOrder = 2
+        context.insert(item)
+
+        var draft = ItemDraft(item: item, today: day(2026, 10, 19), timeZone: seoul)
+        #expect(!draft.hasDate)
+        #expect(draft.isAllDay)
+        #expect(LocalDate(draft.start, in: seoul) == day(2026, 10, 19))
+
+        draft.title = "책 반납"
+        draft.apply(to: item, categories: [], inboxOrder: -5, timeZone: seoul)
+        #expect(item.title == "책 반납")
+        #expect(!item.isScheduled)
+        #expect(item.inboxOrder == 2)
+        #expect(item.scheduleHint == ScheduleHint())
+    }
+
+    @Test func turningOffTheDateMovesTheItemToTheInbox() {
+        let item = Item(title: "치과")
+        context.insert(item)
+        item.scheduleTimed(
+            start: day(2026, 10, 5).date(hour: 14, in: seoul),
+            end: day(2026, 10, 5).date(hour: 15, minute: 30, in: seoul),
+            timeZone: seoul
+        )
+
+        var draft = ItemDraft(item: item, timeZone: seoul)
+        #expect(draft.hasDate)
+        draft.hasDate = false
+        draft.apply(to: item, categories: [], inboxOrder: -3, timeZone: seoul)
+        #expect(!item.isScheduled)
+        #expect(item.startDate == nil)
+        #expect(item.inboxOrder == -3)
+        #expect(item.scheduleHint == ScheduleHint(isAllDay: false, startMinute: 14 * 60, durationMinutes: 90))
+    }
+
+    @Test func undatedDraftStartsFromTheHint() {
+        let item = Item(title: "치과")
+        context.insert(item)
+        item.scheduleTimed(
+            start: day(2026, 10, 5).date(hour: 14, in: seoul),
+            end: day(2026, 10, 5).date(hour: 15, minute: 30, in: seoul),
+            timeZone: seoul
+        )
+        item.moveToInbox(order: 0, timeZone: seoul)
+
+        var draft = ItemDraft(item: item, today: day(2026, 10, 21), timeZone: seoul)
+        #expect(!draft.hasDate)
+        #expect(!draft.isAllDay)
+        #expect(draft.start == day(2026, 10, 21).date(hour: 14, in: seoul))
+        #expect(draft.end == day(2026, 10, 21).date(hour: 15, minute: 30, in: seoul))
+
+        draft.hasDate = true
+        draft.apply(to: item, categories: [], timeZone: seoul)
+        #expect(item.startDayKey == 20_261_021)
+        #expect(item.startDate == draft.start)
     }
 
     @Test func duplicateCopiesTheScheduleButNotCompletion() throws {

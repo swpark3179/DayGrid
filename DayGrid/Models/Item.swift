@@ -24,8 +24,12 @@ final class Item {
     var startDate: Date?
     var endDate: Date?
     var completedAt: Date?
-    /// "나중에" 목록에서의 순서(Phase 4).
+    /// "나중에" 목록에서의 순서. 작을수록 위에 있다.
     var inboxOrder: Double = 0
+    /// 미루기 전 일정의 모양(`ScheduleHint`). 일수가 0이면 남긴 모양이 없다.
+    var hintDayCount: Int = 0
+    var hintStartMinute: Int = 0
+    var hintDurationMinutes: Int = 0
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
     var category: ItemCategory?
@@ -76,6 +80,9 @@ extension Item {
         copy.startDate = startDate
         copy.endDate = endDate
         copy.inboxOrder = inboxOrder
+        copy.hintDayCount = hintDayCount
+        copy.hintStartMinute = hintStartMinute
+        copy.hintDurationMinutes = hintDurationMinutes
         return copy
     }
 
@@ -96,6 +103,52 @@ extension Item {
         updatedAt = Date()
     }
 
+    /// 날짜를 다시 정할 때 쓸 모양. 미룬 적이 없으면 기본값(종일 하루, 시간 일정이면 09:00부터 한 시간).
+    var scheduleHint: ScheduleHint {
+        guard hintDayCount > 0 else { return ScheduleHint(isAllDay: isAllDay) }
+        return ScheduleHint(
+            isAllDay: isAllDay,
+            dayCount: hintDayCount,
+            startMinute: hintStartMinute,
+            durationMinutes: hintDurationMinutes
+        )
+    }
+
+    /// 지금 일정의 모양. 날짜가 없으면 `nil`.
+    func currentScheduleHint(in timeZone: TimeZone = .current) -> ScheduleHint? {
+        if isAllDay {
+            guard let start = startDay else { return nil }
+            return .allDay(from: start, through: endDay ?? start)
+        }
+        guard isScheduled, let startDate else { return nil }
+        return .timed(start: startDate, end: endDate ?? startDate, timeZone: timeZone)
+    }
+
+    /// 날짜를 비우고 "나중에" 목록의 `order` 자리에 넣는다.
+    /// 지금 일정의 모양은 다음에 날짜를 정할 때 기본값으로 쓰도록 남긴다.
+    func moveToInbox(order: Double, timeZone: TimeZone = .current) {
+        if let hint = currentScheduleHint(in: timeZone) {
+            hintDayCount = hint.dayCount
+            hintStartMinute = hint.startMinute
+            hintDurationMinutes = hint.durationMinutes
+        }
+        unschedule()
+        inboxOrder = order
+    }
+
+    /// `day`에 `hint` 모양으로 일정을 정한다.
+    func schedule(on day: LocalDate, using hint: ScheduleHint, timeZone: TimeZone = .current) {
+        if hint.isAllDay {
+            scheduleAllDay(from: day, through: hint.endDay(startingOn: day))
+        } else {
+            scheduleTimed(
+                start: hint.startDate(on: day, in: timeZone),
+                end: hint.endDate(on: day, in: timeZone),
+                timeZone: timeZone
+            )
+        }
+    }
+
     /// 달력 배치용 값. 날짜가 없으면 `nil`.
     func calendarEntry(in timeZone: TimeZone = .current) -> CalendarEntry? {
         if isAllDay {
@@ -113,5 +166,20 @@ extension Item {
         return #Predicate<Item> { item in
             item.startDayKey > 0 && item.startDayKey <= upper && item.endDayKey >= lower
         }
+    }
+
+    /// 날짜가 없는 항목("나중에" 목록).
+    static var inboxPredicate: Predicate<Item> {
+        #Predicate<Item> { item in
+            item.startDayKey == 0
+        }
+    }
+
+    /// "나중에" 목록 맨 위에 넣을 때 쓸 순서 값.
+    static func topInboxOrder(in context: ModelContext) -> Double {
+        var descriptor = FetchDescriptor<Item>(predicate: inboxPredicate, sortBy: [SortDescriptor(\.inboxOrder)])
+        descriptor.fetchLimit = 1
+        let first = (try? context.fetch(descriptor))?.first?.inboxOrder ?? 0
+        return first - 1
     }
 }

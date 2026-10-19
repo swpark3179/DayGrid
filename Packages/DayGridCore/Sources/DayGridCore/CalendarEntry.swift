@@ -38,8 +38,7 @@ public struct CalendarEntry: Hashable, Sendable, Identifiable {
     public static func timed(id: UUID, start: Date, end: Date, timeZone: TimeZone = .current) -> CalendarEntry {
         let startDay = LocalDate(start, in: timeZone)
         let endDay = end > start ? LocalDate(end.addingTimeInterval(-1), in: timeZone) : startDay
-        let time = LocalDate.gregorian(in: timeZone).dateComponents([.hour, .minute], from: start)
-        let startMinute = (time.hour ?? 0) * 60 + (time.minute ?? 0)
+        let startMinute = LocalDate.minuteOfDay(start, in: timeZone)
         return CalendarEntry(id: id, startDay: startDay, endDay: endDay, isAllDay: false, startMinute: startMinute)
     }
 }

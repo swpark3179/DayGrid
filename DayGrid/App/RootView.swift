@@ -12,6 +12,7 @@ struct RootView: View {
     @Environment(AppClock.self) private var clock
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .calendar
+    @State private var inboxFocusRequest = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -19,7 +20,7 @@ struct RootView: View {
                 CalendarTab(today: clock.today)
             }
             Tab("나중에", systemImage: "tray", value: AppTab.inbox) {
-                InboxTab()
+                InboxTab(focusRequest: inboxFocusRequest)
             }
             Tab("반복", systemImage: "repeat", value: AppTab.recurring) {
                 RecurringTab()
@@ -35,6 +36,15 @@ struct RootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: DispatchQueue.main)) { _ in
             clock.refresh()
+        }
+        .onChange(of: QuickActionCenter.shared.pending, initial: true) { _, action in
+            guard let action else { return }
+            QuickActionCenter.shared.pending = nil
+            switch action {
+            case .addTask:
+                selectedTab = .inbox
+                inboxFocusRequest += 1
+            }
         }
     }
 }
