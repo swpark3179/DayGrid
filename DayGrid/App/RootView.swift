@@ -1,4 +1,4 @@
-import DayGridCore
+import Combine
 import SwiftUI
 
 enum AppTab: Hashable {
@@ -9,14 +9,14 @@ enum AppTab: Hashable {
 }
 
 struct RootView: View {
-    let today: LocalDate
-
+    @Environment(AppClock.self) private var clock
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .calendar
 
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("달력", systemImage: "calendar", value: AppTab.calendar) {
-                CalendarTab(today: today)
+                CalendarTab(today: clock.today)
             }
             Tab("나중에", systemImage: "tray", value: AppTab.inbox) {
                 InboxTab()
@@ -27,6 +27,14 @@ struct RootView: View {
             Tab("설정", systemImage: "gearshape", value: AppTab.settings) {
                 SettingsTab()
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                clock.refresh()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: DispatchQueue.main)) { _ in
+            clock.refresh()
         }
     }
 }

@@ -61,6 +61,17 @@ extension LocalDate {
     public var lastDayOfMonth: LocalDate {
         LocalDate(validatedYear: year, month: month, day: numberOfDaysInMonth)
     }
+
+    /// `year * 12 + (month - 1)`. 월 단위 페이지 번호로 쓴다.
+    public var monthIndex: Int {
+        year * 12 + (month - 1)
+    }
+
+    /// `monthIndex`가 가리키는 달의 1일.
+    public init(firstDayOfMonthIndex index: Int) {
+        let year = index >= 0 ? index / 12 : (index - 11) / 12
+        self.init(validatedYear: year, month: index - year * 12 + 1, day: 1)
+    }
 }
 
 // MARK: - 날짜 산술
@@ -82,11 +93,8 @@ extension LocalDate {
 
     /// 월을 더한다. 대상 월에 같은 날이 없으면 그 달의 말일로 맞춘다(1월 31일 + 1개월 = 2월 28/29일).
     public func adding(months: Int) -> LocalDate {
-        let monthIndex = year * 12 + (month - 1) + months
-        let newYear = monthIndex >= 0 ? monthIndex / 12 : (monthIndex - 11) / 12
-        let newMonth = monthIndex - newYear * 12 + 1
-        let newDay = min(day, Self.numberOfDays(inMonth: newMonth, year: newYear))
-        return LocalDate(validatedYear: newYear, month: newMonth, day: newDay)
+        let first = LocalDate(firstDayOfMonthIndex: monthIndex + months)
+        return LocalDate(validatedYear: first.year, month: first.month, day: min(day, first.numberOfDaysInMonth))
     }
 
     /// `other`까지의 일수. `other`가 더 나중이면 양수.
@@ -214,7 +222,7 @@ extension LocalDate {
         LocalDate(now, in: timeZone)
     }
 
-    private static func gregorian(in timeZone: TimeZone) -> Calendar {
+    static func gregorian(in timeZone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         return calendar
