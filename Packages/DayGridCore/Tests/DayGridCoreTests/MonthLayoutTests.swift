@@ -52,7 +52,7 @@ struct MonthLayoutWeekTests {
         #expect(grid.weeks.allSatisfy { $0.days.count == 7 })
         let firstWeek = grid.weeks[0].days
         #expect(firstWeek.prefix(4).allSatisfy { !$0.isInMonth })
-        #expect(firstWeek.suffix(3).allSatisfy(\.isInMonth))
+        #expect(firstWeek.suffix(3).allSatisfy { $0.isInMonth })
     }
 
     @Test func october2026StartingMonday() {
@@ -99,9 +99,11 @@ struct MonthLayoutSegmentTests {
         let grid = MonthLayout.make(month: day(2026, 10, 1), entries: [allDay(1, day(2026, 10, 9), day(2026, 10, 13))], maxVisibleLanes: 3)
         let first = grid.week(containing: day(2026, 10, 9)).segment(1)!
         let second = grid.week(containing: day(2026, 10, 13)).segment(1)!
-        #expect([first.startColumn, first.length] == [5, 2])
+        #expect(first.startColumn == 5)
+        #expect(first.length == 2)
         #expect(!first.continuesFromPreviousWeek && first.continuesToNextWeek)
-        #expect([second.startColumn, second.length] == [0, 3])
+        #expect(second.startColumn == 0)
+        #expect(second.length == 3)
         #expect(second.continuesFromPreviousWeek && !second.continuesToNextWeek)
     }
 
@@ -112,12 +114,14 @@ struct MonthLayoutSegmentTests {
 
         let inOctober = october.segments(of: 1)
         #expect(inOctober.count == 1)
-        #expect([inOctober[0].startColumn, inOctober[0].length] == [3, 4])
+        #expect(inOctober[0].startColumn == 3)
+        #expect(inOctober[0].length == 4)
         #expect(inOctober[0].continuesToNextWeek)
 
         let inNovember = november.segments(of: 1)
         #expect(inNovember.count == 1)
-        #expect([inNovember[0].startColumn, inNovember[0].length] == [0, 3])
+        #expect(inNovember[0].startColumn == 0)
+        #expect(inNovember[0].length == 3)
         #expect(inNovember[0].continuesFromPreviousWeek)
     }
 
