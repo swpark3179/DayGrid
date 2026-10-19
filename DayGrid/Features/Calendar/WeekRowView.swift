@@ -7,6 +7,8 @@ struct WeekRowView: View {
     let today: LocalDate
     let laneLimit: Int
     let itemsByID: [UUID: Item]
+    var onSelectDay: (LocalDate) -> Void = { _ in }
+    var onAddItem: (LocalDate) -> Void = { _ in }
 
     static let dayNumberHeight: CGFloat = 26
     static let laneHeight: CGFloat = 16
@@ -59,12 +61,46 @@ struct WeekRowView: View {
                             )
                     }
                 }
+
+                // 맨 위에 날짜별 버튼을 깐다. 탭하면 하루 상세, 길게 누르면 메뉴로 바로 추가.
+                HStack(spacing: 0) {
+                    ForEach(week.days) { day in
+                        DayHitTarget(date: day.date, onSelect: onSelectDay, onAdd: onAddItem)
+                            .frame(width: columnWidth, height: geometry.size.height)
+                    }
+                }
             }
         }
         .overlay(alignment: .top) {
             Divider()
         }
         .clipped()
+    }
+}
+
+private struct DayHitTarget: View {
+    let date: LocalDate
+    let onSelect: (LocalDate) -> Void
+    let onAdd: (LocalDate) -> Void
+
+    var body: some View {
+        Button {
+            onSelect(date)
+        } label: {
+            Color.clear
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("이 날에 일정 추가", systemImage: "plus") {
+                onAdd(date)
+            }
+            Button("이 날 보기", systemImage: "calendar") {
+                onSelect(date)
+            }
+        }
+        .accessibilityLabel(date.koreanMonthDayWeekdayText)
+        .accessibilityIdentifier("calendar.day.\(date.iso8601)")
     }
 }
 
@@ -103,6 +139,7 @@ private struct EntryView: View {
         case .bar:
             Text(item.title)
                 .font(.system(size: 11, weight: .semibold))
+                .strikethrough(item.isCompleted)
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .padding(.horizontal, 4)
@@ -123,6 +160,8 @@ private struct EntryView: View {
                     .frame(width: 6, height: 6)
                 Text(item.title)
                     .font(.system(size: 11))
+                    .strikethrough(item.isCompleted)
+                    .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
                     .lineLimit(1)
             }
             .padding(.leading, 2)

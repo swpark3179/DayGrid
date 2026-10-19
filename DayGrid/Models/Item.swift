@@ -66,6 +66,27 @@ extension Item {
         updatedAt = Date()
     }
 
+    /// 같은 내용의 새 항목. 완료 표시와 만든 시각은 새로 시작한다.
+    func duplicate() -> Item {
+        let copy = Item(title: title, isTask: isTask, category: category)
+        copy.body = body
+        copy.isAllDay = isAllDay
+        copy.startDayKey = startDayKey
+        copy.endDayKey = endDayKey
+        copy.startDate = startDate
+        copy.endDate = endDate
+        copy.inboxOrder = inboxOrder
+        return copy
+    }
+
+    /// 할일의 완료 표시를 바꾼다.
+    func toggleCompletion(now: Date = Date()) {
+        completedAt = completedAt == nil ? now : nil
+        updatedAt = now
+    }
+
+    var isCompleted: Bool { completedAt != nil }
+
     /// 날짜를 비워 "나중에 할일"로 돌린다.
     func unschedule() {
         startDayKey = 0

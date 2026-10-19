@@ -7,6 +7,8 @@ struct CalendarTab: View {
 
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
     @State private var selectedMonth: Int
+    @State private var selectedDay: DaySelection?
+    @State private var editorMode: ItemEditorView.Mode?
 
     /// 오늘 기준 앞뒤로 넘길 수 있는 달 수.
     private static let monthsAroundToday = 120
@@ -26,7 +28,9 @@ struct CalendarTab: View {
                         MonthPageView(
                             month: LocalDate(firstDayOfMonthIndex: index),
                             today: today,
-                            firstWeekday: firstWeekday
+                            firstWeekday: firstWeekday,
+                            onSelectDay: { selectedDay = DaySelection(date: $0) },
+                            onAddItem: { editorMode = .new($0) }
                         )
                         .tag(index)
                     }
@@ -34,7 +38,19 @@ struct CalendarTab: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(item: $selectedDay) { selection in
+                DayDetailView(date: selection.date)
+                    .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $editorMode) { mode in
+                ItemEditorView(mode: mode)
+            }
         }
+    }
+
+    /// 헤더의 + 버튼으로 추가할 날짜. 이번 달을 보고 있으면 오늘, 아니면 보고 있는 달의 1일.
+    private var dayForNewItem: LocalDate {
+        selectedMonth == today.monthIndex ? today : LocalDate(firstDayOfMonthIndex: selectedMonth)
     }
 
     private var monthRange: ClosedRange<Int> {
@@ -47,6 +63,12 @@ struct CalendarTab: View {
                 .font(.title2.bold())
                 .accessibilityAddTraits(.isHeader)
             Spacer()
+            Button("새 일정", systemImage: "plus") {
+                editorMode = .new(dayForNewItem)
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("calendar.add")
             Button("오늘") {
                 withAnimation {
                     selectedMonth = today.monthIndex
@@ -91,4 +113,11 @@ enum DayStyle {
         default: .primary
         }
     }
+}
+
+/// 하루 상세 시트를 띄우기 위한 선택값.
+struct DaySelection: Identifiable {
+    let date: LocalDate
+
+    var id: Int { date.yyyymmdd }
 }

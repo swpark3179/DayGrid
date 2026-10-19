@@ -7,13 +7,23 @@ struct MonthPageView: View {
     let month: LocalDate
     let today: LocalDate
     let firstWeekday: Int
+    let onSelectDay: (LocalDate) -> Void
+    let onAddItem: (LocalDate) -> Void
 
     @Query private var items: [Item]
 
-    init(month: LocalDate, today: LocalDate, firstWeekday: Int) {
+    init(
+        month: LocalDate,
+        today: LocalDate,
+        firstWeekday: Int,
+        onSelectDay: @escaping (LocalDate) -> Void,
+        onAddItem: @escaping (LocalDate) -> Void
+    ) {
         self.month = month
         self.today = today
         self.firstWeekday = firstWeekday
+        self.onSelectDay = onSelectDay
+        self.onAddItem = onAddItem
         let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
         _items = Query(filter: Item.predicate(overlapping: visibleDays), sort: \Item.startDayKey)
     }
@@ -33,8 +43,15 @@ struct MonthPageView: View {
 
             VStack(spacing: 0) {
                 ForEach(grid.weeks) { week in
-                    WeekRowView(week: week, today: today, laneLimit: laneLimit, itemsByID: itemsByID)
-                        .frame(height: rowHeight)
+                    WeekRowView(
+                        week: week,
+                        today: today,
+                        laneLimit: laneLimit,
+                        itemsByID: itemsByID,
+                        onSelectDay: onSelectDay,
+                        onAddItem: onAddItem
+                    )
+                    .frame(height: rowHeight)
                 }
             }
         }

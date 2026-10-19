@@ -16,4 +16,14 @@ extension LocalDate {
     public var koreanLongText: String {
         "\(year)년 \(month)월 \(day)일 (\(koreanWeekdaySymbol))"
     }
+
+    /// "10월 19일"
+    public var koreanMonthDayText: String {
+        "\(month)월 \(day)일"
+    }
+
+    /// "10월 19일 (월)"
+    public var koreanMonthDayWeekdayText: String {
+        "\(month)월 \(day)일 (\(koreanWeekdaySymbol))"
+    }
 }
