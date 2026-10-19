@@ -13,6 +13,9 @@ final class ItemCategory {
     @Relationship(deleteRule: .nullify, inverse: \Item.category)
     var items: [Item]? = []
 
+    @Relationship(deleteRule: .nullify, inverse: \RecurringTask.category)
+    var recurringTasks: [RecurringTask]? = []
+
     init(id: UUID = UUID(), name: String, colorHex: String, sortOrder: Int) {
         self.id = id
         self.name = name

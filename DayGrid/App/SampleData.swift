@@ -4,7 +4,7 @@ import SwiftData
 
 /// UI 테스트와 스크린샷용 샘플 일정. 날짜는 모두 `today` 기준 상대값이다(기준일 2026-10-19).
 /// 날짜가 있는 일정 15개와 "나중에" 목록 항목 5개(그중 완료 1개, 미뤄 둔 일정 1개)를 넣는다.
-/// 생일 4명(30일 안에 3명, 음력 1명)과 개인 휴일 1개도 넣는다.
+/// 생일 4명(30일 안에 3명, 음력 1명), 개인 휴일 1개, 반복 할일 3개(완료 기록 포함)도 넣는다.
 enum SampleData {
     static func insert(into context: ModelContext, today: LocalDate, timeZone: TimeZone = .current) throws {
         let categories = try context.fetch(FetchDescriptor<ItemCategory>())
@@ -77,6 +77,20 @@ enum SampleData {
         person("아빠", 20)                          // 11/8
         person("이지은", 66)                        // 12/24: 30일 밖
         context.insert(PersonalHoliday(name: "회사 창립기념일", from: today.adding(days: -3), through: today.adding(days: -3)))
+
+        func recurring(_ title: String, _ rule: RecurrenceRule, startOffset: Int, done: [(cycle: Int, on: Int)]) {
+            let task = RecurringTask(title: title, rule: rule, startDay: today.adding(days: startOffset))
+            context.insert(task)
+            for entry in done {
+                let completion = RecurrenceCompletion(cycleStart: today.adding(days: entry.cycle), completedOn: today.adding(days: entry.on))
+                context.insert(completion)
+                completion.task = task
+            }
+        }
+
+        recurring("물 2L 마시기", .daily, startOffset: -14, done: [(-7, -7), (-6, -6), (-4, -4), (-3, -3), (-1, -1)])
+        recurring("헬스장", .weekly(weekdays: [2, 4, 6]), startOffset: -18, done: [(-17, -17), (-14, -13), (-10, -10)]) // 월·수·금
+        recurring("관리비 납부", .monthly(day: 25), startOffset: -48, done: [(-24, -23)])                              // 9/25 주기, 9/26 납부
         try context.save()
     }
 
