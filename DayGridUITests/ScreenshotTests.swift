@@ -78,7 +78,8 @@ final class ScreenshotTests: XCTestCase {
         newRow.tap()
         let editorBar = app.navigationBars["일정 편집"]
         XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "행을 누르면 편집 화면이 열려야 한다")
-        XCTAssertTrue(app.buttons["editor.delete"].exists, "편집 화면에는 삭제 버튼이 있어야 한다")
+        // 삭제 버튼은 폼 아래쪽이라 화면 밖에 있을 수 있다. 제목으로 같은 일정을 열었는지 본다.
+        XCTAssertEqual(app.textFields["editor.title"].value as? String, "UI Test", "누른 일정의 편집 화면이 열려야 한다")
         app.buttons["취소"].tap()
         XCTAssertTrue(editorBar.waitForNonExistence(timeout: 5), "취소하면 편집 화면이 닫혀야 한다")
 
@@ -136,12 +137,13 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(dayList.staticTexts["Inbox Task"].waitForExistence(timeout: 5), "내일(10/20) 상세에 보여야 한다")
         attachScreenshot(of: app, named: "13-day-detail-assigned")
 
-        // 오른쪽으로 밀어서 나중에 하기
+        // 오른쪽으로 밀어서 나중에 하기. 끝까지 밀면 버튼을 누르지 않아도 바로 실행된다(전체 밀기).
         drag(dayList.cells.containing(.staticText, identifier: "Inbox Task").firstMatch, from: 0.15, to: 0.85)
         let deferAction = dayList.buttons["나중에"]
-        XCTAssertTrue(deferAction.waitForExistence(timeout: 5), "오른쪽으로 밀면 나중에 버튼이 나타나야 한다")
-        deferAction.tap()
-        XCTAssertTrue(dayList.staticTexts["Inbox Task"].waitForNonExistence(timeout: 5), "미루면 하루 상세에서 빠져야 한다")
+        if deferAction.waitForExistence(timeout: 2) {
+            deferAction.tap()
+        }
+        XCTAssertTrue(dayList.staticTexts["Inbox Task"].waitForNonExistence(timeout: 5), "오른쪽으로 밀어 미루면 하루 상세에서 빠져야 한다")
         XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5))
         app.buttons["닫기"].tap()
         XCTAssertTrue(dayBar.waitForNonExistence(timeout: 5), "닫기를 누르면 하루 상세가 닫혀야 한다")
