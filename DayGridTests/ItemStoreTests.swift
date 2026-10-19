@@ -110,9 +110,18 @@ struct ItemStoreTests {
         try SampleData.insert(into: context, today: today, timeZone: seoul)
 
         let items = try context.fetch(FetchDescriptor<Item>())
-        #expect(items.count == 15)
-        #expect(items.allSatisfy { $0.category != nil && $0.isScheduled })
+        let scheduled = items.filter { $0.isScheduled }
+        #expect(items.count == 20)
+        #expect(scheduled.count == 15)
+        #expect(items.allSatisfy { $0.category != nil })
         #expect(try titles(overlapping: MonthLayout.visibleDays(of: today)).count == 15)
         #expect(try titles(overlapping: MonthLayout.visibleDays(of: day(2026, 11, 1))) == Set(["출장"]))
+
+        let inbox = try context.fetch(FetchDescriptor<Item>(predicate: Item.inboxPredicate, sortBy: [SortDescriptor(\.inboxOrder)]))
+        #expect(inbox.map { $0.title } == ["책 반납하기", "선물 고르기", "건강검진 예약", "대청소", "우산 사기"])
+        #expect(inbox.map { $0.isCompleted } == [false, false, false, false, true])
+        let cleaning = try #require(inbox.first { $0.title == "대청소" })
+        #expect(!cleaning.isTask)
+        #expect(cleaning.scheduleHint == ScheduleHint(isAllDay: true, dayCount: 2))
     }
 }

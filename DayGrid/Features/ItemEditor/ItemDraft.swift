@@ -5,9 +5,11 @@ import Foundation
 ///
 /// 종일 일정이면 `start`/`end`의 날짜만 쓰고, 시간 일정이면 시각까지 쓴다.
 /// 이렇게 두면 종일 토글을 켰다 꺼도 고른 날짜가 유지된다.
+/// 날짜를 끄면(`hasDate == false`) 저장할 때 "나중에" 목록으로 들어가고, 고른 모양은 힌트로 남는다.
 struct ItemDraft: Equatable {
     var title = ""
     var isTask = false
+    var hasDate = true
     var isAllDay = false
     var start: Date
     var end: Date
@@ -32,8 +34,8 @@ struct ItemDraft: Equatable {
         return ItemDraft(start: start, end: start.addingTimeInterval(3600), categoryID: categoryID)
     }
 
-    /// 이미 있는 일정을 고칠 때. 날짜가 없는 항목이면 오늘 09:00으로 채운다.
-    init(item: Item, timeZone: TimeZone = .current) {
+    /// 이미 있는 일정을 고칠 때. 날짜가 없는 항목이면 미룰 때 남긴 모양을 `today`에 놓아 둔다.
+    init(item: Item, today: LocalDate? = nil, timeZone: TimeZone = .current) {
         if item.isAllDay, let startDay = item.startDay {
             start = startDay.date(hour: 9, in: timeZone)
             end = (item.endDay ?? startDay).date(hour: 10, in: timeZone)
@@ -41,11 +43,19 @@ struct ItemDraft: Equatable {
             start = startDate
             end = item.endDate ?? startDate.addingTimeInterval(3600)
         } else {
-            start = LocalDate.today(in: timeZone).date(hour: 9, in: timeZone)
-            end = start.addingTimeInterval(3600)
+            let hint = item.scheduleHint
+            let day = today ?? LocalDate.today(in: timeZone)
+            if hint.isAllDay {
+                start = day.date(hour: 9, in: timeZone)
+                end = hint.endDay(startingOn: day).date(hour: 10, in: timeZone)
+            } else {
+                start = hint.startDate(on: day, in: timeZone)
+                end = hint.endDate(on: day, in: timeZone)
+            }
         }
         title = item.title
         isTask = item.isTask
+        hasDate = item.isScheduled
         isAllDay = item.isAllDay
         categoryID = item.category?.id
         note = item.body ?? ""
@@ -72,7 +82,11 @@ struct ItemDraft: Equatable {
     }
 
     /// 초안을 모델에 반영한다. 할일이 아니게 되면 완료 표시도 지운다.
-    func apply(to item: Item, categories: [ItemCategory], timeZone: TimeZone = .current) {
+    ///
+    /// 날짜를 끈 채 저장하면 고른 모양을 힌트로 남기고 날짜를 비운다.
+    /// 날짜가 있던 항목은 "나중에" 목록의 `inboxOrder` 자리로 가고, 원래 목록에 있던 항목은 순서를 그대로 둔다.
+    func apply(to item: Item, categories: [ItemCategory], inboxOrder: Double = 0, timeZone: TimeZone = .current) {
+        let wasInInbox = !item.isScheduled
         item.title = trimmedTitle
         item.isTask = isTask
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -82,6 +96,9 @@ struct ItemDraft: Equatable {
             item.scheduleAllDay(from: LocalDate(start, in: timeZone), through: LocalDate(end, in: timeZone))
         } else {
             item.scheduleTimed(start: start, end: end, timeZone: timeZone)
+        }
+        if !hasDate {
+            item.moveToInbox(order: wasInInbox ? item.inboxOrder : inboxOrder, timeZone: timeZone)
         }
         if !isTask {
             item.completedAt = nil

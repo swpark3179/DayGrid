@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 
 /// 날짜를 누르면 열리는 하루 상세 시트. 종일·기간, 시간, 할일 순으로 보여준다.
+/// 행을 왼쪽으로 밀면 삭제·복제, 오른쪽으로 밀면 "나중에"(날짜를 비우고 나중에 목록으로)가 나온다.
 struct DayDetailView: View {
     let date: LocalDate
 
@@ -76,6 +77,13 @@ struct DayDetailView: View {
                                 }
                                 .tint(.blue)
                             }
+                            .swipeActions(edge: .leading) {
+                                Button("나중에") {
+                                    item.moveToInbox(order: Item.topInboxOrder(in: modelContext))
+                                    try? modelContext.save()
+                                }
+                                .tint(.orange)
+                            }
                     }
                 }
             }
@@ -89,21 +97,7 @@ private struct AgendaRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if item.isTask {
-                Button {
-                    item.toggleCompletion()
-                } label: {
-                    Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(item.isCompleted ? Color.accentColor : Color.secondary)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(item.isCompleted ? "완료 취소" : "완료로 표시")
-            } else {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color(hex: item.category?.colorHex ?? CategoryPalette.uncategorizedHex))
-                    .frame(width: 4, height: 34)
-            }
+            ItemMarker(item: item)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .strikethrough(item.isCompleted)

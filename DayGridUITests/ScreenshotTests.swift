@@ -78,23 +78,93 @@ final class ScreenshotTests: XCTestCase {
         newRow.tap()
         let editorBar = app.navigationBars["일정 편집"]
         XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "행을 누르면 편집 화면이 열려야 한다")
-        XCTAssertTrue(app.buttons["editor.delete"].exists, "편집 화면에는 삭제 버튼이 있어야 한다")
+        // 삭제 버튼은 폼 아래쪽이라 화면 밖에 있을 수 있다. 제목으로 같은 일정을 열었는지 본다.
+        XCTAssertEqual(app.textFields["editor.title"].value as? String, "UI Test", "누른 일정의 편집 화면이 열려야 한다")
         app.buttons["취소"].tap()
         XCTAssertTrue(editorBar.waitForNonExistence(timeout: 5), "취소하면 편집 화면이 닫혀야 한다")
 
         // 밀어서 삭제
         XCTAssertTrue(newRow.waitForExistence(timeout: 5), "편집을 취소해도 일정은 그대로 있어야 한다")
-        // 작은 제목 텍스트에서 swipeLeft()를 하면 끄는 거리가 짧아 탭으로 처리된다. 셀 전체 폭에서 끈다.
-        let cell = list.cells.containing(.staticText, identifier: "UI Test").firstMatch
-        XCTAssertTrue(cell.exists, "새 일정의 행 셀을 찾을 수 있어야 한다")
-        cell.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
-            .press(forDuration: 0.1, thenDragTo: cell.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)))
+        drag(list.cells.containing(.staticText, identifier: "UI Test").firstMatch, from: 0.85, to: 0.15)
         XCTAssertFalse(editorBar.exists, "밀기가 탭으로 처리돼 편집 화면이 열리면 안 된다")
         let deleteAction = list.buttons["삭제"]
         XCTAssertTrue(deleteAction.waitForExistence(timeout: 5), "밀면 목록 안에 삭제 버튼이 나타나야 한다")
         deleteAction.tap()
         XCTAssertTrue(newRow.waitForNonExistence(timeout: 5), "삭제한 일정은 목록에서 사라져야 한다")
         XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5), "일정이 없으면 빈 화면 안내가 보여야 한다")
+    }
+
+    @MainActor
+    func testInboxAssignAndDefer() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
+        tabButton("나중에", in: app).tap()
+        XCTAssertTrue(app.navigationBars["나중에"].waitForExistence(timeout: 5))
+        let list = app.descendants(matching: .any)["inbox.list"]
+        XCTAssertTrue(list.staticTexts["책 반납하기"].waitForExistence(timeout: 5), "샘플 할일이 나중에 목록에 보여야 한다")
+
+        // 빠른 입력: 엔터를 치면 바로 들어가고, 입력창에 이어서 쓸 수 있다
+        let input = app.textFields["inbox.input"]
+        input.tap()
+        input.typeText("Inbox Task\n")
+        XCTAssertTrue(list.staticTexts["Inbox Task"].waitForExistence(timeout: 5), "엔터를 치면 바로 목록에 들어가야 한다")
+        input.typeText("Second Task\n")
+        XCTAssertTrue(list.staticTexts["Second Task"].waitForExistence(timeout: 5), "입력창에 이어서 쓸 수 있어야 한다")
+        attachScreenshot(of: app, named: "11-inbox-quick-add")
+        // 빈 채로 엔터를 치면 입력을 마친다
+        input.typeText("\n")
+
+        // 왼쪽으로 밀어서 날짜 정하기
+        drag(list.cells.containing(.staticText, identifier: "Inbox Task").firstMatch, from: 0.85, to: 0.15)
+        let assignAction = list.buttons["날짜"]
+        XCTAssertTrue(assignAction.waitForExistence(timeout: 5), "밀면 목록 안에 날짜 버튼이 나타나야 한다")
+        assignAction.tap()
+        let assignBar = app.navigationBars["날짜 정하기"]
+        XCTAssertTrue(assignBar.waitForExistence(timeout: 5), "날짜 정하기 시트가 열려야 한다")
+        app.buttons["assign.tomorrow"].tap()
+        attachScreenshot(of: app, named: "12-assign-date")
+        app.buttons["assign.save"].tap()
+        XCTAssertTrue(assignBar.waitForNonExistence(timeout: 5), "정하기를 누르면 시트가 닫혀야 한다")
+        XCTAssertTrue(list.staticTexts["Inbox Task"].waitForNonExistence(timeout: 5), "날짜를 정하면 나중에 목록에서 빠져야 한다")
+
+        // 달력과 하루 상세에 보인다
+        tabButton("달력", in: app).tap()
+        XCTAssertTrue(app.staticTexts["Inbox Task"].waitForExistence(timeout: 5), "날짜를 정한 할일이 달력에 보여야 한다")
+        app.buttons["calendar.day.2026-10-20"].tap()
+        let dayBar = app.navigationBars["10월 20일 (화)"]
+        XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
+        let dayList = app.descendants(matching: .any)["dayDetail.list"]
+        XCTAssertTrue(dayList.staticTexts["Inbox Task"].waitForExistence(timeout: 5), "내일(10/20) 상세에 보여야 한다")
+        attachScreenshot(of: app, named: "13-day-detail-assigned")
+
+        // 오른쪽으로 밀어서 나중에 하기. 끝까지 밀면 버튼을 누르지 않아도 바로 실행된다(전체 밀기).
+        drag(dayList.cells.containing(.staticText, identifier: "Inbox Task").firstMatch, from: 0.15, to: 0.85)
+        let deferAction = dayList.buttons["나중에"]
+        if deferAction.waitForExistence(timeout: 2) {
+            deferAction.tap()
+        }
+        XCTAssertTrue(dayList.staticTexts["Inbox Task"].waitForNonExistence(timeout: 5), "오른쪽으로 밀어 미루면 하루 상세에서 빠져야 한다")
+        XCTAssertTrue(app.staticTexts["일정 없음"].waitForExistence(timeout: 5))
+        app.buttons["닫기"].tap()
+        XCTAssertTrue(dayBar.waitForNonExistence(timeout: 5), "닫기를 누르면 하루 상세가 닫혀야 한다")
+
+        // 나중에 목록으로 돌아온다
+        tabButton("나중에", in: app).tap()
+        XCTAssertTrue(list.staticTexts["Inbox Task"].waitForExistence(timeout: 5), "미룬 할일이 나중에 목록에 돌아와야 한다")
+        attachScreenshot(of: app, named: "14-inbox-deferred")
+    }
+
+    @MainActor
+    func testQuickAddShortcut() throws {
+        let app = launchApp(extraArguments: ["-UITestQuickAction", "addTask"])
+        XCTAssertTrue(app.navigationBars["나중에"].waitForExistence(timeout: 15), "퀵 액션으로 열면 나중에 탭이 보여야 한다")
+        let input = app.textFields["inbox.input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: input)
+        XCTAssertEqual(XCTWaiter().wait(for: [focused], timeout: 5), .completed, "입력창에 바로 쓸 수 있어야 한다")
+        input.typeText("Shortcut Task\n")
+        XCTAssertTrue(app.descendants(matching: .any)["inbox.list"].staticTexts["Shortcut Task"].waitForExistence(timeout: 5))
+        attachScreenshot(of: app, named: "15-quick-add-shortcut")
     }
 
     @MainActor
@@ -108,6 +178,14 @@ final class ScreenshotTests: XCTestCase {
         ] + extraArguments
         app.launch()
         return app
+    }
+
+    /// 목록 행을 셀 좌표로 끈다. 작은 텍스트에서 swipe를 하면 끄는 거리가 짧아 탭으로 처리된다.
+    @MainActor
+    private func drag(_ cell: XCUIElement, from startX: CGFloat, to endX: CGFloat) {
+        XCTAssertTrue(cell.waitForExistence(timeout: 5), "끌 행 셀을 찾을 수 있어야 한다")
+        cell.coordinate(withNormalizedOffset: CGVector(dx: startX, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: cell.coordinate(withNormalizedOffset: CGVector(dx: endX, dy: 0.5)))
     }
 
     @MainActor

@@ -42,7 +42,7 @@ docs/ROADMAP.md, CLAUDE.md
 | 모델 | 주요 필드 | 비고 |
 |---|---|---|
 | `ItemCategory` | name, colorHex, sortOrder | 기본 카테고리를 고정 UUID로 시드한다. 나중에 iCloud 병합 시 중복을 막기 위해서다. |
-| `Item` (일정 + 할일 통합) | title, body(markdown?), isTask(체크박스 여부), isAllDay, startDayKey/endDayKey(yyyymmdd, 0 = 날짜 없음), startDate/endDate(Date?), completedAt, category, reminderOffsets, inboxOrder | **날짜가 없으면 "나중에 할일"**이다. 날짜를 배정하면 날짜 필드만 채우고, 보류하면 비운다. 보류할 때는 직전 시간과 기간을 힌트로 보관한다. |
+| `Item` (일정 + 할일 통합) | title, body(markdown?), isTask(체크박스 여부), isAllDay, startDayKey/endDayKey(yyyymmdd, 0 = 날짜 없음), startDate/endDate(Date?), completedAt, category, reminderOffsets, inboxOrder, hintDayCount/hintStartMinute/hintDurationMinutes | **날짜가 없으면 "나중에 할일"**이다. 날짜를 배정하면 날짜 필드만 채우고, 보류하면 비운다. 보류할 때는 직전 일정의 모양(종일 일수, 시작 시각과 길이)을 hint 필드에 보관한다(Core `ScheduleHint`). |
 | `PersonalHoliday` | name, startDay, endDay | 회사 휴가 같은 개인 휴일. 달력에서 공휴일처럼 표시한다. Phase 6에서 추가한다. |
 | `Person` | name, month, day, year?, isLunar, isLeapMonth, contactIdentifier?, notifyDaysBefore | 연락처에서 가져온 사람과 직접 입력한 사람을 같은 모델로 다룬다. |
 | `RecurringTask` | title, body?, category, rule(daily/weekly/monthly), weekdays[], dayOfMonth, startDay, endDay?, notifyMinutes(기본 09:00), isActive | |
@@ -97,6 +97,7 @@ docs/ROADMAP.md, CLAUDE.md
   - 사용자 준비 절차는 `docs/TESTFLIGHT.md`에 있다.
   - CloudKit 같은 entitlement가 생기면(Phase 9) 서명 없는 아카이브로는 부족할 수 있다. 그때 개발 인증서 `.p12` Secret 방식으로 바꾼다.
 - **완료 기준:** iPhone의 TestFlight 앱에서 설치하고 실행된다. 이후 단계는 기기에서도 확인한다.
+- **결과(2026-10-19):** 첫 실행(빌드 1)에서 클라우드 서명과 업로드가 그대로 성공했다(사용자 확인). `.p12` 대안은 쓰지 않았다.
 
 ### Phase 4 — 나중에 할일(인박스): 배정과 보류
 - "나중에" 탭
@@ -108,6 +109,12 @@ docs/ROADMAP.md, CLAUDE.md
 - 할일은 달력과 상세 화면에서 체크박스로 보이고, 완료하면 취소선이 그어진다(상세 화면 체크와 달력 취소선은 Phase 2에서 먼저 넣었다).
 - 홈 화면 아이콘 길게 누르기 퀵 액션 "할일 빠르게 추가"를 넣는다.
 - **완료 기준:** 배정 → 달력 표시 → 보류 → 인박스 복귀 흐름의 UI 테스트가 통과한다.
+- **구현 메모**
+  - 날짜 고르기와 모양 기억은 Core에 있다: `QuickDay`(오늘, 내일, 이번 주말 = 토요일이고 주말이면 오늘), `ScheduleHint`.
+  - 보류는 `Item.moveToInbox(order:)`가 맡는다. 날짜를 비우고 모양을 남기며, 완료 표시는 그대로 둔다. 다시 정할 때는 `Item.schedule(on:using:)`를 쓴다.
+  - 편집 화면에 "날짜 지정" 토글을 넣었다. 끄고 저장하면 "나중에" 목록으로 간다. 인박스 항목을 편집해도 날짜가 생기지 않는다.
+  - 목록 순서: `inboxOrder` 오름차순이다. 새 항목과 미룬 항목은 맨 위(`Item.topInboxOrder(in:)`)에 들어가고, 끌어서 옮기면 0, 1, 2…로 다시 매긴다.
+  - 퀵 액션은 코드로 등록하는 동적 항목이라, 앱을 한 번 실행한 뒤부터 홈 화면에 나온다.
 
 ### Phase 5 — 상세 본문 (마크다운 + HTML)
 - 한 줄 할일은 제목만 쓰면 된다. 본문은 선택 사항이다.
@@ -179,8 +186,8 @@ docs/ROADMAP.md, CLAUDE.md
 - [x] Phase 0: 기반과 CI
 - [x] Phase 1: 데이터 모델과 달력 첫 화면
 - [x] Phase 2: 날짜 상세와 일정 편집
-- [ ] Phase 3: TestFlight 배포 파이프라인
-- [ ] Phase 4: 나중에 할일(인박스), 배정과 보류
+- [x] Phase 3: TestFlight 배포 파이프라인
+- [x] Phase 4: 나중에 할일(인박스), 배정과 보류
 - [ ] Phase 5: 상세 본문 (마크다운 + HTML)
 - [ ] Phase 6: 공휴일, 개인 휴일, 생일
 - [ ] Phase 7: 반복 할일
