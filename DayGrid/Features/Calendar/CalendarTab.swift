@@ -5,6 +5,8 @@ import SwiftUI
 /// 첫 화면. 좌우로 넘기는 월간 달력.
 struct CalendarTab: View {
     let today: LocalDate
+    /// 값이 들어오면 그 달로 넘기고 하루 상세를 연다(알림을 눌렀을 때).
+    @Binding var dayToOpen: LocalDate?
 
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
     @Query private var people: [Person]
@@ -16,8 +18,9 @@ struct CalendarTab: View {
     /// 오늘 기준 앞뒤로 넘길 수 있는 달 수.
     private static let monthsAroundToday = 120
 
-    init(today: LocalDate) {
+    init(today: LocalDate, dayToOpen: Binding<LocalDate?> = .constant(nil)) {
         self.today = today
+        _dayToOpen = dayToOpen
         _selectedMonth = State(initialValue: today.monthIndex)
     }
 
@@ -48,6 +51,12 @@ struct CalendarTab: View {
             }
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
+            }
+            .onChange(of: dayToOpen, initial: true) { _, day in
+                guard let day else { return }
+                dayToOpen = nil
+                selectedMonth = day.monthIndex
+                selectedDay = DaySelection(date: day)
             }
             .sheet(isPresented: $isShowingBirthdays) {
                 NavigationStack {

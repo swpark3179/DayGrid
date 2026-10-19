@@ -15,6 +15,8 @@ struct ItemDraft: Equatable {
     var end: Date
     var categoryID: UUID?
     var note = ""
+    /// 고른 알림(`ReminderOption.bit`의 합)
+    var reminderMask = 0
 
     private init(start: Date, end: Date, categoryID: UUID?) {
         self.start = start
@@ -59,6 +61,7 @@ struct ItemDraft: Equatable {
         isAllDay = item.isAllDay
         categoryID = item.category?.id
         note = item.body ?? ""
+        reminderMask = item.reminderMask
     }
 
     var trimmedTitle: String {
@@ -92,6 +95,7 @@ struct ItemDraft: Equatable {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         item.body = trimmedNote.isEmpty ? nil : note
         item.category = categories.first { $0.id == categoryID }
+        item.reminderMask = reminderMask
         if isAllDay {
             item.scheduleAllDay(from: LocalDate(start, in: timeZone), through: LocalDate(end, in: timeZone))
         } else {

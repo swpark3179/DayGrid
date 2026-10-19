@@ -23,6 +23,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 종일/기간 일정, 휴일, 생일은 `LocalDate`(yyyymmdd)로 다룬다. 시간 일정만 `Date`를 쓴다.
 - 음력은 Core `KoreanLunarCalendar`(한국천문연구원 기준 표)로만 계산한다. `Calendar(identifier: .chinese)`는 한국 음력과 날짜가 다를 수 있어 쓰지 않는다.
 - 반복 할일의 주기와 상태(완료/n일째/놓침)는 Core `Recurrence`로만 계산한다. 놓침은 저장하지 않는다. 체크는 `RecurringTask.toggleCompletion(of:today:in:)`로 해서 같은 주기에 기록이 둘 생기지 않게 한다.
+- 알림은 Core `ReminderPlanner`로 계획하고 `NotificationScheduler.sync()`로만 예약한다. 알림 권한은 사용자가 알림을 켤 때만 묻는다(`requestAuthorization()`). 화면 코드에서 `UNUserNotificationCenter`를 직접 부르지 않는다.
 - 공휴일은 Core `KoreanHolidays`가 계산하고, 앱에서는 `HolidayService`(보정 자료, 연도별 캐시)를 거쳐 쓴다. 날짜 칸 표시는 Core `DayMarks`로 모은다.
 - `Item`의 `startDayKey`/`endDayKey`는 yyyymmdd 정수이고 0이면 날짜 없음("나중에 할일")이다. 시간 일정에서는 조회용 색인일 뿐이므로, 표시할 날짜는 `calendarEntry(in:)`로 다시 계산한다.
 - "나중에"로 보낼 때는 `unschedule()`이 아니라 `moveToInbox(order: Item.topInboxOrder(in:))`를 쓴다. 직전 일정의 모양(`ScheduleHint`)이 남아, 다시 날짜를 정할 때 기본값이 된다. 목록 순서는 `inboxOrder` 오름차순이다.

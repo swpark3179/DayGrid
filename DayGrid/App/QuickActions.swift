@@ -1,5 +1,7 @@
+import DayGridCore
 import Observation
 import UIKit
+import UserNotifications
 
 /// 홈 화면 아이콘을 길게 누르면 나오는 퀵 액션.
 enum QuickAction: String, CaseIterable {
@@ -29,11 +31,14 @@ final class QuickActionCenter {
 }
 
 /// 퀵 액션 목록을 등록하고, 퀵 액션으로 앱이 처음 열릴 때 그 동작을 받는다.
-final class AppDelegate: NSObject, UIApplicationDelegate {
+/// 알림 센터의 델리게이트도 맡는다(앱을 쓰는 중에도 배너를 보이고, 알림의 "완료"와 탭을 처리한다).
+final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        NotificationScheduler.shared.registerCategories()
         application.shortcutItems = QuickAction.allCases.map { action in
             UIApplicationShortcutItem(
                 type: action.rawValue,
@@ -56,6 +61,31 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
         configuration.delegateClass = SceneDelegate.self
         return configuration
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        // 알림 정보는 보내기 전에 문자열로 꺼낸다(UNNotificationResponse는 다른 액터로 넘길 수 없다).
+        let info = response.notification.request.content.userInfo
+        let action = response.actionIdentifier
+        let day = (info[NotificationScheduler.UserInfoKey.day] as? String).flatMap { LocalDate(iso8601: $0) }
+        let itemID = (info[NotificationScheduler.UserInfoKey.itemID] as? String).flatMap { UUID(uuidString: $0) }
+        let taskID = (info[NotificationScheduler.UserInfoKey.taskID] as? String).flatMap { UUID(uuidString: $0) }
+        let cycleStart = (info[NotificationScheduler.UserInfoKey.cycleStart] as? String).flatMap { LocalDate(iso8601: $0) }
+
+        await MainActor.run {
+            if action == NotificationScheduler.completeAction {
+                NotificationScheduler.shared.complete(itemID: itemID, taskID: taskID, cycleStart: cycleStart)
+            } else if action == UNNotificationDefaultActionIdentifier {
+                NotificationRouter.shared.dayToOpen = day
+            }
+        }
     }
 }
 
