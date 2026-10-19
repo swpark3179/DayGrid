@@ -71,6 +71,7 @@ struct ItemEditorView: View {
                         Button("삭제", role: .destructive) {
                             isConfirmingDeletion = true
                         }
+                        .accessibilityIdentifier("editor.delete")
                         .confirmationDialog("이 일정을 삭제할까요?", isPresented: $isConfirmingDeletion, titleVisibility: .visible) {
                             Button("삭제", role: .destructive) {
                                 delete(item)

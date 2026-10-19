@@ -63,6 +63,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee build/xcodebuild.log
 
+      - name: Show test failures
+        if: failure()
+        run: |
+          if [ -d build/TestResults.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path build/TestResults.xcresult || true
+          fi
+
       - name: Export screenshots
         if: always()
         run: |
