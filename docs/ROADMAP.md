@@ -91,7 +91,11 @@ docs/ROADMAP.md, CLAUDE.md
   - Apple Developer Program 가입. 승인까지 최대 이틀쯤 걸린다.
   - App Store Connect에서 앱 레코드 생성(Bundle ID 결정).
   - App Store Connect API 키(Admin) 발급 후 GitHub Secrets에 등록.
-- `testflight.yml`: macOS 러너에서 `xcodebuild archive/export`를 실행한다. 서명은 API 키 기반 클라우드 서명(`-allowProvisioningUpdates -authenticationKey*`)으로 하고, 막히면 fastlane match로 바꾼다. 빌드 번호는 자동으로 올리고, TestFlight에 업로드한다.
+- `testflight.yml`(수동 실행): macOS 러너에서 서명 없이 `xcodebuild archive`를 하고, `-exportArchive -allowProvisioningUpdates`와 API 키로 Apple 클라우드 배포 인증서 서명을 받아 바로 업로드한다(`ExportOptions.plist`의 `destination: upload`).
+  - 아카이브 단계에서 자동 서명을 쓰면 깨끗한 러너마다 개발 인증서를 새로 만들어 한도에 걸린다. 그래서 아카이브는 서명하지 않는다.
+  - 빌드 번호는 워크플로 실행 번호(`github.run_number`)를 쓴다.
+  - 사용자 준비 절차는 `docs/TESTFLIGHT.md`에 있다.
+  - CloudKit 같은 entitlement가 생기면(Phase 9) 서명 없는 아카이브로는 부족할 수 있다. 그때 개발 인증서 `.p12` Secret 방식으로 바꾼다.
 - **완료 기준:** iPhone의 TestFlight 앱에서 설치하고 실행된다. 이후 단계는 기기에서도 확인한다.
 
 ### Phase 4 — 나중에 할일(인박스): 배정과 보류
@@ -174,7 +178,7 @@ docs/ROADMAP.md, CLAUDE.md
 
 - [x] Phase 0: 기반과 CI
 - [x] Phase 1: 데이터 모델과 달력 첫 화면
-- [ ] Phase 2: 날짜 상세와 일정 편집
+- [x] Phase 2: 날짜 상세와 일정 편집
 - [ ] Phase 3: TestFlight 배포 파이프라인
 - [ ] Phase 4: 나중에 할일(인박스), 배정과 보류
 - [ ] Phase 5: 상세 본문 (마크다운 + HTML)
