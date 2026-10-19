@@ -125,6 +125,12 @@ docs/ROADMAP.md, CLAUDE.md
   - 라이트/다크 CSS를 둔다.
 - 목록 행에는 본문이 있음을 아이콘과 첫 줄 미리보기로 보여준다.
 - **완료 기준:** 표, HTML 태그, 체크리스트가 들어간 본문 미리보기 스크린샷이 나온다.
+- **구현 메모**
+  - 서식 변환(감싸기, 줄 앞 표시, 링크)은 Core `MarkdownFormatter`가 한다. 범위는 UTF-16이고, 앱은 `UITextView.replace(_:withText:)`로 적용해 실행 취소가 된다.
+  - 목록 행의 첫 줄은 Core `MarkdownSummary.firstLine(of:)`로 구한다.
+  - 미리보기 리소스는 `DayGrid/Resources/markdown/`에 있다(markdown-it 14.1.0, DOMPurify 3.4.17). `scripts/vendor_markdown.sh`로만 갱신한다.
+  - 체크리스트 규칙은 `preview.js`에 직접 넣었다. 처음 여는 file URL만 허용하고, 링크는 앱 밖에서 연다.
+  - 편집 화면의 "메모"를 "본문" 화면(편집/미리보기 세그먼트)으로 바꿨다.
 
 ### Phase 6 — 공휴일, 개인 휴일, 생일
 - 공휴일
@@ -178,6 +184,21 @@ docs/ROADMAP.md, CLAUDE.md
 - **대기 알림 64개 제한:** 30일 윈도우 안에서 다시 스케줄링한다.
 - **CloudKit 스키마 제약:** Phase 1부터 모델 규칙을 지킨다. 프로덕션 스키마를 배포한 뒤에는 필드 추가만 한다.
 
+
+## 나중에 할 테스트
+사용자 결정(2026-10-19): CI 결과를 기다리지 않고 다음 단계를 진행한다. 빌드 오류는 바로 고치고, 아래 항목은 나중에 몰아서 확인한다.
+
+- [ ] PR #7(Phase 4) CI의 UI 테스트 결과 확인과 수정(`testInboxAssignAndDefer`, `testQuickAddShortcut`)
+- [ ] Phase 4 TestFlight 기기 확인
+  - 빠른 입력을 연속으로 쓸 수 있는지
+  - 밀기 동작(삭제, 날짜, 완료, 나중에)
+  - 끌어서 순서 바꾸기
+  - 홈 화면 퀵 액션
+  - 기존 데이터가 그대로 남는지
+- [ ] Phase 5 UI 테스트
+  - 본문 미리보기 스크린샷: 표, HTML, 체크리스트, 다크 모드(샘플 "출장"의 본문)
+  - 서식 툴바 스크린샷
+- [ ] Phase 5 TestFlight 기기 확인: 키보드 툴바, 실행 취소, 링크 열기, 다크 모드
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.

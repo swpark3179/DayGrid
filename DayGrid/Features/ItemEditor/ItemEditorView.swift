@@ -65,9 +65,13 @@ struct ItemEditorView: View {
                     }
                 }
 
-                Section("메모") {
-                    TextField("메모", text: $draft.note, axis: .vertical)
-                        .lineLimit(3...8)
+                Section("본문") {
+                    NavigationLink {
+                        BodyEditorView(text: $draft.note)
+                    } label: {
+                        bodyLabel
+                    }
+                    .accessibilityIdentifier("editor.body")
                 }
 
                 if let item = editingItem {
@@ -104,6 +108,23 @@ struct ItemEditorView: View {
                     draft.categoryID = categories.first?.id
                 }
             }
+        }
+    }
+
+    /// 본문이 있으면 첫 줄과 줄 수, 없으면 "본문 추가".
+    @ViewBuilder
+    private var bodyLabel: some View {
+        if let summary = MarkdownSummary.firstLine(of: draft.note) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary)
+                    .lineLimit(1)
+                Text("\(draft.note.split(whereSeparator: \.isNewline).count)줄")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Text("본문 추가")
+                .foregroundStyle(.secondary)
         }
     }
 
