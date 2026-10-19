@@ -122,7 +122,7 @@ final class NotificationScheduler {
     private func plan(context: ModelContext, now: Date) -> [PlannedReminder] {
         let items = (try? context.fetch(FetchDescriptor<Item>(predicate: #Predicate { $0.reminderMask > 0 && $0.startDayKey > 0 }))) ?? []
         let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
-        let tasks = (try? context.fetch(FetchDescriptor<RecurringTask>(predicate: #Predicate { $0.isActive == true }))) ?? []
+        let tasks = (try? context.fetch(FetchDescriptor<RecurringTask>(predicate: RecurringTask.activePredicate))) ?? []
         let birthdayDays = AppSettings.birthdayReminderDays(
             UserDefaults.standard.object(forKey: AppSettings.birthdayReminderKey) as? Int ?? -1
         )
