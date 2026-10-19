@@ -1,0 +1,92 @@
+name: CloudKit schema
+
+# 수동 실행: Actions → CloudKit schema → Run workflow. 준비 방법은 docs/ICLOUD.md.
+# - check: Development 스키마를 내려받아 cloudkit/DayGrid.ckdb와 나란히 보여준다(바꾸지 않는다).
+# - import: cloudkit/DayGrid.ckdb를 Development에 넣는다. 그다음 CloudKit Console에서 Production으로 배포한다.
+# Production은 이 워크플로로 바꿀 수 없다(관리 토큰은 Development만 쓸 수 있다).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check(보기만) 또는 import(Development에 넣기)"
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - import
+
+concurrency:
+  group: cloudkit-schema
+  cancel-in-progress: false
+
+jobs:
+  schema:
+    name: CloudKit schema (${{ inputs.mode }})
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      # cktool은 이 환경 변수의 관리 토큰을 그대로 쓴다. 키체인에 저장하지 않는다.
+      CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_MANAGEMENT_TOKEN }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      CONTAINER_ID: iCloud.io.github.swpark3179.DayGrid
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check secrets
+        run: |
+          missing=0
+          for name in APPLE_TEAM_ID CLOUDKIT_MANAGEMENT_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "::error::GitHub Secret $name is not set. See docs/ICLOUD.md"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Show cktool version and options
+        run: |
+          xcodebuild -version
+          xcrun cktool --help || true
+          xcrun cktool import-schema --help || true
+
+      - name: Export the current Development schema
+        run: |
+          mkdir -p build
+          xcrun cktool export-schema \
+            --team-id "$APPLE_TEAM_ID" \
+            --container-id "$CONTAINER_ID" \
+            --environment development \
+            --output-file build/development-before.ckdb
+          echo "----- Development (before) -----"
+          cat build/development-before.ckdb
+          echo "----- cloudkit/DayGrid.ckdb -----"
+          cat cloudkit/DayGrid.ckdb
+
+      - name: Import into Development
+        if: inputs.mode == 'import'
+        run: |
+          xcrun cktool import-schema \
+            --team-id "$APPLE_TEAM_ID" \
+            --container-id "$CONTAINER_ID" \
+            --environment development \
+            --file cloudkit/DayGrid.ckdb
+          xcrun cktool export-schema \
+            --team-id "$APPLE_TEAM_ID" \
+            --container-id "$CONTAINER_ID" \
+            --environment development \
+            --output-file build/development-after.ckdb
+          echo "----- Development (after) -----"
+          cat build/development-after.ckdb
+          {
+            echo "### CloudKit Development 스키마를 갱신했습니다"
+            echo "CloudKit Console → $CONTAINER_ID → Schema → **Deploy Schema Changes**로 Production에 배포하세요."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload schema files
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cloudkit-schema
+          path: build/*.ckdb
+          if-no-files-found: ignore

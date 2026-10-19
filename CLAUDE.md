@@ -17,6 +17,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 음력 표: `pip install korean_lunar_calendar==0.4.0` → `python3 scripts/make_lunar_table.py > Packages/DayGridCore/Sources/DayGridCore/KoreanLunarData.swift`. `KoreanLunarData.swift`는 직접 고치지 않는다.
 - 선거일과 임시공휴일: `DayGrid/Resources/holidays/KR-overrides.json`에 더하고 `version`을 올린다. 앱이 main 브랜치의 이 파일을 하루에 한 번까지 받아 온다.
 - 본문 미리보기 JS(markdown-it, DOMPurify): `scripts/vendor_markdown.sh`로만 갱신한다. 버전은 스크립트 안에 고정돼 있다. `DayGrid/Resources/markdown/`은 폴더 참조로 번들에 들어간다(`project.yml`).
+- CloudKit 스키마: `.github/workflows/cloudkit-schema.yml`을 수동 실행한다(mode `check`: 보기만, `import`: Development에 넣기). 필요한 Secret은 `CLOUDKIT_MANAGEMENT_TOKEN`, `APPLE_TEAM_ID`다. Production 배포는 사용자가 CloudKit Console에서 한다.
 - TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, API 키 클라우드 서명으로 내보내면서 업로드한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
 
 ## 규칙
@@ -30,14 +31,22 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
 - 모델 이름에 `Category`를 쓰지 않는다. Objective-C 런타임 타입과 겹치므로 `ItemCategory`를 쓴다.
 - SwiftData 모델은 CloudKit 호환으로 만든다. 모든 속성에 기본값을 주거나 optional로 두고, 관계는 optional로 둔다. `@Attribute(.unique)`는 쓰지 않는다.
+- iCloud 동기화(Phase 9)
+  - 컨테이너는 `iCloud.io.github.swpark3179.DayGrid`다(`AppModelContainer.cloudKitContainerID`, `DayGrid/DayGrid.entitlements`). 사용자 준비는 `docs/ICLOUD.md`에 있다.
+  - 모델을 더하거나 속성을 바꾸면 `cloudkit/DayGrid.ckdb`도 바꾼다. `CloudKitSchemaTests`가 실패 메시지로 새 내용을 보여준다. `.ckdb`는 Core `CloudKitSchemaFile`이 만든 그대로 둔다.
+    - 머지한 뒤에는 "CloudKit schema" 워크플로(import)를 실행하고, 사용자가 Production에 배포한 다음에 TestFlight를 올린다.
+    - Production에 배포한 필드는 이름을 바꾸거나 지우거나 타입을 바꾸지 않는다. 더하기만 한다.
+  - 테스트는 iCloud를 쓰지 않는다. UI 테스트(`-UITestSeedData`)와 단위 테스트 호스트는 `LaunchOptions.usesCloudSync`가 false다.
+  - 동기화로 생긴 중복(같은 `id`의 카테고리, 같은 주기의 완료 기록)은 `DuplicateMerger`로만 합친다.
+  - 동기화 상태 문구는 Core `CloudSyncState`가 정한다. `CKContainer`는 부르지 않는다. entitlements가 없는 빌드에서는 앱이 꺼진다.
 - UI 문자열은 한국어로 쓴다. 주 시작 요일 기본값은 일요일이다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–24. 새 화면은 25부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–25. 새 화면은 26부터 붙인다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
 - 목록 행을 밀 때는 텍스트에서 `swipeLeft()`를 하지 말고, 셀 좌표로 끈다. `drag(_:from:to:)`를 쓰고, 왼쪽으로 밀 때는 85% → 15%, 오른쪽으로 밀 때는 15% → 85%로 끈다. 작은 텍스트에서 밀면 끄는 거리가 짧아 탭으로 처리된다.
   - 끝까지 끌면 첫 번째 동작이 전체 밀기로 바로 실행될 수 있다. 버튼이 나타나면 누르고, 결과(행이 사라짐 등)로 확인한다.

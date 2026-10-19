@@ -8,7 +8,7 @@ Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 
 ## 1. 번들 ID 등록
 1. [developer.apple.com/account](https://developer.apple.com/account) → **Certificates, IDs & Profiles** → **Identifiers** → `+`
 2. **App IDs** → **App** 선택 → Continue
-3. 다음과 같이 입력하고 Continue → Register를 누릅니다. Capabilities는 지금은 아무것도 켜지 않습니다.
+3. 다음과 같이 입력하고 Continue → Register를 누릅니다. Capabilities는 여기서 켜지 않습니다. iCloud는 나중에 `docs/ICLOUD.md`대로 켭니다.
    - Description: `DayGrid`
    - Bundle ID: **Explicit**, `io.github.swpark3179.DayGrid`
 

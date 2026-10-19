@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  iCloud(CloudKit) 동기화. 컨테이너는 developer.apple.com에서 만들고 App ID에 연결해 둔다(docs/ICLOUD.md).
+  CI 시뮬레이터 빌드는 CODE_SIGNING_ALLOWED=NO라 이 파일이 적용되지 않는다.
+  TestFlight 워크플로는 배포용 사본(aps-environment=production)으로 서명한다.
+-->
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.io.github.swpark3179.DayGrid</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+</dict>
+</plist>

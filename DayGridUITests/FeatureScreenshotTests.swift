@@ -1,6 +1,6 @@
 import XCTest
 
-/// Phase 5–7 화면(본문, 휴일·생일, 반복 할일)을 샘플 데이터로 확인하고 스크린샷(16–24)을 남긴다.
+/// Phase 5–7, 9 화면(본문, 휴일·생일, 반복 할일, 동기화 상태)을 샘플 데이터로 확인하고 스크린샷(16–25)을 남긴다.
 final class FeatureScreenshotTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -189,6 +189,24 @@ final class FeatureScreenshotTests: XCTestCase {
         app.buttons["저장"].tap()
         XCTAssertTrue(newBar.waitForNonExistence(timeout: 5))
         XCTAssertTrue(list.staticTexts["Stretch"].waitForExistence(timeout: 5), "저장한 반복 할일이 목록에 보여야 한다")
+    }
+
+    // MARK: - Phase 9: iCloud 동기화 상태
+
+    @MainActor
+    func testSettingsSyncStatus() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
+        tabButton("설정", in: app).tap()
+        XCTAssertTrue(app.navigationBars["설정"].waitForExistence(timeout: 5))
+        let sync = element("settings.sync", in: app)
+        scrollUntilVisible(sync, in: app)
+        // UI 테스트는 메모리 저장소를 쓰므로 iCloud에 연결하지 않는다
+        XCTAssertTrue(
+            labelContaining("이 실행에서는 iCloud 동기화를 쓰지 않습니다", in: app).waitForExistence(timeout: 5),
+            "동기화를 쓰지 않는 이유가 보여야 한다"
+        )
+        attachScreenshot(of: app, named: "25-settings-sync")
     }
 
     // MARK: - 도우미

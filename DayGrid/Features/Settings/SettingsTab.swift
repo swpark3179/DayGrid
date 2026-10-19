@@ -1,3 +1,4 @@
+import DayGridCore
 import SwiftUI
 
 struct SettingsTab: View {
@@ -49,11 +50,32 @@ struct SettingsTab: View {
                     }
                     NotificationScheduler.shared.scheduleSync(after: .zero)
                 }
+                syncSection
                 Section("정보") {
                     LabeledContent("버전", value: Self.versionText)
                 }
             }
             .navigationTitle("설정")
+        }
+    }
+
+    /// iCloud 동기화 상태. 끄는 스위치는 없다(항상 켬). "최근 동기화: n분 전"은 1분마다 다시 그린다.
+    private var syncSection: some View {
+        let state = CloudSyncMonitor.shared.state
+        return Section {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                LabeledContent("iCloud", value: state.koreanSummary(now: context.date))
+                    .accessibilityIdentifier("settings.sync")
+            }
+            if let detail = state.koreanDetail {
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("동기화")
+        } footer: {
+            Text("iCloud에 로그인되어 있으면 일정, 할일, 생일, 반복 할일이 같은 Apple ID를 쓰는 기기와 자동으로 맞춰집니다.")
         }
     }
 

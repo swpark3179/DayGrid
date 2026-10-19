@@ -28,6 +28,14 @@ struct LaunchOptionsTests {
         #expect(LaunchOptions(arguments: ["DayGrid"]).quickAction == nil)
     }
 
+    @Test func cloudSyncIsOffForTestRuns() {
+        #expect(LaunchOptions(arguments: ["DayGrid"]).usesCloudSync)
+        #expect(!LaunchOptions(arguments: ["DayGrid", "-UITestSeedData"]).usesCloudSync)
+        let host = LaunchOptions(arguments: ["DayGrid"], environment: ["XCTestConfigurationFilePath": "/tmp/x.xctestconfiguration"])
+        #expect(host.isUnitTestHost)
+        #expect(!host.usesCloudSync)
+    }
+
     @Test(arguments: [
         ["DayGrid", "-UITestFixedToday"],
         ["DayGrid", "-UITestFixedToday", "2026-02-30"],
