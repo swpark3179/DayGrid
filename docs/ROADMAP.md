@@ -172,7 +172,7 @@ docs/ROADMAP.md, CLAUDE.md
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
 
-- [ ] Phase 0: 기반과 CI
+- [x] Phase 0: 기반과 CI
 - [ ] Phase 1: 데이터 모델과 달력 첫 화면
 - [ ] Phase 2: 날짜 상세와 일정 편집
 - [ ] Phase 3: TestFlight 배포 파이프라인
