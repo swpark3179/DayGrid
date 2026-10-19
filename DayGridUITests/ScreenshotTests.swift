@@ -84,7 +84,12 @@ final class ScreenshotTests: XCTestCase {
 
         // 밀어서 삭제
         XCTAssertTrue(newRow.waitForExistence(timeout: 5), "편집을 취소해도 일정은 그대로 있어야 한다")
-        newRow.swipeLeft()
+        // 작은 제목 텍스트에서 swipeLeft()를 하면 끄는 거리가 짧아 탭으로 처리된다. 셀 전체 폭에서 끈다.
+        let cell = list.cells.containing(.staticText, identifier: "UI Test").firstMatch
+        XCTAssertTrue(cell.exists, "새 일정의 행 셀을 찾을 수 있어야 한다")
+        cell.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: cell.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)))
+        XCTAssertFalse(editorBar.exists, "밀기가 탭으로 처리돼 편집 화면이 열리면 안 된다")
         let deleteAction = list.buttons["삭제"]
         XCTAssertTrue(deleteAction.waitForExistence(timeout: 5), "밀면 목록 안에 삭제 버튼이 나타나야 한다")
         deleteAction.tap()
