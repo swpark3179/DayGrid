@@ -13,10 +13,7 @@ struct DayDetailView: View {
     @Query private var items: [Item]
     @Query private var personalHolidays: [PersonalHoliday]
     @Query(sort: \Person.name) private var people: [Person]
-    @Query(
-        filter: #Predicate<RecurringTask> { $0.isActive == true },
-        sort: [SortDescriptor(\RecurringTask.sortOrder), SortDescriptor(\RecurringTask.createdAt)]
-    ) private var recurringTasks: [RecurringTask]
+    @Query(filter: RecurringTask.activePredicate, sort: \RecurringTask.sortOrder) private var recurringTasks: [RecurringTask]
     @Environment(AppClock.self) private var clock
     @State private var editorMode: ItemEditorView.Mode?
 
