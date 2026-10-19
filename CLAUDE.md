@@ -7,6 +7,14 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - `*.xcodeproj`는 커밋하지 않는다. 프로젝트 정의는 `project.yml`(XcodeGen)만 고친다.
 - 날짜와 규칙 로직은 `Packages/DayGridCore`(Foundation만 사용)에 두고 `swift test --package-path Packages/DayGridCore`로 검증한다. 이 패키지에 UIKit, SwiftUI, SwiftData를 import하지 않는다.
 
+## 명령
+- Core 테스트: `swift test --package-path Packages/DayGridCore`
+  - 이 클라우드 세션은 네트워크 정책 때문에 download.swift.org에 접근할 수 없어서, 로컬에 Swift를 설치할 수 없다.
+  - 그래서 CI에서 실행한다. ubuntu 잡은 `swift:6.2-noble` 컨테이너를 쓰고, macOS 잡도 같은 테스트를 돌린다.
+- 앱(CI macOS 러너): `xcodegen generate` → `xcodebuild test -project DayGrid.xcodeproj -scheme DayGrid -destination id=<시뮬레이터 UDID> CODE_SIGNING_ALLOWED=NO`
+- 스크린샷: UI 테스트가 `XCTAttachment(lifetime: .keepAlways)`로 남기면, CI가 `screenshots` 아티팩트로 올린다. 이름은 `NN-화면` 형식으로 붙인다.
+- 앱 아이콘: `python3 scripts/make_app_icon.py DayGrid/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png`
+
 ## 규칙
 - 종일/기간 일정, 휴일, 생일은 `LocalDate`(yyyymmdd)로 다룬다. 시간 일정만 `Date`를 쓴다.
 - SwiftData 모델은 CloudKit 호환으로 만든다. 모든 속성에 기본값을 주거나 optional로 두고, 관계는 optional로 둔다. `@Attribute(.unique)`는 쓰지 않는다.

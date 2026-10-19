@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-linux:
+    name: Core tests (Linux)
+    runs-on: ubuntu-24.04
+    container: swift:6.2-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - run: swift --version
+      - run: swift test --package-path Packages/DayGridCore
+
+  app-ios:
+    name: App build, tests & screenshots (iOS Simulator)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Core tests (macOS)
+        run: swift test --package-path Packages/DayGridCore
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Boot simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 scripts/ci/pick_simulator.py)
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl status_bar "$udid" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+
+      - name: Build and test
+        run: |
+          mkdir -p build
+          set -o pipefail
+          xcodebuild test \
+            -project DayGrid.xcodeproj \
+            -scheme DayGrid \
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
+            -resultBundlePath build/TestResults.xcresult \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild.log
+
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p build/screenshots
+          if [ -d build/TestResults.xcresult ]; then
+            xcrun xcresulttool export attachments \
+              --path build/TestResults.xcresult \
+              --output-path build/screenshots
+            python3 scripts/ci/export_screenshots.py build/screenshots
+          fi
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: build/screenshots
+          if-no-files-found: warn
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            build/TestResults.xcresult
+            build/xcodebuild.log
+          if-no-files-found: ignore

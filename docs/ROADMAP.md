@@ -62,7 +62,7 @@ docs/ROADMAP.md, CLAUDE.md
   - ubuntu 잡: `swift test --package-path Packages/DayGridCore`
   - macOS 잡: xcodegen → `xcodebuild test`(iPhone 시뮬레이터) → UI 테스트 스크린샷을 `.xcresult`에서 PNG로 추출해 아티팩트로 업로드한다.
 - 러너 이미지와 Xcode 버전은 착수 시점에 사용 가능한 최신 안정판으로 고정한다.
-- `CLAUDE.md`에 빌드·테스트 명령, 구조, 날짜 규칙을 적는다. 클라우드 세션에서 Linux Swift 툴체인을 설치하는 SessionStart hook도 시도한다. 설치가 안 되면 CI ubuntu 잡으로 대체한다.
+- `CLAUDE.md`에 빌드·테스트 명령, 구조, 날짜 규칙을 적는다. 클라우드 세션은 네트워크 정책 때문에 download.swift.org에 접근할 수 없어서, Core 테스트는 CI ubuntu 잡(`swift:6.2-noble` 컨테이너)에서 돌린다.
 - UI 테스트는 `-UITestFixedToday 2026-10-19 -UITestSeedData` 같은 실행 인자를 받아, 고정된 날짜와 샘플 데이터로 항상 같은 스크린샷을 찍는다.
 - **완료 기준:** CI green, 빈 앱 스크린샷이 아티팩트에 올라온다.
 
