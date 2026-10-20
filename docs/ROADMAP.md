@@ -209,7 +209,9 @@ docs/ROADMAP.md, CLAUDE.md
 - CloudKit 컨테이너 entitlement와 원격 알림 Background Mode를 추가하고, `ModelConfiguration(cloudKitDatabase: .private(...))`로 설정한다.
 - 시드 카테고리 중복을 제거하는 병합 처리를 넣고, 동기화 상태를 설정 화면에 표시한다.
 - **완료 기준:** 앱을 지웠다가 다시 설치해도 데이터가 복원된다. 기기가 2대면 양방향 반영도 확인한다.
-- **결과(2026-10-20):** 사용자가 준비 단계(컨테이너, 토큰, 스키마 배포)와 체크리스트 7장을 모두 확인했다.
+- **현황(2026-10-20):** 사용자가 준비 단계(컨테이너, 토큰)를 마쳤고, 스키마를 Development에 import했다.
+  - TestFlight 실행 #3(iCloud entitlements가 처음 들어간 빌드)이 내보내기에서 실패했다: `Authentication failed`, `No profiles for 'io.github.swpark3179.DayGrid' were found`.
+  - 서명을 고친 뒤 체크리스트 7장을 확인한다.
 - **구현 메모(사용자 결정: 스키마는 GitHub Actions로 자동 준비, 동기화는 항상 켬)**
   - TestFlight 빌드는 CloudKit **Production**을 쓴다.
     - Production 스키마는 자동으로 생기지 않는다. Development에 넣은 뒤 CloudKit Console에서 배포해야 한다.
@@ -326,7 +328,7 @@ docs/ROADMAP.md, CLAUDE.md
 - [x] Phase 6: 공휴일, 개인 휴일, 생일
 - [x] Phase 7: 반복 할일
 - [x] Phase 8: 알림 (미리알림)
-- [x] Phase 9: iCloud 동기화
+- [ ] Phase 9: iCloud 동기화(TestFlight 서명 문제로 기기 확인 전)
 - [ ] Phase 10: 달력·본문 개선(연·월 이동, 개인 휴일 색, 반복 배지, 본문 읽기 화면)
 - [ ] Phase 11: 끌어서 일정 넣기(꾹 눌러 기간, 나중에 → 달력)
 - [ ] Phase 12: 잠금화면 위젯(남은 반복 할일)
