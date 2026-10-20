@@ -100,6 +100,16 @@ docs/ROADMAP.md, CLAUDE.md
     - 이 방식이 안 되면 개발 인증서 `.p12` Secret 방식으로 바꾼다.
 - **완료 기준:** iPhone의 TestFlight 앱에서 설치하고 실행된다. 이후 단계는 기기에서도 확인한다.
 - **결과(2026-10-19):** 첫 실행(빌드 1)에서 클라우드 서명과 업로드가 그대로 성공했다(사용자 확인). `.p12` 대안은 쓰지 않았다.
+- **바뀜(2026-10-20, Phase 9 이후):** 클라우드 서명을 그만 쓰고, App Store Connect API로 실행마다 배포 인증서와 프로파일을 만든다(`scripts/ci/asc_signing.py`).
+  - 이유: iCloud entitlements가 들어가자 Xcode 자동 서명이 `appstoreconnect.apple.com/xcbuild/v1/cloudContainers`에서 API 키로 401을 받았다. 그 결과 "No profiles"로 실패했다(실행 #3, #4).
+  - 순서
+    1. 인증서 키는 러너에서 만든다.
+    2. 아카이브 안의 앱과 확장마다 App Store 프로파일을 만든다.
+    3. App ID 기능과 프로파일 entitlements를 아카이브의 entitlements와 비교한다.
+    4. 수동 서명으로 내보낸다.
+    5. 마지막 단계에서 프로파일을 지우고 인증서를 폐기한다.
+  - 정리하지 못한 "DayGrid CI" 프로파일과 그 인증서는 다음 실행이 먼저 지운다.
+  - 워크플로 입력 `upload`를 끄면 서명까지만 하고, 최종 entitlements를 출력한다.
 
 ### Phase 4 — 나중에 할일(인박스): 배정과 보류
 - "나중에" 탭

@@ -2,7 +2,9 @@
 
 Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 올립니다.
 
-- 서명은 App Store Connect API 키로 Apple 클라우드 서명을 받습니다. 인증서 파일(.p12)을 직접 만들 필요가 없습니다.
+- 서명은 App Store Connect API 키로 합니다. 워크플로가 실행할 때마다 배포 인증서와 프로파일을 만들고, 끝나면 지웁니다. 인증서 파일(.p12)을 직접 만들 필요가 없습니다.
+  - 그래서 developer.apple.com의 Certificates와 Profiles 목록에 "DayGrid CI …" 항목이 실행 중에만 잠깐 생깁니다.
+  - 인증서를 폐기해도 이미 올린 TestFlight 빌드에는 영향이 없습니다.
 - 아래 1~5번은 처음 한 번만 하면 됩니다. 모두 웹 브라우저에서 할 수 있습니다.
 
 ## 1. 번들 ID 등록
@@ -26,7 +28,7 @@ Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 
 1. App Store Connect → **사용자 및 액세스** → **통합** 탭 → **App Store Connect API** → **팀 키** → `+`
 2. 다음과 같이 입력하고 생성합니다.
    - **이름:** `GitHub Actions`
-   - **액세스:** **관리(Admin)**. 클라우드 배포 인증서로 서명하려면 Admin 권한이 필요합니다.
+   - **액세스:** **관리(Admin)**. 배포 인증서와 프로파일을 만들려면 Admin 권한이 필요합니다.
 3. 생성된 키 행에서 다음 세 가지를 확보합니다.
    - **키 ID**(예: `ABCD123456`)
    - 화면 위쪽에 있는 **Issuer ID**(UUID 형식)
@@ -51,6 +53,7 @@ Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 
 - 저장소 → **Actions** → **TestFlight** → **Run workflow**를 누르고 브랜치는 `main`을 고릅니다.
   - Claude에게 "TestFlight에 올려줘"라고 해도 됩니다.
 - 15~20분쯤 걸립니다. 빌드 번호는 실행할 때마다 1씩 올라갑니다.
+- **upload**를 끄고 실행하면 서명까지만 하고 올리지 않습니다. 서명 설정을 바꾼 뒤 확인할 때 씁니다.
 - 끝나면 App Store Connect가 빌드를 처리하는 데 10~30분이 더 걸립니다.
 
 ## 7. iPhone에 설치
@@ -61,6 +64,8 @@ Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 
 
 ## 문제가 생기면
 - **"GitHub Secret … is not set"**: 5번의 Secret 이름 철자를 확인합니다.
-- **내보내기 단계에서 권한 오류(cloud signing permission)**: 3번 키의 액세스가 **관리(Admin)**인지 확인합니다.
+- **"Create signing certificate and profiles" 단계에서 403 같은 권한 오류**: 3번 키의 액세스가 **관리(Admin)**인지 확인합니다.
+- **"배포 인증서를 더 만들 수 없다(한도)"**: developer.apple.com → Certificates에서 쓰지 않는 Apple Distribution 인증서를 폐기(Revoke)합니다.
+- **"App ID … 에 iCloud(또는 App Groups)가 꺼져 있다"**, **"프로파일에 없는 entitlement"**: `docs/ICLOUD.md` 2번, `docs/WIDGET.md` 2–3번대로 App ID를 설정합니다.
 - **"No suitable application records were found"**: 2번의 앱 레코드와 번들 ID가 `io.github.swpark3179.DayGrid`로 일치하는지 확인합니다.
 - 실패한 실행의 `testflight-logs` 아티팩트에 아카이브·내보내기 로그가 들어 있습니다.

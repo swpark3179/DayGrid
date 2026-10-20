@@ -18,7 +18,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 선거일과 임시공휴일: `DayGrid/Resources/holidays/KR-overrides.json`에 더하고 `version`을 올린다. 앱이 main 브랜치의 이 파일을 하루에 한 번까지 받아 온다.
 - 본문 미리보기 JS(markdown-it, DOMPurify): `scripts/vendor_markdown.sh`로만 갱신한다. 버전은 스크립트 안에 고정돼 있다. `DayGrid/Resources/markdown/`은 폴더 참조로 번들에 들어간다(`project.yml`).
 - CloudKit 스키마: `.github/workflows/cloudkit-schema.yml`을 수동 실행한다(mode `check`: 보기만, `import`: Development에 넣기). 필요한 Secret은 `CLOUDKIT_MANAGEMENT_TOKEN`, `APPLE_TEAM_ID`다. Production 배포는 사용자가 CloudKit Console에서 한다.
-- TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, API 키 클라우드 서명으로 내보내면서 업로드한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
+- TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, ad-hoc 서명으로 entitlements를 넣는다. 그다음 `scripts/ci/asc_signing.py`가 App Store Connect API로 배포 인증서와 프로파일을 만들고, 수동 서명으로 내보내면서 업로드한다. 끝나면 인증서와 프로파일을 지운다. Xcode 클라우드 서명은 iCloud 컨테이너 조회에서 401이 나서 쓰지 않는다. 입력 `upload`를 끄면 서명까지만 확인한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
 
 ## 규칙
 - 종일/기간 일정, 휴일, 생일은 `LocalDate`(yyyymmdd)로 다룬다. 시간 일정만 `Date`를 쓴다.
