@@ -25,6 +25,26 @@ struct RecurrenceEngineTests {
         #expect(mondayWednesdayFriday.cycle(containing: day(2026, 10, 1)) == nil, "첫 발생일(10/2) 전에는 주기가 없다")
     }
 
+    @Test func dueMeansTheCurrentCycleIsNotDoneYet() {
+        let daily = Recurrence(rule: .daily, startDay: day(2026, 10, 1), endDay: day(2026, 10, 31))
+        #expect(daily.isDue(on: day(2026, 10, 19), completedCycleStarts: []))
+        #expect(!daily.isDue(on: day(2026, 10, 19), completedCycleStarts: [day(2026, 10, 19)]))
+        // 어제 한 것은 오늘과 상관없다
+        #expect(daily.isDue(on: day(2026, 10, 19), completedCycleStarts: [day(2026, 10, 18)]))
+        #expect(!daily.isDue(on: day(2026, 9, 30), completedCycleStarts: []), "시작 전에는 할 일이 없다")
+        #expect(!daily.isDue(on: day(2026, 11, 1), completedCycleStarts: []), "끝난 뒤에는 할 일이 없다")
+
+        // 월·수·금: 화요일(10/20)은 월요일 주기 안이다
+        #expect(mondayWednesdayFriday.isDue(on: day(2026, 10, 20), completedCycleStarts: []))
+        #expect(!mondayWednesdayFriday.isDue(on: day(2026, 10, 20), completedCycleStarts: [day(2026, 10, 19)]))
+        #expect(!mondayWednesdayFriday.isDue(on: day(2026, 10, 1), completedCycleStarts: []), "첫 발생일 전")
+
+        // 매월 25일: 10/19는 9/25 주기 안이다
+        let monthly = Recurrence(rule: .monthly(day: 25), startDay: day(2026, 9, 1))
+        #expect(monthly.isDue(on: day(2026, 10, 19), completedCycleStarts: [day(2026, 8, 25)]))
+        #expect(!monthly.isDue(on: day(2026, 10, 19), completedCycleStarts: [day(2026, 9, 25)]))
+    }
+
     @Test func weeklyWithoutWeekdaysNeverOccurs() {
         let none = Recurrence(rule: .weekly(weekdays: []), startDay: day(2026, 10, 1))
         #expect(none.occurrences(in: day(2026, 10, 1)...day(2026, 10, 31)).isEmpty)

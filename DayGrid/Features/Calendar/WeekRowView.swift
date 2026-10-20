@@ -111,7 +111,7 @@ private struct DayHitTarget: View {
     }
 }
 
-/// 날짜 숫자. 공휴일·개인 휴일이면 빨갛게 하고, 옆에 이름이나 🎂를 작게 붙인다.
+/// 날짜 숫자. 공휴일이면 빨갛게, 개인 휴일이면 주황으로 하고, 옆에 이름이나 🎂를 작게 붙인다.
 private struct DayNumberView: View {
     let day: MonthGrid.Day
     let isToday: Bool
@@ -131,7 +131,7 @@ private struct DayNumberView: View {
             if let label = mark?.calendarLabel {
                 Text(label)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(dimmed(mark?.isHoliday == true ? Color.red : Color.secondary))
+                    .foregroundStyle(dimmed(labelColor))
                     .lineLimit(1)
             }
         }
@@ -142,7 +142,14 @@ private struct DayNumberView: View {
 
     private var numberColor: Color {
         if isToday { return .white }
-        return dimmed(mark?.isHoliday == true ? .red : DayStyle.color(forWeekday: day.date.weekday))
+        return dimmed(DayStyle.numberColor(for: day.date, mark: mark))
+    }
+
+    /// 이름 글자 색. 휴일이 아니면(생일·반복 할일 표시만 있으면) 회색이다.
+    private var labelColor: Color {
+        if mark?.isPublicHoliday == true { return DayStyle.publicHolidayColor }
+        if mark?.isPersonalHoliday == true { return DayStyle.personalHolidayColor }
+        return .secondary
     }
 
     private func dimmed(_ color: Color) -> Color {

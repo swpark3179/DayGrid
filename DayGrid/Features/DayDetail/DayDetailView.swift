@@ -16,6 +16,7 @@ struct DayDetailView: View {
     @Query(filter: RecurringTask.activePredicate, sort: \RecurringTask.sortOrder) private var recurringTasks: [RecurringTask]
     @Environment(AppClock.self) private var clock
     @State private var editorMode: ItemEditorView.Mode?
+    @State private var readingItem: ReaderSelection?
 
     init(date: LocalDate) {
         self.date = date
@@ -60,6 +61,9 @@ struct DayDetailView: View {
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
             }
+            .sheet(item: $readingItem) { selection in
+                ItemReaderView(item: selection.item, timeText: selection.timeText)
+            }
         }
     }
 
@@ -84,14 +88,14 @@ struct DayDetailView: View {
         if !holidays.isEmpty || !personalHolidays.isEmpty || !birthdayPeople.isEmpty {
             Section("기념일") {
                 ForEach(holidays, id: \.self) { holiday in
-                    SpecialDayRow(title: holiday.name, detail: "공휴일", systemImage: "flag.fill", isHoliday: true)
+                    SpecialDayRow(title: holiday.name, detail: "공휴일", systemImage: "flag.fill", kind: .publicHoliday)
                 }
                 ForEach(personalHolidays) { holiday in
-                    SpecialDayRow(title: holiday.name, detail: "개인 휴일", systemImage: "sun.max.fill", isHoliday: true)
+                    SpecialDayRow(title: holiday.name, detail: "개인 휴일", systemImage: "sun.max.fill", kind: .personalHoliday)
                 }
                 ForEach(birthdayPeople) { person in
                     let detail = [person.birthday.koreanText, person.ordinalText(on: date)].compactMap { $0 }.joined(separator: " · ")
-                    SpecialDayRow(title: "\(person.name) 생일", detail: detail, systemImage: "gift.fill", isHoliday: false)
+                    SpecialDayRow(title: "\(person.name) 생일", detail: detail, systemImage: "gift.fill", kind: .birthday)
                 }
             }
         }
@@ -103,7 +107,9 @@ struct DayDetailView: View {
             Section(title) {
                 ForEach(rows) { row in
                     if let item = itemsByID[row.id] {
-                        AgendaRowView(item: item, row: row)
+                        AgendaRowView(item: item, row: row) { timeText in
+                            readingItem = ReaderSelection(item: item, timeText: timeText)
+                        }
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 editorMode = .edit(item)
@@ -134,47 +140,88 @@ struct DayDetailView: View {
 }
 
 private struct SpecialDayRow: View {
+    enum Kind {
+        case publicHoliday
+        case personalHoliday
+        case birthday
+    }
+
     let title: String
     let detail: String
     let systemImage: String
-    let isHoliday: Bool
+    let kind: Kind
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
-                .foregroundStyle(isHoliday ? Color.red : Color.pink)
+                .foregroundStyle(iconColor)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .foregroundStyle(isHoliday ? Color.red : Color.primary)
+                    .foregroundStyle(titleColor)
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
     }
+
+    private var iconColor: Color {
+        switch kind {
+        case .publicHoliday: DayStyle.publicHolidayColor
+        case .personalHoliday: DayStyle.personalHolidayColor
+        case .birthday: .pink
+        }
+    }
+
+    private var titleColor: Color {
+        switch kind {
+        case .publicHoliday: DayStyle.publicHolidayColor
+        case .personalHoliday: DayStyle.personalHolidayColor
+        case .birthday: .primary
+        }
+    }
 }
 
+/// 하루 상세의 일정 한 줄. 본문이 있으면 오른쪽 버튼으로 읽기 화면을 연다(행을 누르면 편집).
 private struct AgendaRowView: View {
     let item: Item
     let row: DayAgenda.Row
+    let onShowBody: (String) -> Void
 
     var body: some View {
+        let timeText = ItemTimeText.describe(item, row: row)
         HStack(spacing: 12) {
             ItemMarker(item: item)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .strikethrough(item.isCompleted)
                     .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
-                Text(ItemTimeText.describe(item, row: row))
+                Text(timeText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                BodySummaryLine(item: item)
             }
             Spacer(minLength: 0)
+            if item.bodySummary != nil {
+                Button("본문 보기", systemImage: "doc.text") {
+                    onShowBody(timeText)
+                }
+                .labelStyle(.iconOnly)
+                .font(.title3)
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("dayDetail.body")
+            }
         }
         .padding(.vertical, 2)
     }
+}
+
+/// 읽기 화면을 띄우기 위한 선택값. 시간 문구는 하루 상세에서 그 날 기준으로 만든 것을 넘긴다.
+private struct ReaderSelection: Identifiable {
+    let item: Item
+    let timeText: String
+
+    var id: UUID { item.id }
 }
 
 extension Item {
