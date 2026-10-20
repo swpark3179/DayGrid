@@ -124,6 +124,11 @@ struct MonthPageView: View {
             clamped: true
         )
         switch phase {
+        case .tap:
+            // 짧게 누르면 하루 상세. 격자 밖(가장자리 너머)은 무시한다.
+            if let day = MonthLayout.day(atX: location.x, y: location.y, width: size.width, height: size.height, in: visibleDays) {
+                onSelectDay(day)
+            }
         case .began:
             rangeStart = date
             rangeEnd = date

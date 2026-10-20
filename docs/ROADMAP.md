@@ -264,9 +264,14 @@ docs/ROADMAP.md, CLAUDE.md
   - 위치 → 날짜: Core `MonthLayout.dayIndex`/`day(atX:…)`(7열 × 주 수, 같은 크기 칸)
     - 끌기 중에는 `clamped`로 격자 밖을 가장 가까운 칸에 맞춘다.
   - 꾹 눌러 기간 만들기
-    - `RangePressGesture`(iOS 18 `UIGestureRecognizerRepresentable`, UIKit 길게 누르기 0.4초)를 달력 페이지에 단다.
-    - 인식되면 손가락 아래의 스크롤 뷰(달 넘김)를 끝날 때까지 멈춘다(`RangeLongPressRecognizer`). 짧은 탭은 날짜 버튼이 받는다.
-      - SwiftUI 제스처는 스크롤과 함께 인식된다. 그래서 멈추지 않으면 끄는 동안 달이 넘어갔다(PR #15 첫 CI: 10/21 → 10/23으로 끌었더니 9월이 됐다).
+    - `RangePressGesture`(iOS 18 `UIGestureRecognizerRepresentable`)를 달력 페이지에 단다. UIKit 제스처 `DayPressRecognizer` 하나가 탭과 꾹 누르기를 모두 받는다.
+      - 짧게 떼면 탭(하루 상세)이다.
+      - 0.4초 동안 움직이지 않으면 기간 고르기다.
+      - 그 전에 12pt 넘게 움직이면 실패해서 달 넘김에 양보한다.
+    - 날짜 칸은 SwiftUI `Button`이 아니라 접근성 요소다(라벨, 버튼 특성, VoiceOver 실행 동작, `calendar.day.…` 식별자).
+      - PR #15 CI에서 꾹 눌러 끌었더니 달이 9월로 넘어갔다(두 번).
+      - 원인: SwiftUI는 자식 `Button`의 제스처를 부모 `.gesture`보다 먼저 준다. 그래서 꾹 누르기가 시작되지 못했다.
+    - 기간 고르기가 시작되면 손가락 아래의 스크롤 뷰(달 넘김)를 끝날 때까지 멈춘다.
     - 날짜 칸의 `contextMenu`(이 날에 일정 추가)는 뺐다. 움직이지 않고 놓으면 같은 일을 한다.
     - 기간은 `ItemEditorView.Mode.newRange` → `ItemDraft.newAllDay(from:through:)`(종일)로 연다.
   - "나중에" → 달력
