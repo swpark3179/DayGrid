@@ -23,4 +23,12 @@ enum ItemTimeText {
         style.timeZone = timeZone
         return date.formatted(style)
     }
+
+    /// 하루 상세 타임라인 왼쪽의 정시 표기. 예: "오전 9시", "오후 1시". `minute`이 1440이면 다음 날 자정이다.
+    static func hourLabel(_ minute: Int, on day: LocalDate, timeZone: TimeZone = .current) -> String {
+        var style = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated))
+        style.timeZone = timeZone
+        let date = day.adding(days: minute / (24 * 60)).date(hour: minute % (24 * 60) / 60, in: timeZone)
+        return date.formatted(style)
+    }
 }

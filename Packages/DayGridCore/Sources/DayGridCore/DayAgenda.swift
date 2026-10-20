@@ -5,6 +5,9 @@ import Foundation
 /// - `spanning`: 종일 일정과 여러 날에 걸친 일정. 먼저 시작한 것 → 긴 것 → 제목 순.
 /// - `timed`: 그 날 안에 끝나는 시간 일정. 시작 시각 → 제목 순.
 /// - `tasks`: 할일. 안 끝난 것 → 종일 → 시작 시각 → 제목 순.
+///
+/// 타임라인 보기(`separatingTimed`)에서는 시간이 있는 것을 모두 `timed`에 넣는다.
+/// 시간을 정한 할일과 여러 날에 걸친 시간 일정도 포함하고, `spanning`과 `tasks`에는 종일인 것만 남는다.
 public struct DayAgenda: Sendable, Equatable {
     public struct Input: Sendable {
         public let entry: CalendarEntry
@@ -37,11 +40,20 @@ public struct DayAgenda: Sendable, Equatable {
         spanning.isEmpty && timed.isEmpty && tasks.isEmpty
     }
 
-    public static func make(on date: LocalDate, inputs: [Input]) -> DayAgenda {
+    public static func make(on date: LocalDate, inputs: [Input], separatingTimed: Bool = false) -> DayAgenda {
         let covering = inputs.filter { $0.entry.startDay <= date && $0.entry.endDay >= date }
 
+        func isTimed(_ input: Input) -> Bool {
+            separatingTimed ? !input.entry.isAllDay : !input.isTask && input.entry.style == .chip
+        }
+
+        // 이 날 안에서 시작하는 시각. 전날부터 이어지면 0분이다.
+        func startMinute(_ input: Input) -> Int {
+            input.entry.startDay < date ? 0 : input.entry.startMinute ?? 0
+        }
+
         let spanning = covering
-            .filter { !$0.isTask && $0.entry.style == .bar }
+            .filter { !$0.isTask && !isTimed($0) }
             .sorted { a, b in
                 if a.entry.startDay != b.entry.startDay { return a.entry.startDay < b.entry.startDay }
                 let aLength = a.entry.startDay.days(until: a.entry.endDay)
@@ -51,16 +63,16 @@ public struct DayAgenda: Sendable, Equatable {
             }
 
         let timed = covering
-            .filter { !$0.isTask && $0.entry.style == .chip }
+            .filter(isTimed)
             .sorted { a, b in
-                let aMinute = a.entry.startMinute ?? 0
-                let bMinute = b.entry.startMinute ?? 0
+                let aMinute = startMinute(a)
+                let bMinute = startMinute(b)
                 if aMinute != bMinute { return aMinute < bMinute }
                 return tieBreak(a, b)
             }
 
         let tasks = covering
-            .filter(\.isTask)
+            .filter { $0.isTask && !isTimed($0) }
             .sorted { a, b in
                 if a.isCompleted != b.isCompleted { return !a.isCompleted }
                 if a.entry.isAllDay != b.entry.isAllDay { return a.entry.isAllDay }

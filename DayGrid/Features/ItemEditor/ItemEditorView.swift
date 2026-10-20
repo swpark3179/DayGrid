@@ -8,12 +8,15 @@ struct ItemEditorView: View {
         case new(LocalDate)
         /// 달력에서 꾹 눌러 끈 기간의 새 종일 일정
         case newRange(LocalDate, LocalDate)
+        /// 하루 상세 타임라인의 빈 곳을 눌러 그 시각(자정부터 지난 분)부터 여는 새 일정
+        case newTimed(LocalDate, minute: Int)
         case edit(Item)
 
         var id: String {
             switch self {
             case .new(let day): "new-\(day.iso8601)"
             case .newRange(let start, let end): "range-\(start.iso8601)-\(end.iso8601)"
+            case .newTimed(let day, let minute): "timed-\(day.iso8601)-\(minute)"
             case .edit(let item): "edit-\(item.id.uuidString)"
             }
         }
@@ -34,6 +37,8 @@ struct ItemEditorView: View {
             _draft = State(initialValue: .new(on: day, categoryID: nil))
         case .newRange(let start, let end):
             _draft = State(initialValue: .newAllDay(from: start, through: end, categoryID: nil))
+        case .newTimed(let day, let minute):
+            _draft = State(initialValue: .new(on: day, startMinute: minute, categoryID: nil))
         case .edit(let item):
             _draft = State(initialValue: ItemDraft(item: item))
         }
