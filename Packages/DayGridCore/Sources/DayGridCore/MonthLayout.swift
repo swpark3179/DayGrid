@@ -56,6 +56,45 @@ public enum MonthLayout {
         return gridStart...gridEnd
     }
 
+    // MARK: - 화면 위치 → 날짜 칸
+
+    /// 달력 격자(7열 × `weekCount`행, 칸 크기가 모두 같다)에서 위치(왼쪽 위 기준)가 가리키는 칸 번호.
+    /// 칸 번호는 왼쪽 위에서 0부터 오른쪽으로, 줄이 바뀌면 7씩 커진다.
+    /// - Parameter clamped: `true`면 격자 밖 위치를 가장 가까운 칸으로 맞춘다(끌기 중 손가락이 밖으로 나갈 때).
+    ///   `false`면 격자 밖은 `nil`이다.
+    public static func dayIndex(
+        atX x: Double,
+        y: Double,
+        width: Double,
+        height: Double,
+        weekCount: Int,
+        clamped: Bool = false
+    ) -> Int? {
+        guard weekCount > 0, width > 0, height > 0, x.isFinite, y.isFinite else { return nil }
+        if !clamped, !(0..<width).contains(x) || !(0..<height).contains(y) {
+            return nil
+        }
+        let column = min(6, max(0, Int((x / (width / 7)).rounded(.down))))
+        let row = min(weekCount - 1, max(0, Int((y / (height / Double(weekCount))).rounded(.down))))
+        return row * 7 + column
+    }
+
+    /// 위치가 가리키는 날짜. 격자는 `visibleDays`(7의 배수 일)로 그린 달력이다.
+    public static func day(
+        atX x: Double,
+        y: Double,
+        width: Double,
+        height: Double,
+        in visibleDays: ClosedRange<LocalDate>,
+        clamped: Bool = false
+    ) -> LocalDate? {
+        let dayCount = visibleDays.lowerBound.days(until: visibleDays.upperBound) + 1
+        guard let index = dayIndex(atX: x, y: y, width: width, height: height, weekCount: dayCount / 7, clamped: clamped),
+              index < dayCount
+        else { return nil }
+        return visibleDays.lowerBound.adding(days: index)
+    }
+
     /// `month`가 속한 달의 배치를 만든다.
     ///
     /// - 일정은 주 단위 조각으로 잘린다.

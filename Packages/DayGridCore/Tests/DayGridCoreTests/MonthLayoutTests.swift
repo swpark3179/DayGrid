@@ -302,3 +302,37 @@ struct CalendarEntryTests {
         #expect(CalendarEntry(id: uuid(1), startDay: day(2026, 10, 19), endDay: day(2026, 10, 1), isAllDay: true).endDay == day(2026, 10, 19))
     }
 }
+
+@Suite("MonthLayout 위치 → 날짜 칸")
+struct MonthLayoutHitTests {
+    // 2026년 10월(일요일 시작)은 9/27–10/31, 5주다. 격자는 350 × 500(칸 50 × 100).
+    private let october = MonthLayout.visibleDays(of: day(2026, 10, 1))
+
+    @Test func mapsPointsToCells() {
+        #expect(MonthLayout.dayIndex(atX: 0, y: 0, width: 350, height: 500, weekCount: 5) == 0)
+        #expect(MonthLayout.dayIndex(atX: 349.9, y: 0, width: 350, height: 500, weekCount: 5) == 6)
+        #expect(MonthLayout.dayIndex(atX: 50, y: 100, width: 350, height: 500, weekCount: 5) == 8, "칸 경계는 오른쪽·아래 칸")
+        #expect(MonthLayout.dayIndex(atX: 349, y: 499, width: 350, height: 500, weekCount: 5) == 34)
+    }
+
+    @Test func pointsOutsideTheGrid() {
+        #expect(MonthLayout.dayIndex(atX: -1, y: 10, width: 350, height: 500, weekCount: 5) == nil)
+        #expect(MonthLayout.dayIndex(atX: 350, y: 10, width: 350, height: 500, weekCount: 5) == nil)
+        #expect(MonthLayout.dayIndex(atX: 10, y: 500, width: 350, height: 500, weekCount: 5) == nil)
+        #expect(MonthLayout.dayIndex(atX: 10, y: 10, width: 0, height: 500, weekCount: 5) == nil)
+        #expect(MonthLayout.dayIndex(atX: .nan, y: 10, width: 350, height: 500, weekCount: 5) == nil)
+        // 끌기 중에는 가장 가까운 칸으로 맞춘다
+        #expect(MonthLayout.dayIndex(atX: -40, y: -40, width: 350, height: 500, weekCount: 5, clamped: true) == 0)
+        #expect(MonthLayout.dayIndex(atX: 900, y: 900, width: 350, height: 500, weekCount: 5, clamped: true) == 34)
+    }
+
+    @Test func mapsPointsToDates() {
+        #expect(october == day(2026, 9, 27)...day(2026, 10, 31))
+        #expect(MonthLayout.day(atX: 10, y: 10, width: 350, height: 500, in: october) == day(2026, 9, 27))
+        // 셋째 줄(10/11–10/17)의 수요일 = 10/14
+        #expect(MonthLayout.day(atX: 175, y: 250, width: 350, height: 500, in: october) == day(2026, 10, 14))
+        #expect(MonthLayout.day(atX: 345, y: 495, width: 350, height: 500, in: october) == day(2026, 10, 31))
+        #expect(MonthLayout.day(atX: 10, y: 600, width: 350, height: 500, in: october) == nil)
+        #expect(MonthLayout.day(atX: 10, y: 600, width: 350, height: 500, in: october, clamped: true) == day(2026, 10, 25))
+    }
+}

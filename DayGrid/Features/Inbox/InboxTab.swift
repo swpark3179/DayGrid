@@ -5,10 +5,13 @@ import SwiftUI
 /// 날짜를 정하지 않은 할일과 일정("나중에" 목록).
 ///
 /// - 위쪽 입력창에 적고 엔터를 치면 바로 할일로 들어가고, 입력창에 이어서 쓸 수 있다.
-/// - 끌어서 순서를 바꾼다. 왼쪽으로 밀면 삭제·날짜, 오른쪽으로 밀면 완료가 나온다.
+/// - 편집에서 끌어서 순서를 바꾼다. 왼쪽으로 밀면 삭제·날짜, 오른쪽으로 밀면 완료가 나온다.
+/// - 항목을 오래 누르면 끌기가 시작되고 달력 탭으로 바뀐다. 손을 떼지 않고 날짜 위에 놓으면 그 날로 들어간다.
 struct InboxTab: View {
     /// 값이 커지면 입력창에 포커스를 준다(홈 화면 퀵 액션).
     let focusRequest: Int
+    /// 항목 끌기가 시작되면 부른다. RootView가 달력 탭으로 바꾼다.
+    var onDragToCalendar: () -> Void = {}
 
     @Environment(AppClock.self) private var clock
     @Environment(\.modelContext) private var modelContext
@@ -22,9 +25,12 @@ struct InboxTab: View {
     @State private var handledFocusRequest = 0
     @State private var assigningItem: Item?
     @State private var editorMode: ItemEditorView.Mode?
+    /// 순서를 바꾸는 편집 중에는 달력으로 끌지 않는다.
+    @State private var editMode: EditMode = .inactive
 
-    init(focusRequest: Int = 0) {
+    init(focusRequest: Int = 0, onDragToCalendar: @escaping () -> Void = {}) {
         self.focusRequest = focusRequest
+        self.onDragToCalendar = onDragToCalendar
     }
 
     var body: some View {
@@ -73,6 +79,7 @@ struct InboxTab: View {
                     EditButton()
                 }
             }
+            .environment(\.editMode, $editMode)
             .sheet(item: $assigningItem) { item in
                 AssignDateSheet(item: item, today: clock.today)
                     .presentationDetents([.medium, .large])
@@ -97,6 +104,11 @@ struct InboxTab: View {
                 isInputFocused = false
                 editorMode = .edit(item)
             }
+            .modifier(DragToCalendarModifier(item: item, isEnabled: !editMode.isEditing && !item.isCompleted) {
+                isInputFocused = false
+                CalendarDropState.shared.begin(itemID: item.id)
+                onDragToCalendar()
+            })
             .swipeActions(edge: .trailing) {
                 Button("삭제", role: .destructive) {
                     modelContext.delete(item)
@@ -141,6 +153,30 @@ struct InboxTab: View {
             item.inboxOrder = Double(index)
         }
         try? modelContext.save()
+    }
+}
+
+/// 항목을 오래 누르면 끌기를 시작한다. 끌기 데이터는 이 앱 안에서만 보이는 형식(`InboxDragPayload`)이다.
+private struct DragToCalendarModifier: ViewModifier {
+    let item: Item
+    let isEnabled: Bool
+    let onStart: () -> Void
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.onDrag {
+                // 끌기가 시작되는 중에 화면을 바꾸지 않도록 다음 차례에 탭을 바꾼다.
+                Task { @MainActor in onStart() }
+                return InboxDragPayload.provider(for: item.id)
+            } preview: {
+                InboxRowView(item: item)
+                    .padding(.horizontal, 12)
+                    .frame(width: 280, alignment: .leading)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            }
+        } else {
+            content
+        }
     }
 }
 

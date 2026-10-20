@@ -36,6 +36,19 @@ struct ItemDraft: Equatable {
         return ItemDraft(start: start, end: start.addingTimeInterval(3600), categoryID: categoryID)
     }
 
+    /// 달력에서 꾹 눌러 끈 기간(`first`…`last`, 순서 무관)의 새 종일 일정.
+    static func newAllDay(from first: LocalDate, through last: LocalDate, categoryID: UUID?, timeZone: TimeZone = .current) -> ItemDraft {
+        let startDay = min(first, last)
+        let endDay = max(first, last)
+        var draft = ItemDraft(
+            start: startDay.date(hour: 9, in: timeZone),
+            end: endDay.date(hour: 10, in: timeZone),
+            categoryID: categoryID
+        )
+        draft.isAllDay = true
+        return draft
+    }
+
     /// 이미 있는 일정을 고칠 때. 날짜가 없는 항목이면 미룰 때 남긴 모양을 `today`에 놓아 둔다.
     init(item: Item, today: LocalDate? = nil, timeZone: TimeZone = .current) {
         if item.isAllDay, let startDay = item.startDay {

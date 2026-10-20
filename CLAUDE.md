@@ -31,6 +31,16 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - `Item`의 `startDayKey`/`endDayKey`는 yyyymmdd 정수이고 0이면 날짜 없음("나중에 할일")이다. 시간 일정에서는 조회용 색인일 뿐이므로, 표시할 날짜는 `calendarEntry(in:)`로 다시 계산한다.
 - "나중에"로 보낼 때는 `unschedule()`이 아니라 `moveToInbox(order: Item.topInboxOrder(in:))`를 쓴다. 직전 일정의 모양(`ScheduleHint`)이 남아, 다시 날짜를 정할 때 기본값이 된다. 목록 순서는 `inboxOrder` 오름차순이다.
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
+  - 화면 위치 → 날짜 칸은 `MonthLayout.day(atX:y:width:height:in:clamped:)`로만 구한다.
+  - 달력에서 날짜를 꾹 누르면 기간 고르기(`RangePressGesture`)가 된다. 움직이지 않고 놓으면 그 날 새 일정이다. 날짜 칸에 `contextMenu`를 다시 달지 않는다.
+  - 달력 격자의 탭과 꾹 누르기는 `DayPressRecognizer`(`RangePressGesture`) 하나가 받는다.
+    - 날짜 칸(`DayHitTarget`)은 `Button`이 아니라 접근성 요소다.
+    - 격자 안에 SwiftUI 버튼이나 제스처를 더하지 않는다. SwiftUI는 자식 제스처를 먼저 주므로, 꾹 누르기가 시작되지 못한다.
+  - 꾹 누르는 동안은 손가락 아래 스크롤 뷰(달 넘김)를 멈춘다.
+  - "나중에" → 달력 끌기
+    - 데이터는 앱 안 전용 형식 `InboxDragPayload.type`으로 싣는다(`Info.plist`의 `UTExportedTypeDeclarations`).
+    - 놓을 항목 id는 `CalendarDropState`에서 꺼낸다.
+    - 놓으면 `item.schedule(on:using: item.scheduleHint)`로 넣는다.
 - 모델 이름에 `Category`를 쓰지 않는다. Objective-C 런타임 타입과 겹치므로 `ItemCategory`를 쓴다.
 - SwiftData 모델은 CloudKit 호환으로 만든다. 모든 속성에 기본값을 주거나 optional로 두고, 관계는 optional로 둔다. `@Attribute(.unique)`는 쓰지 않는다.
 - iCloud 동기화(Phase 9)
@@ -48,7 +58,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27. 새 화면은 28부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29. 새 화면은 30부터 붙인다.
   - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.

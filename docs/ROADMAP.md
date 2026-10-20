@@ -262,6 +262,25 @@ docs/ROADMAP.md, CLAUDE.md
 - "나중에" 탭에서 항목을 오래 누르면 달력으로 바뀌고, 손을 떼지 않고 날짜 위에 놓으면 그 날로 들어간다(사용자 결정: 끌어서 놓기).
   - 가장자리에 머무르면 이전·다음 달로 넘어간다.
 - **완료 기준:** 위치 → 날짜 칸 계산(Core) 테스트가 통과하고, 기간 만들기 UI 테스트가 통과한다. 끌어서 놓기는 기기에서 확인한다.
+- **구현 메모**
+  - 위치 → 날짜: Core `MonthLayout.dayIndex`/`day(atX:…)`(7열 × 주 수, 같은 크기 칸)
+    - 끌기 중에는 `clamped`로 격자 밖을 가장 가까운 칸에 맞춘다.
+  - 꾹 눌러 기간 만들기
+    - `RangePressGesture`(iOS 18 `UIGestureRecognizerRepresentable`)를 달력 페이지에 단다. UIKit 제스처 `DayPressRecognizer` 하나가 탭과 꾹 누르기를 모두 받는다.
+      - 짧게 떼면 탭(하루 상세)이다.
+      - 0.4초 동안 움직이지 않으면 기간 고르기다.
+      - 그 전에 12pt 넘게 움직이면 실패해서 달 넘김에 양보한다.
+    - 날짜 칸은 SwiftUI `Button`이 아니라 접근성 요소다(라벨, 버튼 특성, VoiceOver 실행 동작, `calendar.day.…` 식별자).
+      - PR #15 CI에서 꾹 눌러 끌었더니 달이 9월로 넘어갔다(두 번).
+      - 원인: SwiftUI는 자식 `Button`의 제스처를 부모 `.gesture`보다 먼저 준다. 그래서 꾹 누르기가 시작되지 못했다.
+    - 기간 고르기가 시작되면 손가락 아래의 스크롤 뷰(달 넘김)를 끝날 때까지 멈춘다.
+    - 날짜 칸의 `contextMenu`(이 날에 일정 추가)는 뺐다. 움직이지 않고 놓으면 같은 일을 한다.
+    - 기간은 `ItemEditorView.Mode.newRange` → `ItemDraft.newAllDay(from:through:)`(종일)로 연다.
+  - "나중에" → 달력
+    - 행의 `.onDrag`가 `InboxDragPayload`(앱 안 전용 UTType)를 싣고, `CalendarDropState`에 항목 id를 넣은 뒤 달력 탭으로 바꾼다.
+    - 달력 페이지의 `CalendarDropDelegate`가 손가락 아래 칸을 강조하고, 가장자리에 0.8초 머무르면 달을 넘긴다.
+    - 놓으면 `schedule(on:using: scheduleHint)`로 넣는다. 날짜가 이미 있는 항목은 건너뛴다.
+    - 순서를 바꾸는 편집 중이거나 완료한 항목은 끌지 않는다.
 
 ### Phase 12 — 잠금화면 위젯 (사용자 요청 2026-10-20)
 - 주기가 돌아왔는데 아직 하지 않은 반복 할일을 보여주는 잠금화면 위젯을 만든다. 완료한 것은 숨긴다.
@@ -314,6 +333,12 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 10 "반복" 탭 배지: UI 테스트로는 확인할 수 없다. 기기 체크리스트 8-4로 확인한다.
   - iOS 26 탭 막대는 배지 숫자를 접근성 라벨·값에 넣지 않는다. PR #14 CI에서 라벨 "반복", 값이 비어 있었다.
   - 개수 계산은 `RecurringTaskTests.sampleDataHasTwoDueTasksToday`가 확인한다.
+- [ ] Phase 11 "나중에" → 달력 놓기: UI 테스트(`DragTests.testDraggingAnInboxItemOntoTheCalendar`)의 마지막 확인을 기대 실패(strict 아님)로 두었다. 기기 체크리스트 9-5–9-7로 확인한다.
+  - PR #15 CI에서 끌기를 시작하자 달력 탭으로 바뀌었다. 그러나 놓은 뒤 항목이 어느 날에도 없었다.
+  - 원인 후보
+    - XCUITest의 끌기가 시스템 끌어 놓기로 이어지지 않음
+    - 탭이 바뀌면서 끌기를 시작한 목록이 화면에서 빠져 끌기가 끝남
+  - 기기에서도 안 되면 두 번째가 원인이다. 그때는 탭을 바꾸는 방식을 고친다.
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.

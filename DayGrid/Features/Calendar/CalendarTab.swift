@@ -15,6 +15,8 @@ struct CalendarTab: View {
     @State private var editorMode: ItemEditorView.Mode?
     @State private var isShowingBirthdays = false
     @State private var isPickingMonth = false
+    @State private var droppedCount = 0
+    @Environment(\.modelContext) private var modelContext
 
     /// 오늘 기준 앞뒤로 넘길 수 있는 달 수.
     private static let monthsAroundToday = 120
@@ -38,12 +40,22 @@ struct CalendarTab: View {
                             today: today,
                             firstWeekday: firstWeekday,
                             onSelectDay: { selectedDay = DaySelection(date: $0) },
-                            onAddItem: { editorMode = .new($0) }
+                            onAddItem: { editorMode = .new($0) },
+                            onAddRange: { editorMode = .newRange($0, $1) },
+                            onPage: { delta in
+                                let next = selectedMonth + delta
+                                guard monthRange.contains(next) else { return }
+                                withAnimation {
+                                    selectedMonth = next
+                                }
+                            },
+                            onDropItem: scheduleDroppedItem
                         )
                         .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .sensoryFeedback(.success, trigger: droppedCount)
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $selectedDay) { selection in
@@ -113,6 +125,16 @@ struct CalendarTab: View {
             .padding(.bottom, 6)
             .accessibilityIdentifier("calendar.birthdays")
         }
+    }
+
+    /// "나중에"에서 끌어 온 항목을 그 날로 넣는다. 미룰 때 남긴 모양(종일·시간, 길이)을 그대로 쓴다.
+    private func scheduleDroppedItem(_ id: UUID, on day: LocalDate) {
+        var descriptor = FetchDescriptor<Item>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        guard let item = try? modelContext.fetch(descriptor).first, !item.isScheduled else { return }
+        item.schedule(on: day, using: item.scheduleHint)
+        try? modelContext.save()
+        droppedCount += 1
     }
 
     /// 헤더의 + 버튼으로 추가할 날짜. 이번 달을 보고 있으면 오늘, 아니면 보고 있는 달의 1일.
