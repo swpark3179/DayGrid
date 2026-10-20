@@ -73,23 +73,39 @@ jobs:
             2>&1 | tee build/archive.log
 
       # 내보낼 때 Xcode는 아카이브 안 앱의 entitlements로 프로파일과 최종 서명을 정한다.
-      # 서명 없이 아카이브했으므로 여기서 iCloud entitlements(배포용 값)를 넣어 ad-hoc 서명한다.
+      # 서명 없이 아카이브했으므로 여기서 entitlements(배포용 값)를 넣어 ad-hoc 서명한다.
+      # - 위젯 확장(PlugIns/DayGridWidgets.appex)을 먼저, 그다음 앱을 서명한다(바깥 서명이 안쪽을 덮는다).
+      # - 앱: iCloud, 푸시, App Group / 위젯: App Group
       # 키 이름에 점이 있어 plutil 대신 PlistBuddy로 고친다.
       - name: Ad-hoc sign the archived app with entitlements
         run: |
+          app=build/DayGrid.xcarchive/Products/Applications/DayGrid.app
+          appex="$app/PlugIns/DayGridWidgets.appex"
+          group=group.io.github.swpark3179.DayGrid
+
+          codesign --force --sign - --timestamp=none --entitlements DayGridWidgets/DayGridWidgets.entitlements "$appex"
+          codesign -d --entitlements - --xml "$appex" > build/archived-widget-entitlements.plist
+          plutil -p build/archived-widget-entitlements.plist
+
           entitlements=build/DayGrid.distribution.entitlements
           cp DayGrid/DayGrid.entitlements "$entitlements"
           /usr/libexec/PlistBuddy -c "Set :aps-environment production" "$entitlements"
           /usr/libexec/PlistBuddy -c "Add :com.apple.developer.icloud-container-environment string Production" "$entitlements"
-          app=build/DayGrid.xcarchive/Products/Applications/DayGrid.app
           codesign --force --sign - --timestamp=none --entitlements "$entitlements" "$app"
           codesign -d --entitlements - --xml "$app" > build/archived-entitlements.plist
           plutil -p build/archived-entitlements.plist
+
           container=$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.icloud-container-identifiers:0" build/archived-entitlements.plist)
           if [ "$container" != "iCloud.io.github.swpark3179.DayGrid" ]; then
             echo "::error::The archived app is missing the iCloud container entitlement"
             exit 1
           fi
+          for plist in build/archived-entitlements.plist build/archived-widget-entitlements.plist; do
+            if [ "$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.application-groups:0" "$plist")" != "$group" ]; then
+              echo "::error::$plist is missing the App Group entitlement"
+              exit 1
+            fi
+          done
 
       - name: Sign with cloud signing and upload to App Store Connect
         run: |

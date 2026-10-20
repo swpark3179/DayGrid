@@ -64,6 +64,7 @@ final class CloudSyncMonitor {
             guard !Task.isCancelled, let context = container?.mainContext else { return }
             DuplicateMerger.mergeAll(in: context)
             NotificationScheduler.shared.scheduleSync(after: .zero)
+            WidgetSnapshotWriter.shared.scheduleWrite(after: .zero)
         }
     }
 

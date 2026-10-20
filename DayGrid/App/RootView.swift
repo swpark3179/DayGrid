@@ -43,6 +43,7 @@ struct RootView: View {
             }
         }
         .task {
+            WidgetSnapshotWriter.shared.write()
             await holidays.refreshIfNeeded()
             await NotificationScheduler.shared.sync()
         }
@@ -52,6 +53,7 @@ struct RootView: View {
                 clock.refresh()
                 Task { await holidays.refreshIfNeeded() }
                 NotificationScheduler.shared.scheduleSync(after: .zero)
+                WidgetSnapshotWriter.shared.write()
             case .background:
                 NotificationScheduler.shared.scheduleBackgroundRefresh()
             default:
@@ -61,6 +63,13 @@ struct RootView: View {
         // 일정·생일·반복 할일이 바뀌면 알림을 다시 맞춘다.
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave).receive(on: DispatchQueue.main)) { _ in
             NotificationScheduler.shared.scheduleSync()
+            WidgetSnapshotWriter.shared.scheduleWrite()
+        }
+        // 잠금화면 위젯을 누르면 반복 탭을 연다.
+        .onOpenURL { url in
+            if AppRoute(url: url) == .recurring {
+                selectedTab = .recurring
+            }
         }
         .onChange(of: NotificationRouter.shared.dayToOpen, initial: true) { _, day in
             guard let day else { return }
