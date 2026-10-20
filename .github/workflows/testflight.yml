@@ -58,7 +58,7 @@ jobs:
           xcodegen generate
 
       # 깨끗한 러너에서 자동 서명으로 아카이브하면 매번 개발 인증서를 새로 만들어 한도에 걸린다.
-      # 그래서 아카이브는 서명 없이 만들고, 내보낼 때 API 키로 Apple 클라우드 배포 인증서 서명을 받는다.
+      # 그래서 아카이브는 서명 없이 만들고, 내보낼 때 배포 인증서로 서명한다.
       - name: Archive (unsigned)
         run: |
           mkdir -p build
@@ -96,25 +96,64 @@ jobs:
             exit 1
           fi
 
-      - name: Sign with cloud signing and upload to App Store Connect
+      # Xcode 자동 서명(클라우드 서명)은 iCloud 컨테이너를 찾을 때 API 키로 인증하지 못한다
+      # (`xcbuild/v1/cloudContainers` → 401, 실행 #3·#4). 그래서 App Store Connect 공개 API로
+      # 실행마다 배포 인증서와 App Store 프로파일을 만들고, 수동 서명으로 내보낸 뒤 마지막 단계에서 지운다.
+      # 프로파일의 iCloud 컨테이너·App Group은 developer.apple.com의 App ID 설정을 따른다.
+      - name: Create signing certificate and profiles
         env:
           UPLOAD: ${{ inputs.upload }}
         run: |
-          sed "s/__TEAM_ID__/$APPLE_TEAM_ID/" scripts/ci/ExportOptions.plist > build/ExportOptions.plist
+          destination=upload
           if [ "$UPLOAD" = "false" ]; then
-            plutil -replace destination -string export build/ExportOptions.plist
+            destination=export
           fi
+          p12_password=$(uuidgen)
+          keychain_password=$(uuidgen)
+          echo "::add-mask::$p12_password"
+          echo "::add-mask::$keychain_password"
+          P12_PASSWORD="$p12_password" python3 scripts/ci/asc_signing.py prepare \
+            --archive build/DayGrid.xcarchive \
+            --out build/signing \
+            --destination "$destination" \
+            --export-options build/ExportOptions.plist
+
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          # 배포 인증서의 중간 인증서. 러너에 이미 있으면 받지 못해도 괜찮다.
+          if ! { curl -fsSL -o build/signing/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer \
+            && security import build/signing/AppleWWDRCAG3.cer -k "$keychain"; }; then
+            echo "::warning::Apple WWDR G3 중간 인증서를 넣지 못했다."
+          fi
+          security import build/signing/distribution.p12 -k "$keychain" -P "$p12_password" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$keychain"
+
+      - name: Export and upload to App Store Connect
+        env:
+          UPLOAD: ${{ inputs.upload }}
+        run: |
           set -o pipefail
           xcodebuild -exportArchive \
             -archivePath build/DayGrid.xcarchive \
             -exportOptionsPlist build/ExportOptions.plist \
             -exportPath build/export \
-            -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee build/export.log
           if [ "$UPLOAD" = "false" ]; then
+            # 올리지 않을 때는 만든 .ipa의 최종 entitlements를 보여준다(iCloud, 푸시, App Group 확인).
+            unzip -q build/export/*.ipa -d build/ipa
+            for bundle in build/ipa/Payload/*.app/PlugIns/*.appex build/ipa/Payload/*.app; do
+              [ -d "$bundle" ] || continue
+              echo "== $(basename "$bundle")"
+              codesign -d --entitlements - --xml "$bundle" 2>/dev/null | plutil -p -
+            done
             echo "### 서명 확인 완료(빌드 $BUILD_NUMBER, 올리지 않음)" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### TestFlight 빌드 $BUILD_NUMBER 업로드 완료" >> "$GITHUB_STEP_SUMMARY"
@@ -148,6 +187,17 @@ jobs:
           name: testflight-logs
           path: build/*.log
           if-no-files-found: ignore
+
+      # 이 실행이 만든 프로파일과 인증서를 지운다(이미 올린 빌드에는 영향이 없다).
+      # 지우지 못하면 다음 실행의 prepare가 "DayGrid CI" 프로파일과 그 인증서를 먼저 지운다.
+      - name: Remove signing certificate and profiles
+        if: always()
+        run: |
+          if [ -f build/signing/state.json ]; then
+            python3 scripts/ci/asc_signing.py cleanup --out build/signing
+          fi
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -rf build/signing
 
       - name: Remove API key
         if: always()
