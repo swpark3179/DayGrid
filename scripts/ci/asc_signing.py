@@ -322,9 +322,11 @@ def prepare(args):
     profiles = {}
     for _, identifier, entitlements in bundles:
         uuid, path = make_profile(client, out, state, identifier, resources[identifier], certificate_id)
-        missing = missing_profile_entitlements(entitlements, profile_entitlements(path))
+        granted = profile_entitlements(path)
+        missing = missing_profile_entitlements(entitlements, granted)
         if missing:
-            fail(f"{identifier} 프로파일에 없는 entitlement: {', '.join(missing)}. "
+            shown = {key: granted.get(key, "(없음)") for key in CAPABILITIES if key in entitlements}
+            fail(f"{identifier} 프로파일에 없는 entitlement: {', '.join(missing)}. 프로파일에 있는 값: {shown}. "
                  "developer.apple.com의 App ID에서 iCloud 컨테이너나 App Group을 체크했는지 확인한다"
                  "(docs/ICLOUD.md 2번, docs/WIDGET.md 2–3번).")
         profiles[identifier] = uuid
