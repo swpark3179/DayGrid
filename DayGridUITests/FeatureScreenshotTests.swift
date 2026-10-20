@@ -209,20 +209,4 @@ final class FeatureScreenshotTests: XCTestCase {
         attachScreenshot(of: app, named: "25-settings-sync")
     }
 
-    // MARK: - 도우미
-
-    /// 라벨에 `text`가 들어 있는 첫 요소. 버튼 행은 안의 글자를 합친 라벨 하나로 보일 수 있어서 포함 여부로 찾는다.
-    @MainActor
-    private func labelContaining(_ text: String, in parent: XCUIElement) -> XCUIElement {
-        parent.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
-    }
-
-    /// 폼 아래쪽 행은 화면 밖이면 접근성 트리에 없으므로, 보일 때까지 위로 민다.
-    @MainActor
-    private func scrollUntilVisible(_ target: XCUIElement, in app: XCUIApplication, attempts: Int = 3) {
-        for _ in 0..<attempts where !(target.exists && target.isHittable) {
-            app.swipeUp()
-        }
-        XCTAssertTrue(target.waitForExistence(timeout: 5), "\(target) 를 찾을 수 있어야 한다")
-    }
 }

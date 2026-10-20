@@ -107,6 +107,11 @@ extension RecurringTask {
         return result
     }
 
+    /// 오늘 주기가 돌아왔는데 아직 완료하지 않았는지("반복" 탭 배지, 잠금화면 위젯).
+    func isDue(on today: LocalDate) -> Bool {
+        recurrence?.isDue(on: today, completedCycleStarts: Set(completionDays.keys)) ?? false
+    }
+
     /// `date`가 속한 주기와 그 상태. 주기가 없으면 `nil`.
     func cycleStatus(on date: LocalDate, today: LocalDate) -> (cycle: RecurrenceCycle, status: RecurrenceStatus)? {
         guard let cycle = recurrence?.cycle(containing: date) else { return nil }

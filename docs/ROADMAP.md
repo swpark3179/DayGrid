@@ -209,6 +209,9 @@ docs/ROADMAP.md, CLAUDE.md
 - CloudKit 컨테이너 entitlement와 원격 알림 Background Mode를 추가하고, `ModelConfiguration(cloudKitDatabase: .private(...))`로 설정한다.
 - 시드 카테고리 중복을 제거하는 병합 처리를 넣고, 동기화 상태를 설정 화면에 표시한다.
 - **완료 기준:** 앱을 지웠다가 다시 설치해도 데이터가 복원된다. 기기가 2대면 양방향 반영도 확인한다.
+- **현황(2026-10-20):** 사용자가 준비 단계(컨테이너, 토큰)를 마쳤고, 스키마를 Development에 import했다.
+  - TestFlight 실행 #3(iCloud entitlements가 처음 들어간 빌드)이 내보내기에서 실패했다: `Authentication failed`, `No profiles for 'io.github.swpark3179.DayGrid' were found`.
+  - 서명을 고친 뒤 체크리스트 7장을 확인한다.
 - **구현 메모(사용자 결정: 스키마는 GitHub Actions로 자동 준비, 동기화는 항상 켬)**
   - TestFlight 빌드는 CloudKit **Production**을 쓴다.
     - Production 스키마는 자동으로 생기지 않는다. Development에 넣은 뒤 CloudKit Console에서 배포해야 한다.
@@ -233,6 +236,39 @@ docs/ROADMAP.md, CLAUDE.md
     - 같은 `id`의 카테고리는 가장 먼저 만든 것을 남기고, 일정과 반복 할일을 옮긴다.
     - 같은 할일·같은 주기의 완료 기록은 가장 이른 체크만 남긴다.
   - TestFlight 워크플로는 서명 없이 아카이브한다. 그래서 ad-hoc 서명 단계에서 배포용 entitlements(`aps-environment=production`, `icloud-container-environment=Production`)를 넣고, 아카이브 안 앱에 iCloud 키가 있는지 검사한다.
+
+### Phase 10 — 달력·본문 개선 (사용자 요청 2026-10-20)
+- 달력 왼쪽 위 "2026년 10월"(또는 옆 화살표)을 누르면 연·월 이동 시트가 열린다. 연도를 넘기고 달을 고르면 바로 간다(범위는 오늘 ±10년).
+- 개인 휴일은 **주황**, 공휴일과 일요일은 빨강, 토요일은 파랑이다(사용자 결정).
+- "반복" 탭에 주기가 돌아왔는데 아직 하지 않은 반복 할일 수를 배지로 보인다.
+- 하루 상세 행에 본문이 있으면 오른쪽에 본문 버튼이 생긴다. 누르면 읽기 화면(제목, 시간, 카테고리, 본문)이 열린다.
+  - 그 화면에서 할일 완료와 본문 체크리스트를 켜고 끌 수 있다(사용자 결정: 둘 다).
+- **완료 기준:** Core 테스트(DayMark, `Recurrence.isDue`, `MarkdownTaskList`)가 통과하고, 스크린샷 26–27이 나온다.
+- **구현 메모**
+  - Core `DayMark`
+    - 공휴일(`holidayNames`)과 개인 휴일(`personalHolidayNames`)을 따로 담는다.
+    - 같은 날에 둘 다 있으면 공휴일로 본다(`isPublicHoliday`/`isPersonalHoliday`).
+    - 색은 `DayStyle.numberColor(for:mark:)`가 정한다.
+  - 미완료 수는 Core `Recurrence.isDue(on:completedCycleStarts:)`로 센다. 위젯(Phase 12)도 같은 함수를 쓴다.
+  - 본문 체크리스트
+    - `preview.js`가 체크박스에 문서 순서대로 `data-task-index`를 붙이고, 읽기 화면에서 `enableTaskToggles()`로 누를 수 있게 한다.
+    - 누르면 `MarkdownPreview(onToggleTask:)` → Core `MarkdownTaskList.toggle(at:in:)` 순서로 원문을 고친다.
+    - 두 쪽의 체크 찾기 규칙(목록 표시, 인용, 펜스 코드 제외)이 같아야 한다. jsdom과 Python으로 같은 결과를 확인했다.
+
+### Phase 11 — 끌어서 일정 넣기 (사용자 요청 2026-10-20)
+- 달력에서 날짜를 꾹 누르면 끌기 모드가 된다.
+  - 다른 날짜까지 끌고 놓으면 그 기간의 종일 일정을 만든다.
+  - 움직이지 않고 놓으면 그 날 새 일정이다(예전 메뉴를 대신한다).
+- "나중에" 탭에서 항목을 오래 누르면 달력으로 바뀌고, 손을 떼지 않고 날짜 위에 놓으면 그 날로 들어간다(사용자 결정: 끌어서 놓기).
+  - 가장자리에 머무르면 이전·다음 달로 넘어간다.
+- **완료 기준:** 위치 → 날짜 칸 계산(Core) 테스트가 통과하고, 기간 만들기 UI 테스트가 통과한다. 끌어서 놓기는 기기에서 확인한다.
+
+### Phase 12 — 잠금화면 위젯 (사용자 요청 2026-10-20)
+- 주기가 돌아왔는데 아직 하지 않은 반복 할일을 보여주는 잠금화면 위젯을 만든다. 완료한 것은 숨긴다.
+  - 모양: 목록형, 개수형, 한 줄형(사용자 결정: 모두)
+- 앱이 App Group에 반복 할일 요약(JSON)을 쓰고, 위젯은 Core로 날짜마다 다시 계산한다. 위젯을 누르면 반복 탭이 열린다.
+- 사용자 준비: App Group과 위젯 App ID 등록(`docs/WIDGET.md`).
+- **완료 기준:** 요약 계산 테스트가 통과하고, 기기에서 위젯이 갱신되는지 확인한다.
 
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
@@ -275,6 +311,9 @@ docs/ROADMAP.md, CLAUDE.md
   - Phase 5: 키보드 툴바, 실행 취소, 링크 열기, 다크 모드
   - Phase 6: 연락처 가져오기(권한, 일부 허용, 음력, 다시 가져오기), 공휴일 보정 파일 원격 갱신
   - Phase 8: 권한 요청 시점, 종류별 알림, "완료" 동작, 알림을 눌러 이동, 백그라운드 새로 고침
+- [ ] Phase 10 "반복" 탭 배지: UI 테스트로는 확인할 수 없다. 기기 체크리스트 8-4로 확인한다.
+  - iOS 26 탭 막대는 배지 숫자를 접근성 라벨·값에 넣지 않는다. PR #14 CI에서 라벨 "반복", 값이 비어 있었다.
+  - 개수 계산은 `RecurringTaskTests.sampleDataHasTwoDueTasksToday`가 확인한다.
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
@@ -289,4 +328,7 @@ docs/ROADMAP.md, CLAUDE.md
 - [x] Phase 6: 공휴일, 개인 휴일, 생일
 - [x] Phase 7: 반복 할일
 - [x] Phase 8: 알림 (미리알림)
-- [ ] Phase 9: iCloud 동기화
+- [ ] Phase 9: iCloud 동기화(TestFlight 서명 문제로 기기 확인 전)
+- [ ] Phase 10: 달력·본문 개선(연·월 이동, 개인 휴일 색, 반복 배지, 본문 읽기 화면)
+- [ ] Phase 11: 끌어서 일정 넣기(꾹 눌러 기간, 나중에 → 달력)
+- [ ] Phase 12: 잠금화면 위젯(남은 반복 할일)

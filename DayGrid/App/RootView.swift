@@ -17,6 +17,12 @@ struct RootView: View {
     @State private var selectedTab: AppTab = .calendar
     @State private var inboxFocusRequest = 0
     @State private var dayToOpen: LocalDate?
+    @Query(filter: RecurringTask.activePredicate) private var activeRecurringTasks: [RecurringTask]
+
+    /// 주기가 돌아왔는데 아직 하지 않은 반복 할일 수. 0이면 배지를 보이지 않는다.
+    private var dueRecurringCount: Int {
+        activeRecurringTasks.filter { $0.isDue(on: clock.today) }.count
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -29,6 +35,7 @@ struct RootView: View {
             Tab("반복", systemImage: "repeat", value: AppTab.recurring) {
                 RecurringTab()
             }
+            .badge(dueRecurringCount)
             Tab("설정", systemImage: "gearshape", value: AppTab.settings) {
                 SettingsTab()
             }

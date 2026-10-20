@@ -101,6 +101,13 @@ public struct Recurrence: Hashable, Sendable {
         return .missed
     }
 
+    /// 오늘 해야 하는데 아직 안 했는지: 오늘이 속한 주기가 있고, 그 주기의 완료 기록이 없다.
+    /// "반복" 탭의 배지와 잠금화면 위젯이 이 값으로 센다. 지난 주기(놓침)는 세지 않는다.
+    public func isDue(on today: LocalDate, completedCycleStarts: Set<LocalDate>) -> Bool {
+        guard let cycle = cycle(containing: today) else { return false }
+        return !completedCycleStarts.contains(cycle.start)
+    }
+
     /// `month`(그 달의 아무 날)에 시작한 주기 중 오늘까지 시작한 것과 그중 완료한 것. "이번 달 3/4 완료"
     public func monthSummary(month: LocalDate, today: LocalDate, completedCycleStarts: Set<LocalDate>) -> (done: Int, total: Int) {
         let upper = min(month.lastDayOfMonth, today)

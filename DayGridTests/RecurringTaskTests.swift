@@ -24,6 +24,32 @@ struct RecurringTaskTests {
         try context.fetchCount(FetchDescriptor<RecurrenceCompletion>())
     }
 
+    // MARK: - 미완료(배지)
+
+    @Test func sampleDataHasTwoDueTasksToday() throws {
+        try DefaultCategories.insertIfNeeded(into: context)
+        let today = day(2026, 10, 19)
+        try SampleData.insert(into: context, today: today)
+
+        let tasks = try context.fetch(FetchDescriptor<RecurringTask>(predicate: RecurringTask.activePredicate))
+        // 물 2L(매일)과 헬스장(월요일 주기)은 아직 안 했고, 관리비는 9/25 주기를 이미 냈다
+        #expect(Set(tasks.filter { $0.isDue(on: today) }.map(\.title)) == ["물 2L 마시기", "헬스장"])
+
+        // 체크하면 배지에서 빠진다
+        let water = try #require(tasks.first { $0.title == "물 2L 마시기" })
+        let cycle = try #require(water.recurrence?.cycle(containing: today))
+        water.toggleCompletion(of: cycle, today: today, in: context)
+        #expect(!water.isDue(on: today))
+        #expect(water.isDue(on: day(2026, 10, 20)), "다음 날은 새 주기다")
+    }
+
+    @Test func tasksBeforeTheirStartAreNotDue() {
+        let later = RecurringTask(title: "나중", rule: .daily, startDay: day(2026, 11, 1))
+        #expect(!later.isDue(on: day(2026, 10, 19)))
+        later.startDayKey = 0
+        #expect(!later.isDue(on: day(2026, 10, 19)), "시작일이 없으면 주기가 없다")
+    }
+
     // MARK: - 규칙 저장
 
     @Test func ruleRoundTripsThroughTheStoredFields() {

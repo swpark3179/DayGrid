@@ -211,13 +211,39 @@ struct DayMarksTests {
         #expect(marks[day(2026, 10, 3)]?.calendarLabel == "🎂개천절")
         #expect(marks[day(2026, 10, 3)]?.spokenDescription == "개천절, 김민수 생일")
         #expect(marks[day(2026, 10, 5)]?.holidayNames == ["대체공휴일"])
-        #expect(marks[day(2026, 10, 16)]?.isHoliday == true)
+        #expect(marks[day(2026, 10, 3)]?.isPublicHoliday == true)
+        #expect(marks[day(2026, 10, 16)] == DayMark(personalHolidayNames: ["회사 휴무"]))
+        #expect(marks[day(2026, 10, 16)]?.isPersonalHoliday == true)
+        #expect(marks[day(2026, 10, 16)]?.isPublicHoliday == false)
+        #expect(marks[day(2026, 10, 16)]?.calendarLabel == "회사 휴무")
+        #expect(marks[day(2026, 10, 16)]?.spokenDescription == "회사 휴무")
         #expect(marks[day(2026, 10, 20)] == DayMark(birthdayNames: ["엄마"]))
         #expect(marks[day(2026, 10, 20)]?.calendarLabel == "🎂")
-        #expect(marks[day(2026, 10, 2)]?.holidayNames == ["가을 휴가"])
+        #expect(marks[day(2026, 10, 2)]?.personalHolidayNames == ["가을 휴가"])
+        #expect(marks[day(2026, 10, 2)]?.holidayNames == [])
         #expect(marks[day(2026, 9, 30)] == nil, "범위 밖은 넣지 않는다")
         #expect(marks[day(2026, 10, 19)] == nil)
         #expect(marks.keys.sorted().map { $0.day } == [1, 2, 3, 5, 9, 16, 20])
+    }
+}
+
+@Suite("DayMarks 공휴일과 개인 휴일")
+struct DayMarksPersonalHolidayTests {
+    @Test func aPublicHolidayWinsOverAPersonalHolidayOnTheSameDay() {
+        let range = day(2026, 10, 1)...day(2026, 10, 31)
+        let marks = DayMarks.make(
+            in: range,
+            holidays: KoreanHolidays.holidays(in: range),
+            personalHolidays: [(name: "연차", start: day(2026, 10, 9), end: day(2026, 10, 9))],
+            birthdays: []
+        )
+        let hangul = marks[day(2026, 10, 9)]
+        #expect(hangul?.holidayNames == ["한글날"])
+        #expect(hangul?.personalHolidayNames == ["연차"])
+        #expect(hangul?.isPublicHoliday == true)
+        #expect(hangul?.isPersonalHoliday == false)
+        #expect(hangul?.calendarLabel == "한글날")
+        #expect(hangul?.spokenDescription == "한글날, 연차")
     }
 }
 

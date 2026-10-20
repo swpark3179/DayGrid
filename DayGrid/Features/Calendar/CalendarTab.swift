@@ -14,6 +14,7 @@ struct CalendarTab: View {
     @State private var selectedDay: DaySelection?
     @State private var editorMode: ItemEditorView.Mode?
     @State private var isShowingBirthdays = false
+    @State private var isPickingMonth = false
 
     /// 오늘 기준 앞뒤로 넘길 수 있는 달 수.
     private static let monthsAroundToday = 120
@@ -57,6 +58,17 @@ struct CalendarTab: View {
                 dayToOpen = nil
                 selectedMonth = day.monthIndex
                 selectedDay = DaySelection(date: day)
+            }
+            .sheet(isPresented: $isPickingMonth) {
+                MonthPickerSheet(selectedMonth: selectedMonth, todayMonth: today.monthIndex, range: monthRange) { index in
+                    // 먼 달로 건너뛸 때 사이의 달을 모두 넘기는 애니메이션은 하지 않는다.
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        selectedMonth = index
+                    }
+                }
+                .presentationDetents([.medium])
             }
             .sheet(isPresented: $isShowingBirthdays) {
                 NavigationStack {
@@ -112,11 +124,26 @@ struct CalendarTab: View {
         (today.monthIndex - Self.monthsAroundToday)...(today.monthIndex + Self.monthsAroundToday)
     }
 
+    /// 왼쪽 위 연·월. 누르면 연·월을 골라 바로 이동한다.
+    /// 제목 글자는 UI 테스트가 찾는 그대로 두고, 옆의 화살표 버튼이 접근성 동작을 맡는다.
     private var header: some View {
         HStack {
-            Text(LocalDate(firstDayOfMonthIndex: selectedMonth).koreanMonthTitle)
-                .font(.title2.bold())
-                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: 4) {
+                Text(LocalDate(firstDayOfMonthIndex: selectedMonth).koreanMonthTitle)
+                    .font(.title2.bold())
+                    .accessibilityAddTraits(.isHeader)
+                Button("연·월 선택", systemImage: "chevron.down") {
+                    isPickingMonth = true
+                }
+                .labelStyle(.iconOnly)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("calendar.monthTitle")
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isPickingMonth = true
+            }
             Spacer()
             Button("새 일정", systemImage: "plus") {
                 editorMode = .new(dayForNewItem)
@@ -160,6 +187,18 @@ struct WeekdayHeader: View {
 }
 
 enum DayStyle {
+    /// 공휴일 숫자와 이름. 일요일과 같은 빨강이다.
+    static let publicHolidayColor = Color.red
+    /// 개인 휴일 숫자와 이름(사용자 결정: 공휴일과 구별되는 주황)
+    static let personalHolidayColor = Color.orange
+
+    /// 날짜 숫자 색: 공휴일 빨강 → 개인 휴일 주황 → 요일 색
+    static func numberColor(for date: LocalDate, mark: DayMark?) -> Color {
+        if mark?.isPublicHoliday == true { return publicHolidayColor }
+        if mark?.isPersonalHoliday == true { return personalHolidayColor }
+        return color(forWeekday: date.weekday)
+    }
+
     /// 일요일은 빨강, 토요일은 파랑.
     static func color(forWeekday weekday: Int) -> Color {
         switch weekday {
