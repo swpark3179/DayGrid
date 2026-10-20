@@ -30,7 +30,9 @@ struct RootView: View {
                 CalendarTab(today: clock.today, dayToOpen: $dayToOpen)
             }
             Tab("나중에", systemImage: "tray", value: AppTab.inbox) {
-                InboxTab(focusRequest: inboxFocusRequest)
+                InboxTab(focusRequest: inboxFocusRequest) {
+                    selectedTab = .calendar
+                }
             }
             Tab("반복", systemImage: "repeat", value: AppTab.recurring) {
                 RecurringTab()

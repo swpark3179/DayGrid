@@ -8,8 +8,9 @@ struct WeekRowView: View {
     let laneLimit: Int
     let itemsByID: [UUID: Item]
     var marks: [LocalDate: DayMark] = [:]
+    /// 강조할 날짜(꾹 눌러 고르는 기간, "나중에" 항목을 놓으려는 날)
+    var highlighted: ClosedRange<LocalDate>?
     var onSelectDay: (LocalDate) -> Void = { _ in }
-    var onAddItem: (LocalDate) -> Void = { _ in }
 
     static let dayNumberHeight: CGFloat = 26
     static let laneHeight: CGFloat = 16
@@ -29,6 +30,11 @@ struct WeekRowView: View {
                     ForEach(week.days) { day in
                         DayNumberView(day: day, isToday: day.date == today, mark: marks[day.date])
                             .frame(width: columnWidth, height: geometry.size.height, alignment: .top)
+                            .background {
+                                if highlighted?.contains(day.date) == true {
+                                    Rectangle().fill(Color.accentColor.opacity(0.18))
+                                }
+                            }
                     }
                 }
 
@@ -63,10 +69,10 @@ struct WeekRowView: View {
                     }
                 }
 
-                // 맨 위에 날짜별 버튼을 깐다. 탭하면 하루 상세, 길게 누르면 메뉴로 바로 추가.
+                // 맨 위에 날짜별 버튼을 깐다. 탭하면 하루 상세. 꾹 누르기는 달력 페이지(`RangePressGesture`)가 맡는다.
                 HStack(spacing: 0) {
                     ForEach(week.days) { day in
-                        DayHitTarget(date: day.date, mark: marks[day.date], onSelect: onSelectDay, onAdd: onAddItem)
+                        DayHitTarget(date: day.date, mark: marks[day.date], onSelect: onSelectDay)
                             .frame(width: columnWidth, height: geometry.size.height)
                     }
                 }
@@ -83,7 +89,6 @@ private struct DayHitTarget: View {
     let date: LocalDate
     let mark: DayMark?
     let onSelect: (LocalDate) -> Void
-    let onAdd: (LocalDate) -> Void
 
     var body: some View {
         Button {
@@ -93,15 +98,8 @@ private struct DayHitTarget: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            Button("이 날에 일정 추가", systemImage: "plus") {
-                onAdd(date)
-            }
-            Button("이 날 보기", systemImage: "calendar") {
-                onSelect(date)
-            }
-        }
         .accessibilityLabel(accessibilityText)
+        .accessibilityHint("꾹 누르면 새 일정, 꾹 누른 채 끌면 기간 일정")
         .accessibilityIdentifier("calendar.day.\(date.iso8601)")
     }
 

@@ -234,6 +234,25 @@ struct ItemDraftTests {
         #expect(try context.fetch(FetchDescriptor<Item>()).count == 2)
     }
 
+    @Test func rangeDraftIsAnAllDayEventInEitherDirection() {
+        let forward = ItemDraft.newAllDay(from: day(2026, 10, 21), through: day(2026, 10, 23), categoryID: nil, timeZone: seoul)
+        let backward = ItemDraft.newAllDay(from: day(2026, 10, 23), through: day(2026, 10, 21), categoryID: nil, timeZone: seoul)
+        #expect(forward == backward, "거꾸로 끌어도 같은 기간이다")
+        #expect(forward.isAllDay)
+        #expect(forward.hasDate)
+        #expect(LocalDate(forward.start, in: seoul) == day(2026, 10, 21))
+        #expect(LocalDate(forward.end, in: seoul) == day(2026, 10, 23))
+
+        var draft = forward
+        draft.title = "Range"
+        let item = Item(title: "")
+        context.insert(item)
+        draft.apply(to: item, categories: [], timeZone: seoul)
+        #expect(item.isAllDay)
+        #expect(item.startDayKey == 20_261_021)
+        #expect(item.endDayKey == 20_261_023)
+    }
+
     @Test func remindersRoundTripThroughTheDraft() {
         let item = Item(title: "치과")
         context.insert(item)

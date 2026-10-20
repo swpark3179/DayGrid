@@ -260,6 +260,19 @@ docs/ROADMAP.md, CLAUDE.md
 - "나중에" 탭에서 항목을 오래 누르면 달력으로 바뀌고, 손을 떼지 않고 날짜 위에 놓으면 그 날로 들어간다(사용자 결정: 끌어서 놓기).
   - 가장자리에 머무르면 이전·다음 달로 넘어간다.
 - **완료 기준:** 위치 → 날짜 칸 계산(Core) 테스트가 통과하고, 기간 만들기 UI 테스트가 통과한다. 끌어서 놓기는 기기에서 확인한다.
+- **구현 메모**
+  - 위치 → 날짜: Core `MonthLayout.dayIndex`/`day(atX:…)`(7열 × 주 수, 같은 크기 칸)
+    - 끌기 중에는 `clamped`로 격자 밖을 가장 가까운 칸에 맞춘다.
+  - 꾹 눌러 기간 만들기
+    - `RangePressGesture`(iOS 18 `UIGestureRecognizerRepresentable`, UIKit 길게 누르기 0.4초)를 달력 페이지에 단다.
+    - 길게 누르기가 먼저 인식되면 페이지 넘김이 시작되지 않는다. 짧은 탭은 날짜 버튼이 받는다.
+    - 날짜 칸의 `contextMenu`(이 날에 일정 추가)는 뺐다. 움직이지 않고 놓으면 같은 일을 한다.
+    - 기간은 `ItemEditorView.Mode.newRange` → `ItemDraft.newAllDay(from:through:)`(종일)로 연다.
+  - "나중에" → 달력
+    - 행의 `.onDrag`가 `InboxDragPayload`(앱 안 전용 UTType)를 싣고, `CalendarDropState`에 항목 id를 넣은 뒤 달력 탭으로 바꾼다.
+    - 달력 페이지의 `CalendarDropDelegate`가 손가락 아래 칸을 강조하고, 가장자리에 0.8초 머무르면 달을 넘긴다.
+    - 놓으면 `schedule(on:using: scheduleHint)`로 넣는다. 날짜가 이미 있는 항목은 건너뛴다.
+    - 순서를 바꾸는 편집 중이거나 완료한 항목은 끌지 않는다.
 
 ### Phase 12 — 잠금화면 위젯 (사용자 요청 2026-10-20)
 - 주기가 돌아왔는데 아직 하지 않은 반복 할일을 보여주는 잠금화면 위젯을 만든다. 완료한 것은 숨긴다.
