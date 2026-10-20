@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- 생성되는 Info.plist(INFOPLIST_KEY_*)로 넣을 수 없는 배열 키만 여기에 둔다. 나머지는 project.yml에 있다. -->
+<!-- 생성되는 Info.plist(INFOPLIST_KEY_*)로 넣을 수 없는 배열 키만 여기에 둔다. 나머지는 project.yml에 있다.
+     remote-notification: iCloud 변경 알림(조용한 푸시)을 받아 SwiftData가 동기화한다. -->
 <plist version="1.0">
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
@@ -10,6 +11,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>remote-notification</string>
 	</array>
 </dict>
 </plist>

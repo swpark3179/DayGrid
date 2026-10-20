@@ -95,7 +95,9 @@ docs/ROADMAP.md, CLAUDE.md
   - 아카이브 단계에서 자동 서명을 쓰면 깨끗한 러너마다 개발 인증서를 새로 만들어 한도에 걸린다. 그래서 아카이브는 서명하지 않는다.
   - 빌드 번호는 워크플로 실행 번호(`github.run_number`)를 쓴다.
   - 사용자 준비 절차는 `docs/TESTFLIGHT.md`에 있다.
-  - CloudKit 같은 entitlement가 생기면(Phase 9) 서명 없는 아카이브로는 부족할 수 있다. 그때 개발 인증서 `.p12` Secret 방식으로 바꾼다.
+  - CloudKit 같은 entitlement가 생기면(Phase 9) 서명 없는 아카이브로는 부족할 수 있다.
+    - Phase 9에서는 ad-hoc 서명 단계에서 entitlements를 넣는 방식으로 먼저 시도한다.
+    - 이 방식이 안 되면 개발 인증서 `.p12` Secret 방식으로 바꾼다.
 - **완료 기준:** iPhone의 TestFlight 앱에서 설치하고 실행된다. 이후 단계는 기기에서도 확인한다.
 - **결과(2026-10-19):** 첫 실행(빌드 1)에서 클라우드 서명과 업로드가 그대로 성공했다(사용자 확인). `.p12` 대안은 쓰지 않았다.
 
@@ -207,6 +209,30 @@ docs/ROADMAP.md, CLAUDE.md
 - CloudKit 컨테이너 entitlement와 원격 알림 Background Mode를 추가하고, `ModelConfiguration(cloudKitDatabase: .private(...))`로 설정한다.
 - 시드 카테고리 중복을 제거하는 병합 처리를 넣고, 동기화 상태를 설정 화면에 표시한다.
 - **완료 기준:** 앱을 지웠다가 다시 설치해도 데이터가 복원된다. 기기가 2대면 양방향 반영도 확인한다.
+- **구현 메모(사용자 결정: 스키마는 GitHub Actions로 자동 준비, 동기화는 항상 켬)**
+  - TestFlight 빌드는 CloudKit **Production**을 쓴다.
+    - Production 스키마는 자동으로 생기지 않는다. Development에 넣은 뒤 CloudKit Console에서 배포해야 한다.
+    - 한 번 배포한 필드는 지우거나 타입을 바꿀 수 없다.
+    - Mac이 없어 개발 빌드로 스키마를 만들 수 없으므로, 다음 순서로 준비한다.
+      1. 모델에서 만든 `cloudkit/DayGrid.ckdb`를 커밋한다.
+      2. `.github/workflows/cloudkit-schema.yml`(cktool)로 Development에 넣는다.
+      3. 사용자가 Console에서 Production으로 배포한다.
+    - 사용자 준비 단계는 `docs/ICLOUD.md`에 있다.
+  - 스키마 파일
+    - 렌더러는 Core `CloudKitSchemaFile`이다. Core Data 매핑을 따른다: `CD_` 접두어, `CD_entityName`, `CD_moveReceipt`, 문자열의 `_ckAsset`, to-one 관계는 STRING.
+    - 앱 테스트 `CloudKitSchemaTests`는 `NSManagedObjectModel.makeManagedObjectModel(for:)`로 읽은 모델과 커밋된 파일이 같은지 검사한다. CloudKit 규칙(관계는 optional이고 반대쪽이 있음, unique 없음, deny 없음)도 함께 본다.
+  - 저장소(`AppModelContainer`)
+    - 보통 실행은 `.private("iCloud.io.github.swpark3179.DayGrid")`로 연다.
+    - 열지 못하면 같은 파일을 `.none`으로 다시 열고, 이유를 설정에 보여준다.
+    - 처음 켤 때 저장소 파일을 `Application Support/Backups/pre-icloud`에 한 번 복사해 둔다.
+    - UI 테스트와 단위 테스트 호스트에서는 iCloud를 쓰지 않는다(`LaunchOptions.usesCloudSync`).
+  - 상태
+    - `CloudSyncMonitor`가 `NSPersistentCloudKitContainer.eventChangedNotification`을 듣고, Core `CloudSyncState`가 문구를 정한다.
+    - 다른 기기의 변경을 받으면 `DuplicateMerger`로 중복을 합치고 알림을 다시 맞춘다.
+  - 중복 병합(`DuplicateMerger`, 앱 시작과 가져오기 뒤)
+    - 같은 `id`의 카테고리는 가장 먼저 만든 것을 남기고, 일정과 반복 할일을 옮긴다.
+    - 같은 할일·같은 주기의 완료 기록은 가장 이른 체크만 남긴다.
+  - TestFlight 워크플로는 서명 없이 아카이브한다. 그래서 ad-hoc 서명 단계에서 배포용 entitlements(`aps-environment=production`, `icloud-container-environment=Production`)를 넣고, 아카이브 안 앱에 iCloud 키가 있는지 검사한다.
 
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
@@ -244,7 +270,7 @@ docs/ROADMAP.md, CLAUDE.md
   - `RecurringTaskTests`: 규칙 저장, 같은 주기 중복 체크 방지, 주기 상태, 사용 중 조회, 완료 기록 함께 삭제
   - `BirthdayAndHolidayModelTests`: 생일 저장, n번째 생일, 개인 휴일 기간과 조회
   - `ItemDraftTests`, `ItemStoreTests`: 알림 선택 왕복과 복제, 샘플 데이터 개수
-- [ ] TestFlight 기기 확인: `docs/DEVICE_CHECKLIST.md`를 순서대로 따라 한다.
+- [x] TestFlight 기기 확인: `docs/DEVICE_CHECKLIST.md` 1–6장을 2026-10-19에 사용자가 모두 확인했다.
   - Phase 4: 빠른 입력, 밀기 동작, 순서 바꾸기, 홈 화면 퀵 액션, 기존 데이터
   - Phase 5: 키보드 툴바, 실행 취소, 링크 열기, 다크 모드
   - Phase 6: 연락처 가져오기(권한, 일부 허용, 음력, 다시 가져오기), 공휴일 보정 파일 원격 갱신
@@ -262,5 +288,5 @@ docs/ROADMAP.md, CLAUDE.md
 - [x] Phase 5: 상세 본문 (마크다운 + HTML)
 - [x] Phase 6: 공휴일, 개인 휴일, 생일
 - [x] Phase 7: 반복 할일
-- [ ] Phase 8: 알림 (미리알림)
+- [x] Phase 8: 알림 (미리알림)
 - [ ] Phase 9: iCloud 동기화

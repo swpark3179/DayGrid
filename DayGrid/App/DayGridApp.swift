@@ -10,7 +10,7 @@ struct DayGridApp: App {
     @State private var holidays: HolidayService
 
     init() {
-        let options = LaunchOptions(arguments: ProcessInfo.processInfo.arguments)
+        let options = LaunchOptions(arguments: ProcessInfo.processInfo.arguments, environment: ProcessInfo.processInfo.environment)
         launchOptions = options
         modelContainer = AppModelContainer.make(options: options)
         _clock = State(initialValue: AppClock(fixedToday: options.fixedToday))

@@ -31,6 +31,7 @@ targets:
       - path: DayGrid
         excludes:
           - "Info.plist"
+          - "DayGrid.entitlements"
           - "Resources/markdown"
           - "Resources/markdown/**"
       # 본문 미리보기(markdown-it, DOMPurify, preview.html). 폴더째 번들의 markdown/에 들어간다.
@@ -47,6 +48,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # 배열 키(백그라운드 새로 고침)만 담은 파일. 나머지 키는 아래 INFOPLIST_KEY_*로 만든다.
         INFOPLIST_FILE: DayGrid/Info.plist
+        # iCloud(CloudKit) 동기화. CI 시뮬레이터 빌드는 서명하지 않으므로 적용되지 않는다.
+        CODE_SIGN_ENTITLEMENTS: DayGrid/DayGrid.entitlements
         INFOPLIST_KEY_CFBundleDisplayName: DayGrid
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
