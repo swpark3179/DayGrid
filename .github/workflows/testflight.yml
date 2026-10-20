@@ -3,6 +3,11 @@ name: TestFlight
 # 수동 실행: Actions → TestFlight → Run workflow. 준비 방법은 docs/TESTFLIGHT.md.
 on:
   workflow_dispatch:
+    inputs:
+      upload:
+        description: "App Store Connect에 올린다. 끄면 서명까지만 하고 올리지 않는다(서명 확인용)."
+        type: boolean
+        default: true
 
 concurrency:
   group: testflight
@@ -92,8 +97,13 @@ jobs:
           fi
 
       - name: Sign with cloud signing and upload to App Store Connect
+        env:
+          UPLOAD: ${{ inputs.upload }}
         run: |
           sed "s/__TEAM_ID__/$APPLE_TEAM_ID/" scripts/ci/ExportOptions.plist > build/ExportOptions.plist
+          if [ "$UPLOAD" = "false" ]; then
+            plutil -replace destination -string export build/ExportOptions.plist
+          fi
           set -o pipefail
           xcodebuild -exportArchive \
             -archivePath build/DayGrid.xcarchive \
@@ -104,8 +114,32 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee build/export.log
-          echo "### TestFlight 빌드 $BUILD_NUMBER 업로드 완료" >> "$GITHUB_STEP_SUMMARY"
-          echo "App Store Connect에서 처리(10~30분)가 끝나면 TestFlight 앱에 나타난다." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$UPLOAD" = "false" ]; then
+            echo "### 서명 확인 완료(빌드 $BUILD_NUMBER, 올리지 않음)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### TestFlight 빌드 $BUILD_NUMBER 업로드 완료" >> "$GITHUB_STEP_SUMMARY"
+            echo "App Store Connect에서 처리(10~30분)가 끝나면 TestFlight 앱에 나타난다." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # 내보내기 오류는 "Authentication failed"처럼 짧게만 나온다. 원인(어느 요청이 몇 번 응답으로 실패했는지)은
+      # Xcode 배포 로그에 있으므로 실패하면 그 부분만 출력한다. 인증 토큰이 찍힐 수 있는 줄은 지운다.
+      - name: Show distribution logs
+        if: failure()
+        run: |
+          tmp="${TMPDIR:-$(getconf DARWIN_USER_TEMP_DIR)}"
+          for dir in "$tmp"/*.xcdistributionlogs; do
+            [ -d "$dir" ] || continue
+            echo "== $(basename "$dir")"
+            ls "$dir"
+            for log in "$dir"/*.log; do
+              echo "--- $(basename "$log")"
+              grep -iE "error|fail|denied|unauthori|forbidden|[^0-9](401|403|404|409)[^0-9]|profile|capabilit|icloud|container|entitlement|application-groups" "$log" \
+                | grep -viE "authorization|bearer|cookie|token" \
+                | sed -E 's/eyJ[A-Za-z0-9._-]+/<redacted>/g' \
+                | cut -c1-400 \
+                | tail -n 120 || true
+            done
+          done
 
       - name: Upload logs
         if: failure()
