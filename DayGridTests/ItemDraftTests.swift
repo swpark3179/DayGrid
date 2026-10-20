@@ -54,6 +54,17 @@ struct ItemDraftTests {
         #expect(LocalDate(late.start, in: seoul) == day(2026, 10, 19))
     }
 
+    /// 하루 상세 타임라인의 빈 곳을 누른 시각부터 한 시간. 오늘이어도 다음 정시로 바꾸지 않는다.
+    @Test func newDraftAtATappedMinute() {
+        let now = day(2026, 10, 30).date(hour: 8, minute: 10, in: seoul)
+        let draft = ItemDraft.new(on: day(2026, 10, 30), startMinute: 15 * 60 + 30, categoryID: nil, now: now, timeZone: seoul)
+        #expect(minuteOfDay(draft.start) == 15 * 60 + 30)
+        #expect(draft.end.timeIntervalSince(draft.start) == 3600)
+        #expect(LocalDate(draft.start, in: seoul) == day(2026, 10, 30))
+        #expect(!draft.isAllDay)
+        #expect(draft.hasDate)
+    }
+
     @Test func movingStartKeepsTheDuration() {
         var draft = ItemDraft.new(on: day(2026, 10, 21), categoryID: nil, now: Date(), timeZone: seoul)
         draft.end = draft.start.addingTimeInterval(2 * 3600)

@@ -24,15 +24,18 @@ struct ItemDraft: Equatable {
         self.categoryID = categoryID
     }
 
-    /// `day`에 새 일정을 만들 때의 기본값. 오늘이면 다음 정시부터, 다른 날이면 09:00부터 한 시간.
-    static func new(on day: LocalDate, categoryID: UUID?, now: Date = Date(), timeZone: TimeZone = .current) -> ItemDraft {
-        var hour = 9
-        if day == LocalDate(now, in: timeZone) {
+    /// `day`에 새 일정을 만들 때의 기본값. 한 시간짜리다.
+    /// `startMinute`(타임라인에서 누른 시각)이 있으면 그 시각부터, 없으면 오늘은 다음 정시부터, 다른 날은 09:00부터.
+    static func new(on day: LocalDate, startMinute: Int? = nil, categoryID: UUID?, now: Date = Date(), timeZone: TimeZone = .current) -> ItemDraft {
+        var minute = 9 * 60
+        if let startMinute {
+            minute = min(max(startMinute, 0), 24 * 60 - 1)
+        } else if day == LocalDate(now, in: timeZone) {
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = timeZone
-            hour = min(calendar.component(.hour, from: now) + 1, 23)
+            minute = min(calendar.component(.hour, from: now) + 1, 23) * 60
         }
-        let start = day.date(hour: hour, in: timeZone)
+        let start = day.date(hour: minute / 60, minute: minute % 60, in: timeZone)
         return ItemDraft(start: start, end: start.addingTimeInterval(3600), categoryID: categoryID)
     }
 

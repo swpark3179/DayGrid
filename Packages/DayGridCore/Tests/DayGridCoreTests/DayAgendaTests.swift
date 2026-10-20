@@ -52,6 +52,19 @@ struct DayAgendaTests {
     @Test func orderDoesNotDependOnInput() {
         let expected = DayAgenda.make(on: date, inputs: inputs)
         #expect(DayAgenda.make(on: date, inputs: inputs.reversed()) == expected)
+        let separated = DayAgenda.make(on: date, inputs: inputs, separatingTimed: true)
+        #expect(DayAgenda.make(on: date, inputs: inputs.reversed(), separatingTimed: true) == separated)
+    }
+
+    @Test func timelineTakesEverythingWithATime() {
+        let agenda = DayAgenda.make(on: date, inputs: inputs, separatingTimed: true)
+        // 전날부터 이어지는 야간 작업은 0분, 시간을 정한 할일(운동, 메일 정리)도 시각순으로 들어간다.
+        #expect(agenda.timed.map(\.id) == [uuid(10), uuid(6), uuid(3), uuid(8), uuid(4), uuid(5)])
+        #expect(agenda.spanning.map(\.id) == [uuid(1), uuid(2)])
+        #expect(agenda.tasks.map(\.id) == [uuid(7)])
+        let overnight = agenda.timed.first { $0.id == uuid(10) }
+        #expect(overnight?.dayNumber == 2)
+        #expect(overnight?.totalDays == 2)
     }
 
     @Test func multiDayRowsKnowWhichDayItIs() {

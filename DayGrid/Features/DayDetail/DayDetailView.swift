@@ -4,6 +4,9 @@ import SwiftUI
 
 /// 날짜를 누르면 열리는 하루 상세 시트. 종일·기간, 시간, 할일 순으로 보여준다.
 /// 행을 왼쪽으로 밀면 삭제·복제, 오른쪽으로 밀면 "나중에"(날짜를 비우고 나중에 목록으로)가 나온다.
+///
+/// 설정의 보기 방식이 타임라인이면, 시간이 있는 일정과 할일은 업무 시간 타임라인(`DayTimelineView`)에 놓고
+/// 종일·기간과 시간 없는 할일은 그 아래에 목록으로 보여준다. 타임라인 블록은 꾹 눌러 같은 동작을 고른다.
 struct DayDetailView: View {
     let date: LocalDate
 
@@ -17,6 +20,9 @@ struct DayDetailView: View {
     @Environment(AppClock.self) private var clock
     @State private var editorMode: ItemEditorView.Mode?
     @State private var readingItem: ReaderSelection?
+    @AppStorage(AppSettings.dayDetailStyleKey) private var style = DayDetailStyle.list
+    @AppStorage(AppSettings.workdayStartMinuteKey) private var workdayStart = AppSettings.defaultWorkdayStartMinute
+    @AppStorage(AppSettings.workdayEndMinuteKey) private var workdayEnd = AppSettings.defaultWorkdayEndMinute
 
     init(date: LocalDate) {
         self.date = date
@@ -26,12 +32,15 @@ struct DayDetailView: View {
 
     var body: some View {
         let itemsByID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let agenda = DayAgenda.make(on: date, inputs: items.compactMap(\.agendaInput))
+        let isTimeline = style == .timeline
+        let agenda = DayAgenda.make(on: date, inputs: items.compactMap(\.agendaInput), separatingTimed: isTimeline)
 
         NavigationStack {
             List {
                 specialDaysSection
-                if agenda.isEmpty {
+                if isTimeline {
+                    timelineSection(rows: agenda.timed, itemsByID: itemsByID)
+                } else if agenda.isEmpty {
                     ContentUnavailableView(
                         "일정 없음",
                         systemImage: "calendar",
@@ -40,7 +49,9 @@ struct DayDetailView: View {
                     .listRowBackground(Color.clear)
                 }
                 section("종일 · 기간", rows: agenda.spanning, itemsByID: itemsByID)
-                section("시간", rows: agenda.timed, itemsByID: itemsByID)
+                if !isTimeline {
+                    section("시간", rows: agenda.timed, itemsByID: itemsByID)
+                }
                 section("할일", rows: agenda.tasks, itemsByID: itemsByID)
                 recurringSection
             }
@@ -64,6 +75,33 @@ struct DayDetailView: View {
             .sheet(item: $readingItem) { selection in
                 ItemReaderView(item: selection.item, timeText: selection.timeText)
             }
+        }
+    }
+
+    /// 타임라인 보기. 시간이 있는 일정과 할일을 업무 시간 격자에 놓는다. 비어 있어도 격자를 그린다.
+    private func timelineSection(rows: [DayAgenda.Row], itemsByID: [UUID: Item]) -> some View {
+        let timeline = DayTimeline.make(
+            inputs: rows.compactMap { itemsByID[$0.id]?.timelineInput(on: date) },
+            workStart: workdayStart,
+            workEnd: workdayEnd
+        )
+        return Section("타임라인") {
+            DayTimelineView(
+                date: date,
+                timeline: timeline,
+                itemsByID: itemsByID,
+                rowsByID: Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }),
+                onEdit: { editorMode = .edit($0) },
+                onShowBody: { item, timeText in
+                    readingItem = ReaderSelection(item: item, timeText: timeText)
+                },
+                onCreate: { editorMode = .newTimed(date, minute: $0) }
+            ) { item in
+                Button("복제", systemImage: "plus.square.on.square") { duplicate(item) }
+                Button("나중에", systemImage: "tray") { moveToInbox(item) }
+                Button("삭제", systemImage: "trash", role: .destructive) { delete(item) }
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
         }
     }
 
@@ -116,19 +154,16 @@ struct DayDetailView: View {
                             }
                             .swipeActions {
                                 Button("삭제", role: .destructive) {
-                                    modelContext.delete(item)
-                                    try? modelContext.save()
+                                    delete(item)
                                 }
                                 Button("복제") {
-                                    modelContext.insert(item.duplicate())
-                                    try? modelContext.save()
+                                    duplicate(item)
                                 }
                                 .tint(.blue)
                             }
                             .swipeActions(edge: .leading) {
                                 Button("나중에") {
-                                    item.moveToInbox(order: Item.topInboxOrder(in: modelContext))
-                                    try? modelContext.save()
+                                    moveToInbox(item)
                                 }
                                 .tint(.orange)
                             }
@@ -136,6 +171,22 @@ struct DayDetailView: View {
                 }
             }
         }
+    }
+
+    private func delete(_ item: Item) {
+        modelContext.delete(item)
+        try? modelContext.save()
+    }
+
+    private func duplicate(_ item: Item) {
+        modelContext.insert(item.duplicate())
+        try? modelContext.save()
+    }
+
+    /// 날짜를 비우고 "나중에" 목록 맨 위로 보낸다. 직전 일정의 모양은 힌트로 남는다.
+    private func moveToInbox(_ item: Item) {
+        item.moveToInbox(order: Item.topInboxOrder(in: modelContext))
+        try? modelContext.save()
     }
 }
 
@@ -229,5 +280,11 @@ extension Item {
     var agendaInput: DayAgenda.Input? {
         guard let entry = calendarEntry() else { return nil }
         return DayAgenda.Input(entry: entry, title: title, isTask: isTask, isCompleted: isCompleted)
+    }
+
+    /// 하루 상세 타임라인에 넣을 값. 종일이거나 날짜가 없거나 `date`에 걸치지 않으면 `nil`.
+    func timelineInput(on date: LocalDate, timeZone: TimeZone = .current) -> DayTimeline.Input? {
+        guard !isAllDay, isScheduled, let startDate else { return nil }
+        return DayTimeline.Input(id: id, title: title, start: startDate, end: endDate ?? startDate, on: date, timeZone: timeZone)
     }
 }

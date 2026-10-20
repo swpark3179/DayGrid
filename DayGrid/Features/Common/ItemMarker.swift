@@ -3,6 +3,8 @@ import SwiftUI
 /// 목록 행 앞의 표시. 할일이면 완료 체크박스, 아니면 카테고리 색 막대.
 struct ItemMarker: View {
     let item: Item
+    /// 작은 체크박스(하루 상세 타임라인의 짧은 칸)
+    var compact = false
 
     var body: some View {
         if item.isTask {
@@ -10,7 +12,7 @@ struct ItemMarker: View {
                 item.toggleCompletion()
             } label: {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
+                    .font(compact ? .callout : .title3)
                     .foregroundStyle(item.isCompleted ? Color.accentColor : Color.secondary)
             }
             .buttonStyle(.borderless)
