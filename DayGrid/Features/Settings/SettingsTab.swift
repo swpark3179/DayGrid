@@ -1,10 +1,13 @@
 import DayGridCore
 import SwiftUI
+import UIKit
 
 struct SettingsTab: View {
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
     @Environment(AppClock.self) private var clock
     @AppStorage(AppSettings.birthdayReminderKey) private var birthdayReminder = -1
+    /// 동기화 오류 내용을 복사한 뒤 버튼 문구를 바꾼다.
+    @State private var copiedSyncReport: String?
 
     var body: some View {
         NavigationStack {
@@ -71,6 +74,13 @@ struct SettingsTab: View {
                 Text(detail)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+            // 오류를 펼친 내용(안쪽 CloudKit 오류와 서버 문구). 붙여 넣어 원인을 알릴 수 있다.
+            if let report = state.failureReport {
+                Button(copiedSyncReport == report ? "복사했습니다" : "오류 내용 복사") {
+                    UIPasteboard.general.string = report
+                    copiedSyncReport = report
+                }
             }
         } header: {
             Text("동기화")

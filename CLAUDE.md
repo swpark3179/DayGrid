@@ -17,7 +17,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 음력 표: `pip install korean_lunar_calendar==0.4.0` → `python3 scripts/make_lunar_table.py > Packages/DayGridCore/Sources/DayGridCore/KoreanLunarData.swift`. `KoreanLunarData.swift`는 직접 고치지 않는다.
 - 선거일과 임시공휴일: `DayGrid/Resources/holidays/KR-overrides.json`에 더하고 `version`을 올린다. 앱이 main 브랜치의 이 파일을 하루에 한 번까지 받아 온다.
 - 본문 미리보기 JS(markdown-it, DOMPurify): `scripts/vendor_markdown.sh`로만 갱신한다. 버전은 스크립트 안에 고정돼 있다. `DayGrid/Resources/markdown/`은 폴더 참조로 번들에 들어간다(`project.yml`).
-- CloudKit 스키마: `.github/workflows/cloudkit-schema.yml`을 수동 실행한다(mode `check`: 보기만, `import`: Development에 넣기). 필요한 Secret은 `CLOUDKIT_MANAGEMENT_TOKEN`, `APPLE_TEAM_ID`다. Production 배포는 사용자가 CloudKit Console에서 한다.
+- CloudKit 스키마: `.github/workflows/cloudkit-schema.yml`을 수동 실행한다(mode `check`: 보기만, `import`: Development에 넣기). 두 모드 모두 Production 스키마를 내려받아 `scripts/ci/compare_ckdb.py`로 비교한다(배포 여부 확인). 필요한 Secret은 `CLOUDKIT_MANAGEMENT_TOKEN`, `APPLE_TEAM_ID`다. Production 배포는 사용자가 CloudKit Console에서 한다.
 - TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, ad-hoc 서명으로 entitlements를 넣는다. 그다음 `scripts/ci/asc_signing.py`가 App Store Connect API로 배포 인증서와 프로파일을 만들고, 수동 서명으로 내보내면서 업로드한다. 끝나면 인증서와 프로파일을 지운다. Xcode 클라우드 서명은 iCloud 컨테이너 조회에서 401이 나서 쓰지 않는다. 입력 `upload`를 끄면 서명까지만 확인한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
 
 ## 규칙
@@ -51,6 +51,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 테스트는 iCloud를 쓰지 않는다. UI 테스트(`-UITestSeedData`)와 단위 테스트 호스트는 `LaunchOptions.usesCloudSync`가 false다.
   - 동기화로 생긴 중복(같은 `id`의 카테고리, 같은 주기의 완료 기록)은 `DuplicateMerger`로만 합친다.
   - 동기화 상태 문구는 Core `CloudSyncState`가 정한다. `CKContainer`는 부르지 않는다. entitlements가 없는 빌드에서는 앱이 꺼진다.
+  - 동기화 오류는 Core `CloudKitErrorReader`로 나눈다. 바깥 오류(`partialFailure` 등)만 보지 말고 안쪽 오류까지 펼친다.
 - UI 문자열은 한국어로 쓴다. 주 시작 요일 기본값은 일요일이다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.

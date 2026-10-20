@@ -38,6 +38,10 @@ TestFlight로 받은 앱은 CloudKit의 **Production** 환경을 씁니다.
 2. CloudKit Console → **CloudKit Database** → 컨테이너 `iCloud.io.github.swpark3179.DayGrid`를 엽니다.
 3. 왼쪽 아래 **Deploy Schema Changes…**를 누르고, Production에 더해질 레코드 타입(`CD_Item` 등 6개)을 확인한 뒤 **Deploy**를 누릅니다.
    - Production에 배포한 필드는 지우거나 타입을 바꿀 수 없습니다. 더하는 것만 됩니다.
+   - **import만 하고 이 단계를 빼먹으면** TestFlight 빌드에서 "동기화 오류"가 납니다. 1번만으로는 Production이 바뀌지 않습니다.
+4. 배포했는지는 같은 워크플로를 mode **check**로 실행해 확인합니다.
+   - "Compare with the Production schema" 단계와 실행 요약에 Production에 없는 레코드 타입이나 필드가 나옵니다.
+   - "레코드 타입 7개와 필드가 모두 있다"가 나오면 배포된 것입니다.
 
 ## 5. TestFlight로 확인
 - **Actions** → **TestFlight** → **Run workflow**로 새 빌드를 올립니다(`docs/TESTFLIGHT.md`).
@@ -53,9 +57,17 @@ TestFlight로 받은 앱은 CloudKit의 **Production** 환경을 씁니다.
 - **설정에 "iCloud에 로그인되어 있지 않습니다"**
   - iPhone 설정 → [이름] → iCloud에 로그인되어 있는지 확인합니다.
   - "iCloud를 사용하는 앱"에서 DayGrid가 켜져 있는지 확인합니다.
-- **설정에 "동기화 오류: … production schema …"나 "Cannot create or modify field"**
-  - 원인은 Production 스키마가 없거나 모델과 다른 것입니다.
-  - 4번(import → Deploy)을 다시 합니다. 그래도 같으면 그 문구를 Claude에게 알려 주세요.
+- **설정에 "iCloud(Production)의 데이터 구조가 앱과 맞지 않습니다"**
+  - 원인은 Production 스키마가 없거나 모델과 다른 것입니다. 괄호 안에 서버 문구(예: `Cannot create new type CD_Item in production schema`)가 보입니다.
+  - 4번(import → Deploy)을 다시 하고, 4-4의 check로 확인합니다.
+- **설정에 "동기화 오류: 작업을 완료할 수 없습니다. (CKErrorDomain 오류 2.)"**
+  - 2026-10-20까지의 빌드가 보여주던 문구입니다. 오류 2는 "묶음 실패(partialFailure)"라서, 진짜 원인은 그 안의 레코드별 오류에 있습니다.
+  - 2026-10-20에 확인했을 때 Production에는 `Users`만 있고 DayGrid 레코드 타입 6개가 없었습니다. 4-3(Deploy)을 하면 해결됩니다.
+  - 새 빌드는 안쪽 오류를 펼쳐서 원인(예: `serverRejectedRequest(15): …`)을 보여줍니다.
+- **그 밖의 "동기화 문제"**
+  - 설정 → 동기화의 **오류 내용 복사**를 눌러 복사한 내용을 Claude에게 붙여 넣어 주세요.
+  - 바깥 오류부터 안쪽 오류까지 한 줄씩(코드 이름, 서버 문구, userInfo 키) 들어 있습니다. 데이터 내용은 들어 있지 않습니다.
+- **설정에 "iCloud 컨테이너 설정이 맞지 않습니다"**: 1–2번(컨테이너, App ID의 iCloud 컨테이너 체크)을 확인합니다.
 - **CloudKit schema 워크플로에서 인증 오류**: 토큰이 만료됐거나 잘못 붙여넣은 경우입니다. 3번에서 새 토큰을 만들어 Secret을 바꿉니다.
 - **데이터가 이상할 때**
   - 앱이 처음 iCloud를 켤 때 기존 저장소를 이 기기의 `Application Support/Backups/pre-icloud`에 한 번 복사해 둡니다.
