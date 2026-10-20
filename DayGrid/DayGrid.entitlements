@@ -2,6 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   iCloud(CloudKit) 동기화. 컨테이너는 developer.apple.com에서 만들고 App ID에 연결해 둔다(docs/ICLOUD.md).
+  App Group: 잠금화면 위젯과 반복 할일 요약을 나눈다(docs/WIDGET.md).
   CI 시뮬레이터 빌드는 CODE_SIGNING_ALLOWED=NO라 이 파일이 적용되지 않는다.
   TestFlight 워크플로는 배포용 사본(aps-environment=production)으로 서명한다.
 -->
@@ -16,6 +17,10 @@
 	<key>com.apple.developer.icloud-services</key>
 	<array>
 		<string>CloudKit</string>
+	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.io.github.swpark3179.DayGrid</string>
 	</array>
 </dict>
 </plist>

@@ -288,6 +288,19 @@ docs/ROADMAP.md, CLAUDE.md
 - 앱이 App Group에 반복 할일 요약(JSON)을 쓰고, 위젯은 Core로 날짜마다 다시 계산한다. 위젯을 누르면 반복 탭이 열린다.
 - 사용자 준비: App Group과 위젯 App ID 등록(`docs/WIDGET.md`).
 - **완료 기준:** 요약 계산 테스트가 통과하고, 기기에서 위젯이 갱신되는지 확인한다.
+- **구현 메모**
+  - Core
+    - `RecurringSnapshot`(Codable): 사용 중인 반복 할일의 id, 제목, `Recurrence`, 최근 62일의 완료한 주기 시작일
+    - `pending(on:)`이 `Recurrence.isDue`로 그날 남은 것을 고른다.
+    - `RecurrenceRule`과 `Recurrence`도 Codable이다.
+  - 앱 `WidgetSnapshotWriter`
+    - App Group(`group.io.github.swpark3179.DayGrid`) 폴더의 `recurring.json`에 쓰고 `WidgetCenter.reloadAllTimelines()`를 부른다.
+    - 쓰는 시점: 앱 시작과 포그라운드 진입, 저장(1초 모음), iCloud에서 받은 뒤, 알림의 "완료" 뒤. 내용이 같으면 다시 그리지 않는다.
+  - 위젯(`DayGridWidgets` 확장, `io.github.swpark3179.DayGrid.Widgets`)
+    - 요약을 읽어 지금과 다음 3일 자정의 항목을 만든다. 앱을 열지 않아도 자정에 새 주기가 반영된다.
+    - 모양: `accessoryRectangular`/`Circular`/`Inline`
+    - 누르면 `daygrid://recurring` → 앱의 `AppRoute`가 반복 탭을 연다.
+  - TestFlight 워크플로: 위젯 확장을 먼저, 앱을 다음에 ad-hoc 서명한다. 두 서명 모두 App Group 키가 있는지 검사한다.
 
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가

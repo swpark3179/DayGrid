@@ -1,5 +1,5 @@
 /// 반복 규칙. 요일은 `LocalDate.weekday`와 같이 1 = 일요일 … 7 = 토요일.
-public enum RecurrenceRule: Hashable, Sendable {
+public enum RecurrenceRule: Hashable, Sendable, Codable {
     case daily
     /// 고른 요일마다. 요일을 하나도 고르지 않으면 발생일이 없다.
     case weekly(weekdays: Set<Int>)
@@ -58,7 +58,7 @@ public enum RecurrenceStatus: Hashable, Sendable {
 ///
 /// - 주기는 발생일부터 다음 발생일 전날까지다. 매일은 하루가 주기 하나다.
 /// - `startDay` 이전과 `endDay` 이후에는 발생일이 없다. 마지막 주기도 원래 길이만큼 이어진다.
-public struct Recurrence: Hashable, Sendable {
+public struct Recurrence: Hashable, Sendable, Codable {
     public var rule: RecurrenceRule
     public var startDay: LocalDate
     public var endDay: LocalDate?

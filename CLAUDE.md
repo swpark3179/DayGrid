@@ -72,3 +72,8 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - `preview.js`의 체크 번호(`data-task-index`)와 Core의 체크 찾기 규칙은 같아야 한다. 한쪽을 바꾸면 다른 쪽도 바꾼다.
 - 지금은 CI 결과를 기다리지 않고 진행한다(사용자 결정). 미룬 확인 항목은 `docs/ROADMAP.md`의 "나중에 할 테스트"에 적는다.
 - 실기기 확인 항목은 `docs/DEVICE_CHECKLIST.md`에 모은다. 새 기능의 기기 확인도 여기에 더한다.
+- 잠금화면 위젯(`DayGridWidgets` 확장)
+  - 위젯은 SwiftData를 열지 않는다. 앱이 `WidgetSnapshotWriter`로 App Group 폴더에 쓴 Core `RecurringSnapshot`(JSON)만 읽는다. 위젯에 넘길 데이터가 바뀌면 이 요약을 고친다.
+  - App Group은 `group.io.github.swpark3179.DayGrid`(`RecurringSnapshot.appGroupID`)다. 앱과 위젯의 entitlements에 둘 다 있다. 사용자 준비는 `docs/WIDGET.md`에 있다.
+  - 위젯을 누르면 `daygrid://recurring`(`RecurringSnapshot.openURL`)을 연다. 앱은 `AppRoute`로 받는다.
+  - TestFlight 서명은 위젯 확장을 먼저, 앱을 나중에 한다.

@@ -115,6 +115,8 @@ final class NotificationScheduler {
             }
         }
         try? context.save()
+        // 앱이 백그라운드에 있어도 잠금화면 위젯에서 바로 빠지게 한다.
+        WidgetSnapshotWriter.shared.write()
     }
 
     // MARK: - 계획

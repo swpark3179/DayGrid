@@ -20,6 +20,7 @@ struct DayGridApp: App {
             QuickActionCenter.shared.pending = quickAction
         }
         NotificationScheduler.shared.container = modelContainer
+        WidgetSnapshotWriter.shared.container = modelContainer
     }
 
     var body: some Scene {
