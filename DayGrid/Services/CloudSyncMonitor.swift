@@ -1,4 +1,3 @@
-import CloudKit
 import CoreData
 import DayGridCore
 import Foundation
@@ -10,6 +9,7 @@ import SwiftData
 ///
 /// 다른 기기의 변경을 받으면(가져오기 성공) 중복을 합치고 알림을 다시 맞춘다.
 /// `CKContainer`는 entitlements가 없으면 앱이 꺼지므로 직접 부르지 않고, 상태는 이벤트로만 판단한다.
+/// 오류는 Core `CloudKitErrorReader`가 안쪽(레코드별 오류, 감싼 오류)까지 펼쳐 나눈다.
 @MainActor
 @Observable
 final class CloudSyncMonitor {
@@ -78,40 +78,19 @@ final class CloudSyncMonitor {
         case .export: kind = .upload
         @unknown default: kind = .setup
         }
-        let failure: CloudSyncFailure?
+        var failure: CloudSyncFailure?
+        var report: String?
         if event.endDate != nil, !event.succeeded {
-            failure = event.error.map(classify) ?? .other(message: "알 수 없는 오류")
-        } else {
-            failure = nil
+            failure = event.error.map(CloudKitErrorReader.failure(for:)) ?? .other(message: "알 수 없는 오류")
+            report = event.error.map(CloudKitErrorReader.report(of:))
         }
-        return CloudSyncEvent(id: event.identifier, kind: kind, startDate: event.startDate, endDate: event.endDate, failure: failure)
-    }
-
-    /// CloudKit 오류를 종류로 나눈다. Core Data가 감싼 오류는 한 겹 벗겨서 본다.
-    private nonisolated static func classify(_ error: any Error) -> CloudSyncFailure {
-        let nsError = error as NSError
-        // NSCloudKitMirroringDelegate가 iCloud 계정이 없을 때 쓰는 코드
-        if nsError.domain == NSCocoaErrorDomain, nsError.code == 134_400 {
-            return .notSignedIn
-        }
-        guard let ckError = (error as? CKError) ?? (nsError.userInfo[NSUnderlyingErrorKey] as? CKError) else {
-            return .other(message: nsError.localizedDescription)
-        }
-        switch ckError.code {
-        case .notAuthenticated:
-            return .notSignedIn
-        case .quotaExceeded:
-            return .quotaExceeded
-        case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy:
-            return .network
-        case .partialFailure:
-            // 레코드별 오류(예: Production 스키마에 없는 필드) 중 첫 번째를 보여준다.
-            if let first = ckError.partialErrorsByItemID?.values.first {
-                return classify(first)
-            }
-            return .other(message: ckError.localizedDescription)
-        default:
-            return .other(message: ckError.localizedDescription)
-        }
+        return CloudSyncEvent(
+            id: event.identifier,
+            kind: kind,
+            startDate: event.startDate,
+            endDate: event.endDate,
+            failure: failure,
+            failureReport: report
+        )
     }
 }

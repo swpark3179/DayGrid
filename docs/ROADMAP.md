@@ -226,6 +226,15 @@ docs/ROADMAP.md, CLAUDE.md
 - **현황(2026-10-20):** 사용자가 준비 단계(컨테이너, 토큰)를 마쳤고, 스키마를 Development에 import했다.
   - TestFlight 실행 #3(iCloud entitlements가 처음 들어간 빌드)이 내보내기에서 실패했다: `Authentication failed`, `No profiles for 'io.github.swpark3179.DayGrid' were found`.
   - 서명을 고친 뒤 체크리스트 7장을 확인한다.
+  - TestFlight 실행 #9(빌드 9)가 올라갔다. 기기의 설정에 "동기화 오류: 작업을 완료할 수 없습니다. (CKErrorDomain 오류 2.)"가 보였다(사용자 확인).
+    - 오류 2는 `partialFailure`다. 앱이 안쪽의 레코드별 오류를 찾지 못하고 바깥 문구만 보여줬다.
+    - CloudKit schema 워크플로(check)에 Production 비교를 더해 확인했다. Production에는 `Users`만 있고 `CD_` 레코드 타입 6개가 없었다. Development import 뒤 Console의 Deploy를 하지 않은 것이다.
+    - 할 일: 사용자가 CloudKit Console에서 Deploy Schema Changes → check로 확인 → 앱을 다시 열어 체크리스트 7장을 확인한다. 스키마는 앱 빌드와 상관없으므로 기존 빌드 9로도 확인할 수 있다.
+  - 오류 읽기를 고쳤다: Core `CloudKitErrorReader`가 감싼 오류(`NSUnderlyingError`)와 레코드별 오류(`CKPartialErrors`)를 펼친다.
+    - 덩달아 실패한 `batchRequestFailed`는 원인에서 뺀다.
+    - 스키마 문제(`schemaMismatch`)와 컨테이너 설정 문제(`containerSetup`)는 따로 안내한다.
+    - 그 밖의 오류는 코드 이름과 서버 문구를 보여준다.
+    - 설정의 **오류 내용 복사**로 펼친 내용 전체를 복사할 수 있다.
 - **구현 메모(사용자 결정: 스키마는 GitHub Actions로 자동 준비, 동기화는 항상 켬)**
   - TestFlight 빌드는 CloudKit **Production**을 쓴다.
     - Production 스키마는 자동으로 생기지 않는다. Development에 넣은 뒤 CloudKit Console에서 배포해야 한다.

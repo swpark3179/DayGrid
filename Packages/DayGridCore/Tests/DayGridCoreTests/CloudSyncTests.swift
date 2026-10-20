@@ -179,3 +179,103 @@ struct CloudKitSchemaFileTests {
         #expect(CloudKitSchemaFile.render([completion, category]) == CloudKitSchemaFile.render([category, completion]))
     }
 }
+
+private func cloudKitError(_ code: Int, server: String? = nil, _ userInfo: [String: Any] = [:]) -> NSError {
+    var info = userInfo
+    if let server {
+        info["ServerErrorDescription"] = server
+    }
+    return NSError(domain: "CKErrorDomain", code: code, userInfo: info)
+}
+
+/// 레코드마다의 오류를 담은 묶음 실패(partialFailure). 바깥에는 설명이 없다.
+private func partialFailure(_ errors: [String: NSError]) -> NSError {
+    NSError(domain: "CKErrorDomain", code: 2, userInfo: ["CKPartialErrors": errors])
+}
+
+struct CloudKitErrorReaderTests {
+    private let schemaMessage = "Cannot create new type CD_Item in production schema"
+
+    @Test func findsTheSchemaErrorInsideAPartialFailure() {
+        let internalError = NSError(domain: "CKInternalErrorDomain", code: 2000)
+        let error = partialFailure([
+            "record-a": cloudKitError(22),
+            "record-b": cloudKitError(15, server: schemaMessage, [NSUnderlyingErrorKey: internalError]),
+            "record-c": cloudKitError(22),
+        ])
+        let failure = CloudKitErrorReader.failure(for: error)
+        #expect(failure == .schemaMismatch(message: "serverRejectedRequest(15): \(schemaMessage)"))
+        #expect(failure.koreanText.contains("CloudKit Console에서 스키마를 Production에 배포"))
+        #expect(failure.koreanText.contains(schemaMessage))
+    }
+
+    @Test func readsThroughTheCoreDataWrapper() {
+        let fieldMessage = "invalid attempt to set value type STRING for field 'CD_title' for type 'CD_Item', defined to be: INT64"
+        let wrapped = NSError(domain: NSCocoaErrorDomain, code: 134_419, userInfo: [
+            NSUnderlyingErrorKey: partialFailure(["record-a": cloudKitError(12, server: fieldMessage)]),
+        ])
+        #expect(CloudKitErrorReader.failure(for: wrapped) == .schemaMismatch(message: "invalidArguments(12): \(fieldMessage)"))
+    }
+
+    @Test func classifiesAccountQuotaNetworkAndContainerProblems() {
+        let notSignedIn = NSError(domain: NSCocoaErrorDomain, code: 134_400)
+        #expect(CloudKitErrorReader.failure(for: notSignedIn) == .notSignedIn)
+        #expect(CloudKitErrorReader.failure(for: partialFailure(["zone": cloudKitError(9)])) == .notSignedIn)
+        #expect(CloudKitErrorReader.failure(for: partialFailure(["a": cloudKitError(25), "b": cloudKitError(22)])) == .quotaExceeded)
+        #expect(CloudKitErrorReader.failure(for: cloudKitError(3)) == .network)
+        #expect(CloudKitErrorReader.failure(for: partialFailure(["a": cloudKitError(7)])) == .network)
+
+        let zone = partialFailure(["com.apple.coredata.cloudkit.zone": cloudKitError(10, server: "Invalid bundle ID for container")])
+        #expect(CloudKitErrorReader.failure(for: zone) == .containerSetup(message: "permissionFailure(10): Invalid bundle ID for container"))
+        #expect(CloudKitErrorReader.failure(for: cloudKitError(8)) == .containerSetup(message: "missingEntitlement(8)"))
+    }
+
+    /// 실기기에서 본 "작업을 완료할 수 없습니다. (CKErrorDomain 오류 2.)": 안쪽 오류가 없으면 적어도 이름과 키를 보여준다.
+    @Test func aBarePartialFailureStillNamesItself() {
+        let bare = NSError(domain: "CKErrorDomain", code: 2, userInfo: ["ContainerID": "iCloud.io.github.swpark3179.DayGrid"])
+        #expect(CloudKitErrorReader.failure(for: bare) == .other(message: "partialFailure(2)"))
+        #expect(CloudKitErrorReader.failure(for: bare).koreanText == "동기화 오류: partialFailure(2)")
+        #expect(CloudKitErrorReader.report(of: bare) == "partialFailure(2) [ContainerID]")
+    }
+
+    @Test func usesTheDescriptionOfOtherErrors() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: 134_060, userInfo: [NSLocalizedDescriptionKey: "A Core Data error occurred."])
+        #expect(CloudKitErrorReader.failure(for: error) == .other(message: "NSCocoaErrorDomain 134060: A Core Data error occurred."))
+        #expect(CloudKitErrorReader.failure(for: cloudKitError(26, [NSLocalizedDescriptionKey: "Zone does not exist"]))
+            == .other(message: "zoneNotFound(26): Zone does not exist"))
+    }
+
+    @Test func reportIndentsInnerErrorsAndCountsRepeats() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: 134_419, userInfo: [
+            NSUnderlyingErrorKey: partialFailure([
+                "record-a": cloudKitError(15, server: schemaMessage),
+                "record-b": cloudKitError(15, server: schemaMessage),
+                "record-c": cloudKitError(22),
+            ]),
+        ])
+        let report = CloudKitErrorReader.report(of: error)
+        #expect(report == """
+            NSCocoaErrorDomain 134419
+              partialFailure(2)
+                serverRejectedRequest(15): \(schemaMessage) [ServerErrorDescription] ×2
+                batchRequestFailed(22)
+            """)
+    }
+
+    @Test func stateKeepsTheReportOfTheShownFailure() {
+        var state = CloudSyncState()
+        #expect(state.failureReport == nil)
+        state.apply(CloudSyncEvent(
+            id: uuid(1), kind: .upload, startDate: start, endDate: start.addingTimeInterval(5),
+            failure: .other(message: "partialFailure(2)"), failureReport: "partialFailure(2)"
+        ))
+        #expect(state.failureReport == "iCloud 보내기 실패 2026-10-19T08:53:25Z\npartialFailure(2)")
+
+        // 동기화 중에는 실패를 보여주지 않으므로 복사할 내용도 없다
+        state.apply(event(2, .upload, at: 10, ended: false))
+        #expect(state.failureReport == nil)
+        state.apply(event(2, .upload, at: 10))
+        #expect(state.failureReport == nil)
+        #expect(CloudSyncState.off(.testRun).failureReport == nil)
+    }
+}
