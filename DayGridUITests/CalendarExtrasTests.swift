@@ -1,6 +1,6 @@
 import XCTest
 
-/// Phase 10 화면(연·월 이동, 본문 읽기 화면, 반복 탭 배지)을 샘플 데이터로 확인하고 스크린샷(26–27)을 남긴다.
+/// Phase 10 화면(연·월 이동, 본문 읽기 화면)을 샘플 데이터로 확인하고 스크린샷(26–27)을 남긴다.
 final class CalendarExtrasTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -11,12 +11,8 @@ final class CalendarExtrasTests: XCTestCase {
         let app = launchApp()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
 
-        // 반복 탭 배지: 샘플 데이터에서 오늘(10/19) 남은 반복 할일은 2개(물 2L, 헬스장)
-        let recurringTab = app.tabBars.buttons["반복"]
-        if recurringTab.waitForExistence(timeout: 5) {
-            let text = "\(recurringTab.label) \(recurringTab.value as? String ?? "")"
-            XCTAssertTrue(text.contains("2"), "반복 탭에 미완료 수 2가 보여야 한다(지금: \(text))")
-        }
+        // 반복 탭 배지는 여기서 검사하지 않는다. iOS 26 탭 막대는 배지 숫자를 접근성 라벨·값에 넣지 않는다(라벨 "반복", 값 없음).
+        // 개수는 단위 테스트(`RecurringTaskTests.sampleDataHasTwoDueTasksToday`)로, 표시는 기기 체크리스트 8-4로 확인한다.
 
         app.buttons["calendar.monthTitle"].tap()
         let pickerBar = app.navigationBars["날짜로 이동"]
