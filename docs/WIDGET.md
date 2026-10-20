@@ -33,7 +33,14 @@ App Store Connect에 앱을 새로 만들 필요는 없습니다. 위젯은 DayG
 - `docs/DEVICE_CHECKLIST.md` 10장을 따라 확인합니다.
 
 ## 문제가 생기면
-- **TestFlight 내보내기에서 App Group·프로파일 오류(DayGridWidgets)**: 2–3번을 확인합니다. 두 App ID 모두 같은 App Group을 체크해야 합니다.
+- **TestFlight "Create signing certificate and profiles" 단계 오류**
+  - 워크플로가 서명 전에 App ID를 모두 확인합니다. 고칠 것을 한꺼번에 보여 줍니다.
+  - "App ID io.github.swpark3179.DayGrid.Widgets가 developer.apple.com에 없다" → 3번을 합니다.
+  - "App ID …에 App Groups가 꺼져 있다" → 앱이면 2번, 위젯이면 3번을 합니다.
+  - "… 프로파일에 없는 entitlement: com.apple.security.application-groups"
+    - App Groups는 켜져 있지만 그룹이 체크되지 않은 상태입니다.
+    - 그 App ID의 App Groups → Configure(또는 Edit)에서 `group.io.github.swpark3179.DayGrid`를 체크하고 Save합니다.
+    - 두 App ID 모두 같은 그룹이어야 합니다.
 - **위젯이 "남은 반복 할일 없음"만 보인다**
   - 앱을 한 번 열면 요약을 다시 씁니다.
   - 그래도 같으면 App Group 설정(2–3번)을 확인합니다. 앱과 위젯이 같은 그룹을 써야 요약을 읽습니다.

@@ -54,6 +54,13 @@ def fail(message):
     sys.exit(1)
 
 
+def fail_all(problems):
+    """문제를 모두 보여 주고 끝낸다. 한 번 실행으로 developer.apple.com에서 고칠 것을 다 알 수 있게."""
+    for problem in problems:
+        print(f"::error::{problem}")
+    sys.exit(1)
+
+
 # MARK: - 인증 토큰(ES256 JWT)
 
 def b64url(data):
@@ -202,19 +209,23 @@ def remove_stale(client):
 
 
 def find_bundle_id(client, identifier):
+    """App ID의 리소스 id. 없으면 `None`."""
     response = client.request("GET", "/bundleIds", params={"filter[identifier]": identifier, "limit": 200})
     for item in response.get("data", []):
         if item["attributes"]["identifier"] == identifier:
             return item["id"]
-    fail(f"App ID {identifier}가 developer.apple.com에 없다. docs/TESTFLIGHT.md 1번(위젯이면 docs/WIDGET.md 3번)을 확인한다.")
+    return None
 
 
-def check_capabilities(client, bundle_resource_id, identifier, entitlements):
+def capability_problems(client, bundle_resource_id, identifier, entitlements):
+    """아카이브의 entitlements에 필요한데 App ID에서 꺼져 있는 기능(사람이 읽을 문구)."""
     response = client.request("GET", f"/bundleIds/{bundle_resource_id}/bundleIdCapabilities")
     enabled = {item["attributes"]["capabilityType"] for item in response.get("data", [])}
-    for key, (capability, label, doc) in CAPABILITIES.items():
-        if key in entitlements and capability not in enabled:
-            fail(f"App ID {identifier}에 {label}가 꺼져 있다. {doc}대로 켠다.")
+    return [
+        f"App ID {identifier}에 {label}가 꺼져 있다. {doc}대로 켠다."
+        for key, (capability, label, doc) in CAPABILITIES.items()
+        if key in entitlements and capability not in enabled
+    ]
 
 
 def make_certificate(client, out, state):
@@ -311,14 +322,24 @@ def prepare(args):
     client = client_from_environment()
 
     bundles = [(bundle, bundle_identifier(bundle), signed_entitlements(bundle)) for bundle in archive_bundles(args.archive)]
+    # 인증서를 만들기 전에 모든 App ID를 확인하고, 문제는 한꺼번에 알린다.
     resources = {}
+    problems = []
     for _, identifier, entitlements in bundles:
-        resources[identifier] = find_bundle_id(client, identifier)
-        check_capabilities(client, resources[identifier], identifier, entitlements)
+        resource_id = find_bundle_id(client, identifier)
+        if resource_id is None:
+            doc = "docs/WIDGET.md 3번" if identifier.endswith(".Widgets") else "docs/TESTFLIGHT.md 1번"
+            problems.append(f"App ID {identifier}가 developer.apple.com에 없다. {doc}대로 만든다.")
+            continue
+        resources[identifier] = resource_id
+        problems += capability_problems(client, resource_id, identifier, entitlements)
+    if problems:
+        fail_all(problems)
 
     remove_stale(client)
     certificate_id, certificate_sha1 = make_certificate(client, out, state)
 
+    # 프로파일도 모두 만들어 본 뒤 한꺼번에 알린다. 만든 것은 정리 단계(cleanup)가 지운다.
     profiles = {}
     for _, identifier, entitlements in bundles:
         uuid, path = make_profile(client, out, state, identifier, resources[identifier], certificate_id)
@@ -326,10 +347,14 @@ def prepare(args):
         missing = missing_profile_entitlements(entitlements, granted)
         if missing:
             shown = {key: granted.get(key, "(없음)") for key in CAPABILITIES if key in entitlements}
-            fail(f"{identifier} 프로파일에 없는 entitlement: {', '.join(missing)}. 프로파일에 있는 값: {shown}. "
-                 "developer.apple.com의 App ID에서 iCloud 컨테이너나 App Group을 체크했는지 확인한다"
-                 "(docs/ICLOUD.md 2번, docs/WIDGET.md 2–3번).")
+            problems.append(
+                f"{identifier} 프로파일에 없는 entitlement: {', '.join(missing)}. 프로파일에 있는 값: {shown}. "
+                "developer.apple.com의 App ID에서 iCloud 컨테이너나 App Group을 체크했는지 확인한다"
+                "(docs/ICLOUD.md 2번, docs/WIDGET.md 2–3번)."
+            )
         profiles[identifier] = uuid
+    if problems:
+        fail_all(problems)
 
     write_export_options(args.export_options, args.destination, os.environ["APPLE_TEAM_ID"], certificate_sha1, profiles)
     print(f"ExportOptions: {args.export_options} (수동 서명, {len(profiles)}개 프로파일)")
