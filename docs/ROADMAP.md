@@ -265,7 +265,8 @@ docs/ROADMAP.md, CLAUDE.md
     - 끌기 중에는 `clamped`로 격자 밖을 가장 가까운 칸에 맞춘다.
   - 꾹 눌러 기간 만들기
     - `RangePressGesture`(iOS 18 `UIGestureRecognizerRepresentable`, UIKit 길게 누르기 0.4초)를 달력 페이지에 단다.
-    - 길게 누르기가 먼저 인식되면 페이지 넘김이 시작되지 않는다. 짧은 탭은 날짜 버튼이 받는다.
+    - 인식되면 손가락 아래의 스크롤 뷰(달 넘김)를 끝날 때까지 멈춘다(`RangeLongPressRecognizer`). 짧은 탭은 날짜 버튼이 받는다.
+      - SwiftUI 제스처는 스크롤과 함께 인식된다. 그래서 멈추지 않으면 끄는 동안 달이 넘어갔다(PR #15 첫 CI: 10/21 → 10/23으로 끌었더니 9월이 됐다).
     - 날짜 칸의 `contextMenu`(이 날에 일정 추가)는 뺐다. 움직이지 않고 놓으면 같은 일을 한다.
     - 기간은 `ItemEditorView.Mode.newRange` → `ItemDraft.newAllDay(from:through:)`(종일)로 연다.
   - "나중에" → 달력
@@ -325,6 +326,12 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 10 "반복" 탭 배지: UI 테스트로는 확인할 수 없다. 기기 체크리스트 8-4로 확인한다.
   - iOS 26 탭 막대는 배지 숫자를 접근성 라벨·값에 넣지 않는다. PR #14 CI에서 라벨 "반복", 값이 비어 있었다.
   - 개수 계산은 `RecurringTaskTests.sampleDataHasTwoDueTasksToday`가 확인한다.
+- [ ] Phase 11 "나중에" → 달력 놓기: UI 테스트(`DragTests.testDraggingAnInboxItemOntoTheCalendar`)의 마지막 확인을 기대 실패(strict 아님)로 두었다. 기기 체크리스트 9-5–9-7로 확인한다.
+  - PR #15 CI에서 끌기를 시작하자 달력 탭으로 바뀌었다. 그러나 놓은 뒤 항목이 어느 날에도 없었다.
+  - 원인 후보
+    - XCUITest의 끌기가 시스템 끌어 놓기로 이어지지 않음
+    - 탭이 바뀌면서 끌기를 시작한 목록이 화면에서 빠져 끌기가 끝남
+  - 기기에서도 안 되면 두 번째가 원인이다. 그때는 탭을 바꾸는 방식을 고친다.
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
