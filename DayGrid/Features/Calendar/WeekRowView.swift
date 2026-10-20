@@ -69,7 +69,7 @@ struct WeekRowView: View {
                     }
                 }
 
-                // 맨 위에 날짜별 버튼을 깐다. 탭하면 하루 상세. 꾹 누르기는 달력 페이지(`RangePressGesture`)가 맡는다.
+                // 맨 위에 날짜별 접근성 요소를 깐다. 탭과 꾹 누르기는 달력 페이지의 `RangePressGesture` 하나가 받는다.
                 HStack(spacing: 0) {
                     ForEach(week.days) { day in
                         DayHitTarget(date: day.date, mark: marks[day.date], onSelect: onSelectDay)
@@ -85,22 +85,23 @@ struct WeekRowView: View {
     }
 }
 
+/// 날짜 칸의 접근성 요소(VoiceOver, UI 테스트의 `calendar.day.yyyy-MM-dd` 버튼).
+/// `Button`을 쓰지 않는다. SwiftUI는 자식 제스처를 먼저 주므로, 버튼이 누르기를 잡으면 페이지의 꾹 누르기가 시작되지 못한다
+/// (PR #15 CI: 꾹 눌러 끌었더니 달이 넘어갔다). 손가락 탭은 `RangePressGesture`가 받아 같은 `onSelect`를 부른다.
 private struct DayHitTarget: View {
     let date: LocalDate
     let mark: DayMark?
     let onSelect: (LocalDate) -> Void
 
     var body: some View {
-        Button {
-            onSelect(date)
-        } label: {
-            Color.clear
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityText)
-        .accessibilityHint("꾹 누르면 새 일정, 꾹 누른 채 끌면 기간 일정")
-        .accessibilityIdentifier("calendar.day.\(date.iso8601)")
+        Color.clear
+            .contentShape(Rectangle())
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { onSelect(date) }
+            .accessibilityLabel(accessibilityText)
+            .accessibilityHint("꾹 누르면 새 일정, 꾹 누른 채 끌면 기간 일정")
+            .accessibilityIdentifier("calendar.day.\(date.iso8601)")
     }
 
     private var accessibilityText: String {

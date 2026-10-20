@@ -33,7 +33,10 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
   - 화면 위치 → 날짜 칸은 `MonthLayout.day(atX:y:width:height:in:clamped:)`로만 구한다.
   - 달력에서 날짜를 꾹 누르면 기간 고르기(`RangePressGesture`)가 된다. 움직이지 않고 놓으면 그 날 새 일정이다. 날짜 칸에 `contextMenu`를 다시 달지 않는다.
-  - 꾹 누르는 동안은 `RangeLongPressRecognizer`가 손가락 아래 스크롤 뷰(달 넘김)를 멈춘다. SwiftUI 제스처는 스크롤과 함께 인식되므로, 끌기 제스처를 새로 만들면 같은 처리가 필요하다.
+  - 달력 격자의 탭과 꾹 누르기는 `DayPressRecognizer`(`RangePressGesture`) 하나가 받는다.
+    - 날짜 칸(`DayHitTarget`)은 `Button`이 아니라 접근성 요소다.
+    - 격자 안에 SwiftUI 버튼이나 제스처를 더하지 않는다. SwiftUI는 자식 제스처를 먼저 주므로, 꾹 누르기가 시작되지 못한다.
+  - 꾹 누르는 동안은 손가락 아래 스크롤 뷰(달 넘김)를 멈춘다.
   - "나중에" → 달력 끌기
     - 데이터는 앱 안 전용 형식 `InboxDragPayload.type`으로 싣는다(`Info.plist`의 `UTExportedTypeDeclarations`).
     - 놓을 항목 id는 `CalendarDropState`에서 꺼낸다.
