@@ -110,6 +110,10 @@ docs/ROADMAP.md, CLAUDE.md
     5. 마지막 단계에서 프로파일을 지우고 인증서를 폐기한다.
   - 정리하지 못한 "DayGrid CI" 프로파일과 그 인증서는 다음 실행이 먼저 지운다.
   - 워크플로 입력 `upload`를 끄면 서명까지만 하고, 최종 entitlements를 출력한다.
+  - 확인(실행 #5, #6, 서명만): API로 인증서와 프로파일을 만들고 지우는 것까지 됐다.
+    - 그런데 프로파일의 iCloud 컨테이너 목록이 비어 있었다(`icloud-container-identifiers: []`). App ID에 iCloud는 켜져 있지만 컨테이너가 연결되지 않은 것이다.
+    - 사용자가 developer.apple.com에서 컨테이너를 체크한 뒤 다시 확인한다(`docs/ICLOUD.md` 2번).
+    - Xcode 자동 서명이 `cloudContainers`를 부른 것도 이 연결을 하려던 것으로 보인다.
 
 ### Phase 4 — 나중에 할일(인박스): 배정과 보류
 - "나중에" 탭
