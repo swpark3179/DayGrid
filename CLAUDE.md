@@ -76,4 +76,4 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 위젯은 SwiftData를 열지 않는다. 앱이 `WidgetSnapshotWriter`로 App Group 폴더에 쓴 Core `RecurringSnapshot`(JSON)만 읽는다. 위젯에 넘길 데이터가 바뀌면 이 요약을 고친다.
   - App Group은 `group.io.github.swpark3179.DayGrid`(`RecurringSnapshot.appGroupID`)다. 앱과 위젯의 entitlements에 둘 다 있다. 사용자 준비는 `docs/WIDGET.md`에 있다.
   - 위젯을 누르면 `daygrid://recurring`(`RecurringSnapshot.openURL`)을 연다. 앱은 `AppRoute`로 받는다.
-  - TestFlight 서명은 위젯 확장을 먼저, 앱을 나중에 한다.
+  - TestFlight의 ad-hoc 서명 단계는 위젯 확장을 먼저, 앱을 나중에 한다(바깥 서명이 안쪽을 덮는다). 배포 프로파일은 `asc_signing.py`가 아카이브 안의 앱과 확장마다 만든다.
