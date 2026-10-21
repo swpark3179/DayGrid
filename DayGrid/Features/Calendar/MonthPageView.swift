@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 /// - 날짜를 누르면 하루 상세가 열린다.
 /// - 꾹 누른 채 다른 날짜까지 끌면 그 기간의 새 일정을 만든다. 움직이지 않고 놓으면 그 날 새 일정이다.
 /// - "나중에" 항목을 끌어 와 놓으면 그 날로 들어간다. 가장자리에 머무르면 이전·다음 달로 넘어간다.
+/// - 하루 상세에서 꾹 눌러 옮길 때는 격자 뒤의 `CalendarPageAnchor`로 손가락 아래 날짜를 찾는다.
 struct MonthPageView: View {
     let month: LocalDate
     let today: LocalDate
@@ -84,6 +85,7 @@ struct MonthPageView: View {
                     .frame(height: rowHeight)
                 }
             }
+            .background(CalendarPageAnchor(visibleDays: visibleDays).allowsHitTesting(false))
             .contentShape(Rectangle())
             .gesture(RangePressGesture { phase, location in
                 handleRangePress(phase, at: location, size: geometry.size, visibleDays: visibleDays)

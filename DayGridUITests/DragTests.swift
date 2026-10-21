@@ -1,6 +1,8 @@
 import XCTest
 
-/// Phase 11 끌기 동작(꾹 눌러 기간 만들기, "나중에" → 달력 놓기)을 확인하고 스크린샷(28–29)을 남긴다.
+/// 끌기 동작을 확인하고 스크린샷을 남긴다.
+/// - Phase 11: 꾹 눌러 기간 만들기, "나중에" → 달력 놓기(28–29)
+/// - 하루 상세에서 꾹 눌러 다른 날로 옮기기(33)
 final class DragTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -68,5 +70,41 @@ final class DragTests: XCTestCase {
             element("dayDetail.list", in: app).staticTexts["책 반납하기"].waitForExistence(timeout: 5),
             "놓은 날의 하루 상세에 보여야 한다"
         )
+    }
+
+    @MainActor
+    func testLongPressMovesAnItemFromTheDayDetailToAnotherDay() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
+        // 놓을 칸(10/27, 일정이 없는 날)의 화면 위치. 옮기는 동안 시트가 작아져 달력이 보인다.
+        let targetFrame = app.buttons["calendar.day.2026-10-27"].frame
+
+        // 10/22 독서 모임(20:00–21:00)을 꾹 눌러 10/27에 놓는다
+        app.buttons["calendar.day.2026-10-22"].tap()
+        let dayBar = app.navigationBars["10월 22일 (목)"]
+        XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
+        let row = element("dayDetail.list", in: app).staticTexts["독서 모임"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let target = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: targetFrame.midX, dy: targetFrame.midY))
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 1.0, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.5)
+
+        // 다른 날에 놓으면 시트가 닫히고 달력에 옮긴 결과가 보인다
+        XCTAssertTrue(dayBar.waitForNonExistence(timeout: 5), "다른 날에 놓으면 하루 상세가 닫혀야 한다")
+        attachScreenshot(of: app, named: "33-day-detail-moved")
+
+        app.buttons["calendar.day.2026-10-27"].tap()
+        let movedBar = app.navigationBars["10월 27일 (화)"]
+        XCTAssertTrue(movedBar.waitForExistence(timeout: 5))
+        let list = element("dayDetail.list", in: app)
+        XCTAssertTrue(list.staticTexts["독서 모임"].waitForExistence(timeout: 5), "놓은 날의 하루 상세에 보여야 한다")
+        XCTAssertTrue(labelContaining("8:00", in: list).exists, "시각은 그대로(20:00)여야 한다")
+        app.buttons["닫기"].tap()
+        XCTAssertTrue(movedBar.waitForNonExistence(timeout: 5))
+
+        app.buttons["calendar.day.2026-10-22"].tap()
+        XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("dayDetail.list", in: app).staticTexts["독서 모임"].exists, "원래 날에서는 빠져야 한다")
     }
 }

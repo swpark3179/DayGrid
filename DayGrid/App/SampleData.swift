@@ -19,10 +19,11 @@ enum SampleData {
             context.insert(item)
         }
 
-        func timed(_ title: String, _ categoryName: String, _ offset: Int, _ hour: Int, _ minute: Int = 0, hours: Double = 1) {
+        func timed(_ title: String, _ categoryName: String, _ offset: Int, _ hour: Int, _ minute: Int = 0, hours: Double = 1, body: String? = nil) {
             let item = Item(title: title, category: category(categoryName))
             let start = today.adding(days: offset).date(hour: hour, minute: minute, in: timeZone)
             item.scheduleTimed(start: start, end: start.addingTimeInterval(hours * 3600), timeZone: timeZone)
+            item.body = body
             context.insert(item)
         }
 
@@ -38,7 +39,7 @@ enum SampleData {
         allDay("캠핑", "가족", 5, 6)                // 10/24–10/25
         allDay("출장", "업무", 9, 15, body: tripBody) // 10/28–11/3
         allDay("보고서 제출", "업무", 11)            // 10/30: "+N" 확인용
-        timed("세미나", "업무", 11, 9)
+        timed("세미나", "업무", 11, 9, body: "- [ ] 발표 자료 출력\n- [ ] 명함 챙기기") // 타임라인의 본문 버튼 확인용
         timed("병원", "건강", 11, 15)
         timed("저녁 약속", "개인", 11, 19)
 

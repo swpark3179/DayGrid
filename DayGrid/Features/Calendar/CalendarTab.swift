@@ -42,13 +42,7 @@ struct CalendarTab: View {
                             onSelectDay: { selectedDay = DaySelection(date: $0) },
                             onAddItem: { editorMode = .new($0) },
                             onAddRange: { editorMode = .newRange($0, $1) },
-                            onPage: { delta in
-                                let next = selectedMonth + delta
-                                guard monthRange.contains(next) else { return }
-                                withAnimation {
-                                    selectedMonth = next
-                                }
-                            },
+                            onPage: { page(by: $0) },
                             onDropItem: scheduleDroppedItem
                         )
                         .tag(index)
@@ -59,8 +53,12 @@ struct CalendarTab: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $selectedDay) { selection in
+                // 시트 높이(보통 medium/large, 옮기는 동안 작게)는 DayDetailView가 정한다.
                 DayDetailView(date: selection.date)
-                    .presentationDetents([.medium, .large])
+            }
+            .onAppear {
+                // 하루 상세에서 꾹 눌러 옮기다가 가장자리에 머무르면 달을 넘긴다.
+                CalendarDropState.shared.onPage = { delta in page(by: delta) }
             }
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
@@ -124,6 +122,15 @@ struct CalendarTab: View {
             .padding(.horizontal)
             .padding(.bottom, 6)
             .accessibilityIdentifier("calendar.birthdays")
+        }
+    }
+
+    /// 이전·다음 달로 넘긴다(끌기 중 가장자리에 머무를 때).
+    private func page(by delta: Int) {
+        let next = selectedMonth + delta
+        guard monthRange.contains(next) else { return }
+        withAnimation {
+            selectedMonth = next
         }
     }
 

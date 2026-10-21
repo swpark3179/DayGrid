@@ -8,6 +8,9 @@ import Foundation
 /// - Core Data는 원래 오류를 `NSUnderlyingError`에 넣어 감싼다.
 /// - 같은 묶음의 다른 레코드는 `batchRequestFailed`(22)로 함께 실패한다. 원인이 아니다.
 ///
+/// 실기기(TestFlight 빌드 10, 2026-10-21)에서는 보내기 실패의 오류가 안쪽 오류 없는 `partialFailure(2)` 하나뿐이었다.
+/// 그래서 앱은 같은 시각의 앱 기록(이 프로세스의 CloudKit·Core Data 로그)도 읽어 `failure(fromLog:)`로 원인을 찾는다.
+///
 /// Core는 CloudKit을 import하지 않으므로 도메인, 코드, userInfo 키를 값으로 쓴다(CloudKit `CKError.Code`와 같은 번호).
 public enum CloudKitErrorReader {
     public static let domain = "CKErrorDomain"
@@ -59,6 +62,9 @@ public enum CloudKitErrorReader {
         }
         if let first = found.first, first.domain == domain, networkCodes.contains(first.code) {
             return .network
+        }
+        if found.isEmpty, errors.contains(where: { isCloudKit($0, partialFailure) }) {
+            return .unexplainedPartialFailure
         }
         return .other(message: summary(of: found.first ?? (error as NSError)))
     }
@@ -142,30 +148,102 @@ public enum CloudKitErrorReader {
 
     /// 설정 화면에서 복사해 알려 줄 수 있는 설명. 오류마다 한 줄이고, 안쪽 오류는 들여 쓴다.
     /// 같은 내용(예: 레코드마다 똑같은 스키마 오류)은 한 번만 쓰고 개수를 붙인다.
+    /// 레코드별 오류(`CKPartialErrors`)는 개수를 키 목록에 적는다. 안쪽 오류가 하나도 보이지 않을 때,
+    /// 묶음이 비어 있었는지 읽지 못했는지를 구별하기 위해서다.
     public static func report(of error: any Error) -> String {
-        var lines: [(text: String, count: Int)] = []
-        for (depth, nsError) in flatten(error as NSError) {
-            let keys = nsError.userInfo.keys
+        counted(flatten(error as NSError).map { depth, nsError in
+            var keys = nsError.userInfo.keys
                 .filter { $0 != partialErrorsKey && $0 != NSUnderlyingErrorKey && !multipleErrorsKeys.contains($0) }
                 .sorted()
+            if let partial = nsError.userInfo[partialErrorsKey] {
+                let count = (partial as? [AnyHashable: Any])?.count
+                keys.insert("\(partialErrorsKey): \(count.map(String.init) ?? String(describing: type(of: partial)))", at: 0)
+            }
             var text = String(repeating: "  ", count: depth) + summary(of: nsError)
             if !keys.isEmpty {
                 text += " [\(keys.joined(separator: ", "))]"
             }
+            return text
+        }).joined(separator: "\n")
+    }
+
+    private static let maxReportLines = 40
+
+    /// 같은 줄은 한 번만 쓰고 "×개수"를 붙인다. `maxReportLines`줄이 넘으면 줄인다.
+    private static func counted(_ texts: [String]) -> [String] {
+        var lines: [(text: String, count: Int)] = []
+        for text in texts {
             if let index = lines.firstIndex(where: { $0.text == text }) {
                 lines[index].count += 1
             } else {
                 lines.append((text, 1))
             }
         }
-        var text = lines.prefix(maxReportLines).map { $0.count > 1 ? "\($0.text) ×\($0.count)" : $0.text }
+        var result = lines.prefix(maxReportLines).map { $0.count > 1 ? "\($0.text) ×\($0.count)" : $0.text }
         if lines.count > maxReportLines {
-            text.append("… 외 \(lines.count - maxReportLines)줄")
+            result.append("… 외 \(lines.count - maxReportLines)줄")
         }
-        return text.joined(separator: "\n")
+        return result
     }
 
-    private static let maxReportLines = 40
+    // MARK: - 앱 기록
+
+    /// 앱 기록 줄에 찍힌 CloudKit 오류를 오류 값으로 되살린다. 순서는 기록 순서다.
+    ///
+    /// CKError는 기록에 `<CKError 0x…: "Server Rejected Request" (15/2000); server message = "…"; op = …>`처럼 찍힌다.
+    /// 사전(`partial errors: {…}`) 안에서는 따옴표가 `\"`로 바뀌어 있으므로 먼저 되돌린다.
+    static func cloudKitErrors(inLog lines: [String]) -> [NSError] {
+        // `"이름" (코드/내부 코드)` 뒤에 `; server message = "…"`가 올 수 있다.
+        let pattern = try! NSRegularExpression(pattern: #""([^"]+)" \((\d+)/-?\d+\)(?:; server message = "([^"]*)")?"#)
+        var errors: [NSError] = []
+        for line in lines {
+            let text = line.replacingOccurrences(of: "\\\"", with: "\"")
+            let range = NSRange(text.startIndex..., in: text)
+            for match in pattern.matches(in: text, range: range) {
+                guard let nameRange = Range(match.range(at: 1), in: text),
+                      let codeRange = Range(match.range(at: 2), in: text),
+                      let code = Int(text[codeRange])
+                else { continue }
+                var info: [String: Any] = [NSLocalizedDescriptionKey: String(text[nameRange])]
+                if let serverRange = Range(match.range(at: 3), in: text), let server = nonEmpty(String(text[serverRange])) {
+                    info[serverMessageKey] = server
+                }
+                errors.append(NSError(domain: domain, code: code, userInfo: info))
+            }
+        }
+        return errors
+    }
+
+    /// 앱 기록 줄에서 원인을 찾는다. 기록의 CloudKit 오류를 묶음 실패의 안쪽 오류처럼 보고 `failure(for:)`와 같은 규칙으로 나눈다.
+    /// 원인을 알 수 없으면(오류가 없거나 묶음·덩달아 실패뿐이면) `nil`.
+    public static func failure(fromLog lines: [String]) -> CloudSyncFailure? {
+        let errors = cloudKitErrors(inLog: lines)
+        guard !errors.isEmpty else { return nil }
+        let keyed = Dictionary(uniqueKeysWithValues: errors.enumerated().map { (String(format: "%04d", $0.offset), $0.element) })
+        let result = failure(for: NSError(domain: domain, code: partialFailure, userInfo: [partialErrorsKey: keyed]))
+        return result == .unexplainedPartialFailure ? nil : result
+    }
+
+    /// 복사용 설명에 붙일 앱 기록. 기록에서 CloudKit 오류를 찾았으면 그 요약을, 못 찾았으면 오류가 보이는 줄을 줄여서 쓴다.
+    /// 일정 제목 같은 내용이 섞이지 않게 원래 줄은 `maxLogLines`줄, 한 줄 `maxLogLineLength`자까지만 쓴다.
+    public static func logReport(_ lines: [String]) -> [String] {
+        let found = causes(in: cloudKitErrors(inLog: lines))
+        if !found.isEmpty {
+            return counted(found.map { summary(of: $0) })
+        }
+        let keywords = ["ckerror", "error", "fail", "reject", "schema"]
+        let relevant = lines.filter { line in
+            let lowered = line.lowercased()
+            return keywords.contains { lowered.contains($0) }
+        }
+        return counted(relevant.suffix(maxLogLines).map { line in
+            let flat = line.split(whereSeparator: \.isNewline).joined(separator: " ")
+            return flat.count > maxLogLineLength ? String(flat.prefix(maxLogLineLength)) + "…" : flat
+        })
+    }
+
+    private static let maxLogLines = 8
+    private static let maxLogLineLength = 300
 
     private static func nonEmpty(_ text: String?) -> String? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }

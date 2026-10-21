@@ -10,6 +10,7 @@ import SwiftData
 /// 다른 기기의 변경을 받으면(가져오기 성공) 중복을 합치고 알림을 다시 맞춘다.
 /// `CKContainer`는 entitlements가 없으면 앱이 꺼지므로 직접 부르지 않고, 상태는 이벤트로만 판단한다.
 /// 오류는 Core `CloudKitErrorReader`가 안쪽(레코드별 오류, 감싼 오류)까지 펼쳐 나눈다.
+/// 실패하면 같은 시각의 앱 기록(`CloudSyncLogReader`)도 읽어, 오류에 없던 원인을 찾고 복사용 설명에 붙인다.
 @MainActor
 @Observable
 final class CloudSyncMonitor {
@@ -53,6 +54,27 @@ final class CloudSyncMonitor {
         state.apply(event)
         if event.kind == .download, event.endDate != nil, event.failure == nil {
             scheduleMerge()
+        }
+        if event.failure != nil {
+            readLog(for: event)
+        }
+    }
+
+    /// 실패한 작업 동안의 앱 기록을 읽어 원인과 줄을 상태에 붙인다. 기록이 저장될 시간을 조금 두고 읽는다.
+    private func readLog(for event: CloudSyncEvent) {
+        guard let endDate = event.endDate else { return }
+        let start = event.startDate.addingTimeInterval(-5)
+        let end = endDate.addingTimeInterval(5)
+        let id = event.id
+        Task.detached(priority: .utility) {
+            try? await Task.sleep(for: .seconds(1))
+            let lines = CloudSyncLogReader.lines(from: start, to: end)
+            guard !lines.isEmpty else { return }
+            let failure = CloudKitErrorReader.failure(fromLog: lines)
+            let report = CloudKitErrorReader.logReport(lines)
+            await MainActor.run {
+                CloudSyncMonitor.shared.state.attachLog(report, failure: failure, toEvent: id)
+            }
         }
     }
 

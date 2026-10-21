@@ -230,12 +230,46 @@ struct CloudKitErrorReaderTests {
         #expect(CloudKitErrorReader.failure(for: cloudKitError(8)) == .containerSetup(message: "missingEntitlement(8)"))
     }
 
-    /// 실기기에서 본 "작업을 완료할 수 없습니다. (CKErrorDomain 오류 2.)": 안쪽 오류가 없으면 적어도 이름과 키를 보여준다.
-    @Test func aBarePartialFailureStillNamesItself() {
+    /// 실기기에서 본 "작업을 완료할 수 없습니다. (CKErrorDomain 오류 2.)"와 빌드 10의 "partialFailure(2)":
+    /// 안쪽 오류가 없으면 원인을 알 수 없다고 하고 Production 배포부터 확인하게 한다. 복사용 설명에는 이름과 키를 쓴다.
+    @Test func aBarePartialFailureIsUnexplained() {
         let bare = NSError(domain: "CKErrorDomain", code: 2, userInfo: ["ContainerID": "iCloud.io.github.swpark3179.DayGrid"])
-        #expect(CloudKitErrorReader.failure(for: bare) == .other(message: "partialFailure(2)"))
-        #expect(CloudKitErrorReader.failure(for: bare).koreanText == "동기화 오류: partialFailure(2)")
+        #expect(CloudKitErrorReader.failure(for: bare) == .unexplainedPartialFailure)
+        #expect(CloudKitErrorReader.failure(for: bare).koreanText.contains("스키마를 Production에 배포"))
         #expect(CloudKitErrorReader.report(of: bare) == "partialFailure(2) [ContainerID]")
+
+        // 레코드별 오류 묶음이 비어 있으면 그 개수(0)를 적는다. 덩달아 실패(22)만 있어도 원인을 알 수 없다.
+        let empty = partialFailure([:])
+        #expect(CloudKitErrorReader.report(of: empty) == "partialFailure(2) [CKPartialErrors: 0]")
+        #expect(CloudKitErrorReader.failure(for: partialFailure(["a": cloudKitError(22)])) == .unexplainedPartialFailure)
+    }
+
+    /// 기록에 찍힌 CKError 설명(사전 안에서는 따옴표가 `\"`)을 되살려 같은 규칙으로 나눈다.
+    @Test func findsTheCauseInTheAppLog() {
+        let lines = [
+            "CoreData+CloudKit: -[NSCloudKitMirroringDelegate managedObjectContextSaved:]: <NSCloudKitMirroringDelegate: 0x1>: Observed context save",
+            #"""
+            CoreData+CloudKit: -[PFCloudKitExporter exportOperationFinished:withSavedRecords:deletedRecordIDs:operationError:]: Modify records finished: <CKError 0x2: "Partial Failure" (2/1011); "Failed to modify some records"; partial errors: {
+                "<CKRecordID: 0x3; recordName=A, zoneID=com.apple.coredata.cloudkit.zone:__defaultOwner__>" = "<CKError 0x4: \"Server Rejected Request\" (15/2000); server message = \"\#(schemaMessage)\"; op = 5; uuid = 6>";
+                "<CKRecordID: 0x7; recordName=B, zoneID=com.apple.coredata.cloudkit.zone:__defaultOwner__>" = "<CKError 0x8: \"Server Rejected Request\" (15/2000); server message = \"\#(schemaMessage)\"; op = 5; uuid = 6>";
+                "<CKRecordID: 0x9; recordName=C, zoneID=com.apple.coredata.cloudkit.zone:__defaultOwner__>" = "<CKError 0xa: \"Batch Request Failed\" (22/2024); \"Record CKRecordID=C could not be saved\">";
+            }>
+            """#,
+        ]
+        #expect(CloudKitErrorReader.failure(fromLog: lines) == .schemaMismatch(message: "serverRejectedRequest(15): \(schemaMessage)"))
+        #expect(CloudKitErrorReader.logReport(lines) == ["serverRejectedRequest(15): \(schemaMessage) ×2"])
+    }
+
+    @Test func logWithoutACauseIsNotAFailure() {
+        let lines = [
+            #"Modify records finished: <CKError 0x2: "Partial Failure" (2/1011); "Failed to modify some records">"#,
+            "CoreData+CloudKit: -[PFCloudKitSetupAssistant _setupZone]: zone ok",
+        ]
+        #expect(CloudKitErrorReader.failure(fromLog: lines) == nil)
+        #expect(CloudKitErrorReader.failure(fromLog: []) == nil)
+        // 원인 오류를 못 찾으면 오류가 보이는 줄만, 한 줄로 펴서 쓴다.
+        #expect(CloudKitErrorReader.logReport(lines) == [lines[0]])
+        #expect(CloudKitErrorReader.logReport(["error:\nsecond line"]) == ["error: second line"])
     }
 
     @Test func usesTheDescriptionOfOtherErrors() {
@@ -256,7 +290,7 @@ struct CloudKitErrorReaderTests {
         let report = CloudKitErrorReader.report(of: error)
         #expect(report == """
             NSCocoaErrorDomain 134419
-              partialFailure(2)
+              partialFailure(2) [CKPartialErrors: 3]
                 serverRejectedRequest(15): \(schemaMessage) [ServerErrorDescription] ×2
                 batchRequestFailed(22)
             """)
@@ -277,5 +311,30 @@ struct CloudKitErrorReaderTests {
         state.apply(event(2, .upload, at: 10))
         #expect(state.failureReport == nil)
         #expect(CloudSyncState.off(.testRun).failureReport == nil)
+    }
+
+    @Test func logLinesExplainAnUnexplainedFailure() {
+        var state = CloudSyncState()
+        let failed = CloudSyncEvent(
+            id: uuid(1), kind: .upload, startDate: start, endDate: start.addingTimeInterval(5),
+            failure: .unexplainedPartialFailure, failureReport: "partialFailure(2)"
+        )
+        state.apply(failed)
+        let schema = CloudSyncFailure.schemaMismatch(message: "serverRejectedRequest(15): \(schemaMessage)")
+        state.attachLog(["serverRejectedRequest(15): \(schemaMessage) ×2"], failure: schema, toEvent: uuid(1))
+        #expect(state.status == .failed(schema, at: start.addingTimeInterval(5)))
+        #expect(state.failureReport == """
+            iCloud 보내기 실패 2026-10-19T08:53:25Z
+            partialFailure(2)
+            앱 기록:
+              serverRejectedRequest(15): \(schemaMessage) ×2
+            """)
+
+        // 원인을 이미 아는 실패는 바꾸지 않는다. 다른 작업의 기록은 붙이지 않는다.
+        state.apply(event(2, .download, at: 20, failure: .network))
+        state.attachLog(["x"], failure: schema, toEvent: uuid(2))
+        #expect(state.status == .failed(.network, at: start.addingTimeInterval(20)))
+        state.attachLog(["y"], failure: nil, toEvent: uuid(9))
+        #expect(state.failureReport == "iCloud 받기 실패 2026-10-19T08:53:40Z\n앱 기록:\n  x")
     }
 }

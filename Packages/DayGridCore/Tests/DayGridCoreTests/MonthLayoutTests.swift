@@ -17,7 +17,13 @@ private func allDay(_ id: Int, _ start: LocalDate, _ end: LocalDate? = nil) -> C
     .allDay(id: uuid(id), from: start, through: end ?? start)
 }
 
+/// 하루 안의 시간 할일. 달력에서 칩으로 그린다.
 private func chip(_ id: Int, _ date: LocalDate, minute: Int) -> CalendarEntry {
+    CalendarEntry(id: uuid(id), startDay: date, endDay: date, isAllDay: false, startMinute: minute, isTask: true)
+}
+
+/// 하루 안의 시간 일정. 달력에서 막대로 그린다.
+private func timedEvent(_ id: Int, _ date: LocalDate, minute: Int) -> CalendarEntry {
     CalendarEntry(id: uuid(id), startDay: date, endDay: date, isAllDay: false, startMinute: minute)
 }
 
@@ -147,6 +153,24 @@ struct MonthLayoutSegmentTests {
         #expect(week.segment(1)?.lane == 3)
     }
 
+    @Test func timedEventsAreBarsAfterAllDayBarsAndBeforeTaskChips() {
+        let date = day(2026, 10, 19)
+        let entries = [
+            chip(1, date, minute: 8 * 60),
+            timedEvent(2, date, minute: 15 * 60),
+            allDay(3, date),
+            timedEvent(4, date, minute: 9 * 60),
+        ]
+        let week = MonthLayout.make(month: date, entries: entries, maxVisibleLanes: 5).week(containing: date)
+        #expect(week.segment(2)?.style == .bar)
+        #expect(week.segment(4)?.style == .bar)
+        #expect(week.segment(1)?.style == .chip)
+        #expect(week.segment(3)?.lane == 0)
+        #expect(week.segment(4)?.lane == 1)
+        #expect(week.segment(2)?.lane == 2)
+        #expect(week.segment(1)?.lane == 3)
+    }
+
     @Test func longerEntriesStartingTheSameDayGoFirst() {
         let short = allDay(1, day(2026, 10, 12))
         let long = allDay(2, day(2026, 10, 12), day(2026, 10, 15))
@@ -254,28 +278,36 @@ struct CalendarEntryTests {
         return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 
-    @Test func timedEntryWithinOneDayIsAChip() {
-        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 9, 30), end: instant(2026, 10, 19, 10, 30), timeZone: seoul)
-        #expect(entry.startDay == day(2026, 10, 19))
-        #expect(entry.endDay == day(2026, 10, 19))
-        #expect(entry.startMinute == 9 * 60 + 30)
-        #expect(entry.style == .chip)
+    @Test func timedTaskWithinOneDayIsAChipAndTimedEventIsABar() {
+        let start = instant(2026, 10, 19, 9, 30)
+        let end = instant(2026, 10, 19, 10, 30)
+        let task = CalendarEntry.timed(id: uuid(1), start: start, end: end, timeZone: seoul, isTask: true)
+        #expect(task.startDay == day(2026, 10, 19))
+        #expect(task.endDay == day(2026, 10, 19))
+        #expect(task.startMinute == 9 * 60 + 30)
+        #expect(task.isTimedWithinOneDay)
+        #expect(task.style == .chip)
+
+        let event = CalendarEntry.timed(id: uuid(2), start: start, end: end, timeZone: seoul)
+        #expect(event.isTimedWithinOneDay)
+        #expect(event.style == .bar)
     }
 
     @Test func endingExactlyAtMidnightStaysOnTheStartDay() {
-        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 22), end: instant(2026, 10, 20, 0), timeZone: seoul)
+        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 22), end: instant(2026, 10, 20, 0), timeZone: seoul, isTask: true)
         #expect(entry.endDay == day(2026, 10, 19))
         #expect(entry.style == .chip)
     }
 
     @Test func crossingMidnightBecomesABar() {
-        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 23), end: instant(2026, 10, 20, 1), timeZone: seoul)
+        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 23), end: instant(2026, 10, 20, 1), timeZone: seoul, isTask: true)
         #expect(entry.endDay == day(2026, 10, 20))
+        #expect(!entry.isTimedWithinOneDay)
         #expect(entry.style == .bar)
     }
 
     @Test func endBeforeStartIsClampedToStartDay() {
-        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 15), end: instant(2026, 10, 18, 9), timeZone: seoul)
+        let entry = CalendarEntry.timed(id: uuid(1), start: instant(2026, 10, 19, 15), end: instant(2026, 10, 18, 9), timeZone: seoul, isTask: true)
         #expect(entry.endDay == entry.startDay)
         #expect(entry.style == .chip)
     }
@@ -288,13 +320,13 @@ struct CalendarEntryTests {
         let inSeoul = CalendarEntry.timed(id: uuid(1), start: start, end: end, timeZone: seoul)
         #expect(inSeoul.startDay == day(2026, 10, 19))
         #expect(inSeoul.endDay == day(2026, 10, 19))
-        #expect(inSeoul.style == .chip)
+        #expect(inSeoul.isTimedWithinOneDay)
 
         let inUTC = CalendarEntry.timed(id: uuid(1), start: start, end: end, timeZone: TimeZone(secondsFromGMT: 0)!)
         #expect(inUTC.startDay == day(2026, 10, 18))
         #expect(inUTC.endDay == day(2026, 10, 19))
         #expect(inUTC.startMinute == 23 * 60)
-        #expect(inUTC.style == .bar)
+        #expect(!inUTC.isTimedWithinOneDay)
     }
 
     @Test func singleAllDayEntryIsABar() {
