@@ -11,6 +11,9 @@ public enum CloudSyncFailure: Hashable, Sendable {
     case schemaMismatch(message: String)
     /// iCloud 컨테이너나 App ID 설정이 맞지 않는다(badContainer, missingEntitlement, permissionFailure).
     case containerSetup(message: String)
+    /// 묶음 실패(partialFailure)인데 레코드별 원인이 오류에 들어 있지 않다(실기기 2026-10-21, 빌드 10).
+    /// 그때 Production 스키마에는 DayGrid 레코드 타입이 하나도 없었다.
+    case unexplainedPartialFailure
     /// 그 밖의 오류. 원인을 찾을 수 있게 메시지를 그대로 보여준다.
     case other(message: String)
 
@@ -26,6 +29,8 @@ public enum CloudSyncFailure: Hashable, Sendable {
             "iCloud(Production)의 데이터 구조가 앱과 맞지 않습니다. CloudKit Console에서 스키마를 Production에 배포해야 합니다. (\(message))"
         case .containerSetup(let message):
             "iCloud 컨테이너 설정이 맞지 않습니다. App ID에 iCloud 컨테이너가 연결되어 있는지 확인해야 합니다. (\(message))"
+        case .unexplainedPartialFailure:
+            "iCloud가 이 기기의 변경을 받지 않았습니다(partialFailure). 오류에 자세한 원인이 없습니다. CloudKit Console에서 스키마를 Production에 배포했는지 먼저 확인해야 합니다. 오류 내용 복사에 앱 기록에서 찾은 내용이 함께 들어갑니다."
         case .other(let message):
             "동기화 오류: \(message)"
         }
@@ -107,10 +112,13 @@ public struct CloudSyncState: Hashable, Sendable {
     }
 
     private struct Failure: Hashable, Sendable {
-        let failure: CloudSyncFailure
+        var failure: CloudSyncFailure
         let date: Date
         let kind: CloudSyncEvent.Kind
         let report: String?
+        let eventID: UUID
+        /// 앱 기록에서 찾은 줄(`attachLog`)
+        var logLines: [String] = []
     }
 
     public private(set) var offReason: CloudSyncOffReason?
@@ -133,11 +141,27 @@ public struct CloudSyncState: Hashable, Sendable {
         }
         inProgress.remove(event.id)
         if let failure = event.failure {
-            failures[event.kind] = Failure(failure: failure, date: endDate, kind: event.kind, report: event.failureReport)
+            failures[event.kind] = Failure(failure: failure, date: endDate, kind: event.kind, report: event.failureReport, eventID: event.id)
         } else {
             failures[event.kind] = nil
             lastSuccess = max(lastSuccess ?? endDate, endDate)
         }
+    }
+
+    /// 실패한 작업(`eventID`)에 앱 기록에서 찾은 줄을 붙인다. 기록으로 원인을 알아냈으면(`failure`) 원인을 알 수 없던
+    /// 실패(`unexplainedPartialFailure`, `other`)를 그것으로 바꾼다. 그 사이 같은 종류의 작업이 다시 끝났으면 아무것도 하지 않는다.
+    public mutating func attachLog(_ lines: [String], failure: CloudSyncFailure?, toEvent eventID: UUID) {
+        guard let kind = failures.first(where: { $0.value.eventID == eventID })?.key, var current = failures[kind] else { return }
+        current.logLines = lines
+        if let failure {
+            switch current.failure {
+            case .unexplainedPartialFailure, .other:
+                current.failure = failure
+            case .notSignedIn, .quotaExceeded, .network, .schemaMismatch, .containerSetup:
+                break
+            }
+        }
+        failures[kind] = current
     }
 
     public var status: Status {
@@ -162,12 +186,18 @@ public struct CloudSyncState: Hashable, Sendable {
     }
 
     /// 보여주는 실패의 자세한 내용(복사용). 실패를 보여주지 않으면(동기화 중 포함) `nil`.
-    /// 첫 줄은 작업 종류와 시각(UTC), 그 아래는 펼친 오류다.
+    /// 첫 줄은 작업 종류와 시각(UTC), 그 아래는 펼친 오류, 맨 아래는 앱 기록에서 찾은 줄이다.
     public var failureReport: String? {
         guard case .failed = status, let latest = latestFailure else { return nil }
-        let header = "iCloud \(latest.kind.koreanName) 실패 \(latest.date.formatted(.iso8601))"
-        guard let report = latest.report else { return header }
-        return header + "\n" + report
+        var lines = ["iCloud \(latest.kind.koreanName) 실패 \(latest.date.formatted(.iso8601))"]
+        if let report = latest.report {
+            lines.append(report)
+        }
+        if !latest.logLines.isEmpty {
+            lines.append("앱 기록:")
+            lines += latest.logLines.map { "  \($0)" }
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// 한 줄 요약. "동기화 중", "최근 동기화: 5분 전" 등

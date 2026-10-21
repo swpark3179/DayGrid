@@ -44,6 +44,10 @@ final class TimelineTests: XCTestCase {
             XCTAssertTrue(timeline.staticTexts[title].waitForExistence(timeout: 5), "\(title) 는 타임라인 안에 있어야 한다")
         }
         XCTAssertFalse(timeline.staticTexts["보고서 제출"].exists, "종일 일정은 타임라인에 넣지 않는다")
+        // 세미나에는 본문이 있다. 본문 버튼은 누르기 쉬운 크기다(사용자 요청 2026-10-21).
+        let bodyButton = timeline.buttons["dayDetail.body"]
+        XCTAssertTrue(bodyButton.waitForExistence(timeout: 5), "본문이 있는 블록에 본문 버튼이 있어야 한다")
+        XCTAssertGreaterThanOrEqual(bodyButton.frame.width, 30, "타임라인의 본문 버튼은 30pt 이상이어야 한다")
         attachScreenshot(of: app, named: "31-day-timeline")
 
         // 병원(15:00–16:00) 오른쪽 빈 곳의 15:45를 누르면 15:30부터 새 일정이 열린다.

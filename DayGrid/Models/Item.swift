@@ -156,10 +156,17 @@ extension Item {
     func calendarEntry(in timeZone: TimeZone = .current) -> CalendarEntry? {
         if isAllDay {
             guard let start = startDay else { return nil }
-            return .allDay(id: id, from: start, through: endDay ?? start)
+            return .allDay(id: id, from: start, through: endDay ?? start, isTask: isTask)
         }
         guard isScheduled, let startDate else { return nil }
-        return .timed(id: id, start: startDate, end: endDate ?? startDate, timeZone: timeZone)
+        return .timed(id: id, start: startDate, end: endDate ?? startDate, timeZone: timeZone, isTask: isTask)
+    }
+
+    /// 일정을 `days`일 앞(음수면 뒤)으로 옮긴다. 모양(종일 일수, 시작 시각과 길이)과 완료 표시는 그대로다.
+    /// 하루 상세에서 꾹 눌러 다른 날로 끌어 놓을 때 쓴다. 날짜가 없거나 0일이면 아무것도 하지 않는다.
+    func move(byDays days: Int, timeZone: TimeZone = .current) {
+        guard days != 0, let entry = calendarEntry(in: timeZone), let hint = currentScheduleHint(in: timeZone) else { return }
+        schedule(on: entry.startDay.adding(days: days), using: hint, timeZone: timeZone)
     }
 
     /// `range`와 겹치는 일정. 시간대 차이를 흡수하려고 앞뒤로 하루씩 넓혀서 찾는다.

@@ -235,6 +235,13 @@ docs/ROADMAP.md, CLAUDE.md
     - 스키마 문제(`schemaMismatch`)와 컨테이너 설정 문제(`containerSetup`)는 따로 안내한다.
     - 그 밖의 오류는 코드 이름과 서버 문구를 보여준다.
     - 설정의 **오류 내용 복사**로 펼친 내용 전체를 복사할 수 있다.
+  - TestFlight 빌드 10(2026-10-21)에서도 "iCloud 보내기 실패 … partialFailure(2)"가 보였다(사용자 확인).
+    - 펼친 내용이 그 한 줄뿐이었다. 이벤트의 오류에 레코드별 오류가 들어 있지 않았다.
+    - 같은 날 check(실행 #3, 03:31Z)에서도 Production에는 `Users`만 있었다. 원인은 그대로 Deploy를 하지 않은 것이다.
+    - 할 일: 사용자가 CloudKit Console에서 Deploy Schema Changes → check로 확인 → 앱을 다시 열어 체크리스트 7장을 확인한다.
+    - 앱도 고쳤다(Phase 14).
+      - 안쪽 오류 없는 묶음 실패를 `unexplainedPartialFailure`로 따로 안내한다.
+      - 실패하면 그 시각의 앱 기록(OSLogStore)을 읽어 원인을 찾고, 복사용 설명에 붙인다.
 - **구현 메모(사용자 결정: 스키마는 GitHub Actions로 자동 준비, 동기화는 항상 켬)**
   - TestFlight 빌드는 CloudKit **Production**을 쓴다.
     - Production 스키마는 자동으로 생기지 않는다. Development에 넣은 뒤 CloudKit Console에서 배포해야 한다.
@@ -350,6 +357,34 @@ docs/ROADMAP.md, CLAUDE.md
     - 빈 곳을 누르면 `ItemEditorView.Mode.newTimed`를 연다(`ItemDraft.new(on:startMinute:)`).
   - UI 테스트는 실행 인자 `-dayDetailStyle timeline`(UserDefaults 인자 도메인)으로 켠다. 설정의 Picker를 눌러 바꾸지 않는다. 바꾸면 값이 시뮬레이터에 남아 다른 테스트의 하루 상세 스크린샷이 바뀐다.
 
+### Phase 14 — 달력 막대, 하루 상세에서 옮기기, 동기화 진단 (사용자 요청 2026-10-21)
+- 일정은 하루 안에 끝나는 시간 일정도 달력에 여러 날 일정처럼 색 막대로 그린다. 하루 안의 시간 할일은 예전처럼 색 점과 제목이다(해석: "일정으로 등록한 것" = 할일이 아닌 항목).
+- 하루 상세에서 일정이나 할일을 꾹 누르면 옮기기가 된다.
+  - 시트가 작아져 달력이 보인다.
+  - 손가락을 떼지 않고 다른 날짜에 놓으면 그 날로 옮긴다. 가장자리에 머무르면 달이 넘어간다.
+- 타임라인 보기의 본문 버튼을 크게 한다(아이콘 20pt, 누르는 곳 34pt).
+- iCloud "partialFailure(2)"가 계속 보인다 → Phase 9 현황 참고(Production 미배포). 앱은 앱 기록에서 원인을 찾는다.
+- **완료 기준:** Core 테스트(`CalendarEntry.style`, 로그 읽기)와 앱 단위 테스트(`Item.move(byDays:)`)가 통과하고, UI 테스트가 하루 상세에서 끌어 옮긴다(스크린샷 33).
+- **구현 메모**
+  - 달력 모양
+    - Core `CalendarEntry`에 `isTask`를 더했다. `style`은 "할일이면서 하루 안의 시간 일정"일 때만 `.chip`이다.
+    - 하루 상세의 "시간" 묶음은 예전 규칙 그대로 `isTimedWithinOneDay`로 나눈다.
+  - 옮기기
+    - 행의 탭과 꾹 누르기를 `WindowPressGesture` 하나가 받는다. 달력 격자와 같은 `DayPressRecognizer`이고, 위치는 창 좌표다. 예전 행의 `onTapGesture`는 뺐다.
+    - 시스템 끌어 놓기(`onDrag`)를 쓰지 않았다. 시트 뒤 달력에 놓으려면 시트가 비켜야 하는데, 끌기를 시작한 행이 화면에서 빠지면 끌기가 끝날 수 있어서다(Phase 11 "나중에" 끌기의 원인 후보).
+      - 대신 시트를 `.height(64)`로 내리고, 목록 높이는 그대로 고정해 행의 셀이 살아 있게 한다.
+      - 시트의 끌어 내리기는 막는다(`interactiveDismissDisabled`).
+    - 달력 쪽: 페이지마다 `CalendarPageAnchor`가 격자 뷰를 `CalendarDropState`에 등록한다. 손가락의 창 좌표가 들어 있는 페이지에서 `MonthLayout.day(atX:…)`로 날짜를 구한다.
+    - 미리보기(제목, "→ 날짜")는 `ItemMoveSession`이 창 맨 위에 UIKit 뷰로 붙인다.
+    - 16pt 넘게 움직이지 않았거나, 같은 날이거나, 달력 밖에서 놓으면 옮기지 않고 시트를 되돌린다.
+    - 옮기기는 `Item.move(byDays:)`(연 날짜 → 놓은 날짜의 차이)다. `currentScheduleHint` + `schedule(on:using:)`이라 시각, 길이, 종일 일수가 그대로다.
+  - 동기화 진단
+    - `CloudKitErrorReader.report`가 `CKPartialErrors`의 개수를 키 목록에 쓴다. 묶음이 비었는지, 읽지 못했는지 구별할 수 있다.
+    - 안쪽 원인이 없는 묶음 실패는 `CloudSyncFailure.unexplainedPartialFailure`다. 문구는 Production 배포부터 확인하게 한다.
+    - 실패 이벤트가 오면 `CloudSyncLogReader`가 1초 뒤 이 프로세스의 기록(OSLogStore)에서 그 시각의 CloudKit·Core Data 줄을 읽는다.
+      - Core `CloudKitErrorReader.failure(fromLog:)`가 기록에 찍힌 CKError 설명(`"Server Rejected Request" (15/2000); server message = "…"`)을 오류 값으로 되살린다. 그다음 같은 규칙으로 나눈다.
+      - 찾은 원인은 `CloudSyncState.attachLog`가 넣는다. 원인을 몰랐던 실패만 바꾸고, 복사용 설명에 "앱 기록:"을 붙인다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -408,6 +443,14 @@ docs/ROADMAP.md, CLAUDE.md
     - 새 블록이 병원 옆 열에 놓이는지
   - 기기 확인은 기기 체크리스트 11장으로 한다.
 
+- [ ] Phase 14 달력 막대, 하루 상세에서 옮기기, 동기화 진단: PR CI 확인
+  - Core: `MonthLayoutTests`(막대·칩), `CloudKitErrorReaderTests`(앱 기록), `CloudSyncStateTests`(`attachLog`)
+  - 앱: `ItemStoreTests.movingKeepsTheShapeOfTheSchedule`
+  - UI: `DragTests.testLongPressMovesAnItemFromTheDayDetailToAnotherDay`(스크린샷 33), `TimelineTests`의 본문 버튼 크기
+  - 기기
+    - 체크리스트 12장
+    - 앱 기록 읽기(OSLogStore)가 실제로 CloudKit 오류 줄을 찾는지는 Production 배포 전 빌드에서만 볼 수 있다. 체크리스트 7-2로 확인한다.
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -426,3 +469,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 11: 끌어서 일정 넣기(꾹 눌러 기간, 나중에 → 달력)
 - [ ] Phase 12: 잠금화면 위젯(남은 반복 할일)
 - [ ] Phase 13: 하루 상세 타임라인(보기 방식 설정, 업무 시간, 빈 곳 눌러 새 일정)
+- [ ] Phase 14: 달력 막대(하루짜리 시간 일정), 하루 상세에서 꾹 눌러 옮기기, 타임라인 본문 버튼, 동기화 진단(앱 기록)

@@ -31,6 +31,8 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - `Item`의 `startDayKey`/`endDayKey`는 yyyymmdd 정수이고 0이면 날짜 없음("나중에 할일")이다. 시간 일정에서는 조회용 색인일 뿐이므로, 표시할 날짜는 `calendarEntry(in:)`로 다시 계산한다.
 - "나중에"로 보낼 때는 `unschedule()`이 아니라 `moveToInbox(order: Item.topInboxOrder(in:))`를 쓴다. 직전 일정의 모양(`ScheduleHint`)이 남아, 다시 날짜를 정할 때 기본값이 된다. 목록 순서는 `inboxOrder` 오름차순이다.
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
+  - 막대와 칩은 Core `CalendarEntry.style`이 정한다. 일정은 하루짜리 시간 일정도 막대다. 칩(색 점과 제목)은 하루 안에 끝나는 시간 할일뿐이다(사용자 결정 2026-10-21).
+  - 하루 상세 목록의 "시간" 묶음은 `CalendarEntry.isTimedWithinOneDay`로 나눈다. `style`로 나누지 않는다.
   - 화면 위치 → 날짜 칸은 `MonthLayout.day(atX:y:width:height:in:clamped:)`로만 구한다.
   - 달력에서 날짜를 꾹 누르면 기간 고르기(`RangePressGesture`)가 된다. 움직이지 않고 놓으면 그 날 새 일정이다. 날짜 칸에 `contextMenu`를 다시 달지 않는다.
   - 달력 격자의 탭과 꾹 누르기는 `DayPressRecognizer`(`RangePressGesture`) 하나가 받는다.
@@ -41,6 +43,15 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 데이터는 앱 안 전용 형식 `InboxDragPayload.type`으로 싣는다(`Info.plist`의 `UTExportedTypeDeclarations`).
     - 놓을 항목 id는 `CalendarDropState`에서 꺼낸다.
     - 놓으면 `item.schedule(on:using: item.scheduleHint)`로 넣는다.
+- 하루 상세에서 꾹 눌러 다른 날로 옮기기(Phase 14)
+  - 행의 탭(편집)과 꾹 누르기(옮기기)는 `WindowPressGesture`(`DayPressRecognizer`) 하나가 받는다. 행에 `onTapGesture`를 다시 달지 않는다.
+  - 위치는 창 좌표다. 행은 시트 안에, 놓을 곳은 시트 뒤의 달력에 있기 때문이다.
+    - 달 페이지마다 격자 뒤에 `CalendarPageAnchor`(UIKit 뷰)를 깐다.
+    - 날짜 칸은 `CalendarDropState.day(atWindowPoint:)`/`hover(atWindowPoint:)`로 구한다.
+  - 시트 높이(medium/large, 옮기는 동안 `DayDetailView.movingDetent`)는 `DayDetailView`가 정한다.
+    - 옮기는 동안은 목록 높이를 고정한다(`frozenHeight`). 시트와 함께 목록이 줄면 셀이 재사용되어 손가락 추적이 끊긴다.
+  - 손가락을 따라가는 미리보기는 `ItemMoveSession`이 창에 붙인다.
+  - 옮기기는 `Item.move(byDays:)`로 한다. 연 날짜에서 놓은 날짜까지의 차이만큼 옮기고, 모양(종일 일수, 시각과 길이)은 그대로 둔다.
 - 하루 상세 타임라인(Phase 13)
   - 배치(범위, 열, 최소 높이)는 Core `DayTimeline`이 정한다. 화면 코드에서 다시 계산하지 않는다.
   - 위치 → 분은 `DayTimeline.minute(atY:height:)`로만 구한다.
@@ -57,6 +68,8 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 동기화로 생긴 중복(같은 `id`의 카테고리, 같은 주기의 완료 기록)은 `DuplicateMerger`로만 합친다.
   - 동기화 상태 문구는 Core `CloudSyncState`가 정한다. `CKContainer`는 부르지 않는다. entitlements가 없는 빌드에서는 앱이 꺼진다.
   - 동기화 오류는 Core `CloudKitErrorReader`로 나눈다. 바깥 오류(`partialFailure` 등)만 보지 말고 안쪽 오류까지 펼친다.
+    - 이벤트의 오류에 안쪽 오류가 없을 수 있다(빌드 10: `partialFailure(2)`뿐). 그래서 실패하면 `CloudSyncLogReader`(OSLogStore, 이 프로세스)로 그 시각의 CloudKit·Core Data 기록을 읽는다.
+    - 읽은 기록은 `CloudKitErrorReader.failure(fromLog:)`/`logReport(_:)`로 나눈 뒤, `CloudSyncState.attachLog`로 붙인다.
 - UI 문자열은 한국어로 쓴다. 주 시작 요일 기본값은 일요일이다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
@@ -66,7 +79,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 설정의 Picker를 눌러 바꾸지 않는다. 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29, `TimelineTests` 30–32. 새 화면은 33부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29와 33, `TimelineTests` 30–32. 새 화면은 34부터 붙인다.
   - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.

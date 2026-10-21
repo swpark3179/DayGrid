@@ -134,15 +134,22 @@ private struct TimelineBlockView: View {
             }
             Spacer(minLength: 0)
             if item.bodySummary != nil {
-                Button("본문 보기", systemImage: "doc.text", action: onShowBody)
-                    .labelStyle(.iconOnly)
-                    .font(.caption)
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("dayDetail.body")
+                // 목록 행의 본문 버튼과 비슷한 크기(사용자 요청 2026-10-21). 짧은 블록(30분)에서는 블록 높이에 맞춘다.
+                Button(action: onShowBody) {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: height >= 40 ? 20 : 16, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 34, height: min(34, max(20, height - 2)))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .padding(.vertical, -2)
+                .accessibilityLabel("본문 보기")
+                .accessibilityIdentifier("dayDetail.body")
             }
         }
         .padding(.leading, 7)
-        .padding(.trailing, 4)
+        .padding(.trailing, 2)
         .padding(.vertical, 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(color.opacity(0.18))

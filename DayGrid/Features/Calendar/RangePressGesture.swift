@@ -43,6 +43,37 @@ struct RangePressGesture: UIGestureRecognizerRepresentable {
     }
 }
 
+/// 하루 상세 목록 행의 탭과 꾹 누르기. 달력 격자와 같은 `DayPressRecognizer`를 쓰고, 위치는 창 좌표로 준다.
+///
+/// - 짧게 누르면 `.tap`(편집), 꾹 누르면 `.began` → `.changed` → `.ended`(다른 날로 옮기기).
+/// - 그 전에 움직이면 실패해서 목록 스크롤과 행 밀기(스와이프 동작)에 양보한다.
+/// - 행은 시트 안에 있고 놓을 곳은 시트 뒤의 달력이다. 두 계층이 같이 쓰는 창 좌표(`location(in: nil)`)로 잰다.
+///   행 안의 버튼(체크박스, 본문 보기)은 SwiftUI가 먼저 받으므로 이 제스처가 시작되지 않는다.
+struct WindowPressGesture: UIGestureRecognizerRepresentable {
+    let onChange: (RangePressGesture.Phase, CGPoint, UIWindow?) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> DayPressRecognizer {
+        DayPressRecognizer()
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: DayPressRecognizer, context: Context) {
+        let location = recognizer.location(in: nil)
+        let window = recognizer.view?.window
+        switch recognizer.state {
+        case .began:
+            onChange(.began, location, window)
+        case .changed:
+            onChange(.changed, location, window)
+        case .ended:
+            onChange(recognizer.isTap ? .tap : .ended, location, window)
+        case .cancelled:
+            onChange(.cancelled, location, window)
+        default:
+            break
+        }
+    }
+}
+
 /// 한 손가락 누르기를 탭, 꾹 누르기(끌기 포함), 실패(달 넘김에 양보) 중 하나로 정한다.
 final class DayPressRecognizer: UIGestureRecognizer {
     /// 이만큼 누르고 있으면 꾹 누르기

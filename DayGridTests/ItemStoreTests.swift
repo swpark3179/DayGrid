@@ -66,7 +66,8 @@ struct ItemStoreTests {
         #expect(entry?.startDay == day(2026, 10, 19))
         #expect(entry?.endDay == day(2026, 10, 19))
         #expect(entry?.startMinute == 22 * 60)
-        #expect(entry?.style == .chip)
+        #expect(entry?.isTimedWithinOneDay == true)
+        #expect(entry?.style == .bar, "일정은 하루짜리 시간 일정도 달력에 막대로 그린다")
         #expect(lateMeeting.startDayKey == 20_261_019)
         #expect(lateMeeting.endDayKey == 20_261_019)
 
@@ -77,6 +78,39 @@ struct ItemStoreTests {
         lateMeeting.unschedule()
         #expect(!lateMeeting.isScheduled)
         #expect(lateMeeting.calendarEntry(in: seoul) == nil)
+    }
+
+    @Test func movingKeepsTheShapeOfTheSchedule() throws {
+        // 종일 3일(10/1–10/3)을 이틀 뒤로: 10/3–10/5
+        let trip = Item(title: "여행")
+        trip.scheduleAllDay(from: day(2026, 10, 1), through: day(2026, 10, 3))
+        trip.move(byDays: 2, timeZone: seoul)
+        #expect(trip.isAllDay)
+        #expect(trip.startDay == day(2026, 10, 3))
+        #expect(trip.endDay == day(2026, 10, 5))
+
+        // 시간 일정은 시각과 길이가 그대로다. 밤을 넘는 일정도 같다.
+        let late = Item(title: "야간 작업", isTask: true)
+        late.scheduleTimed(
+            start: day(2026, 10, 19).date(hour: 23, in: seoul),
+            end: day(2026, 10, 20).date(hour: 1, minute: 30, in: seoul),
+            timeZone: seoul
+        )
+        late.toggleCompletion()
+        late.move(byDays: -3, timeZone: seoul)
+        #expect(late.startDate == day(2026, 10, 16).date(hour: 23, in: seoul))
+        #expect(late.endDate == day(2026, 10, 17).date(hour: 1, minute: 30, in: seoul))
+        #expect(late.startDayKey == 20_261_016)
+        #expect(late.endDayKey == 20_261_017)
+        #expect(late.isCompleted, "옮겨도 완료 표시는 그대로다")
+
+        // 0일이거나 날짜가 없으면 그대로다.
+        let updatedAt = trip.updatedAt
+        trip.move(byDays: 0, timeZone: seoul)
+        #expect(trip.updatedAt == updatedAt)
+        let someday = Item(title: "언젠가", isTask: true)
+        someday.move(byDays: 1, timeZone: seoul)
+        #expect(!someday.isScheduled)
     }
 
     @Test func defaultCategoriesAreInsertedOnlyOnce() throws {

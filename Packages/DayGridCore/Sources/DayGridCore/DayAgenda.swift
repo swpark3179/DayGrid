@@ -44,7 +44,7 @@ public struct DayAgenda: Sendable, Equatable {
         let covering = inputs.filter { $0.entry.startDay <= date && $0.entry.endDay >= date }
 
         func isTimed(_ input: Input) -> Bool {
-            separatingTimed ? !input.entry.isAllDay : !input.isTask && input.entry.style == .chip
+            separatingTimed ? !input.entry.isAllDay : !input.isTask && input.entry.isTimedWithinOneDay
         }
 
         // 이 날 안에서 시작하는 시각. 전날부터 이어지면 0분이다.
