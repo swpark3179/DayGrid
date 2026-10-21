@@ -115,10 +115,10 @@ final class CalendarDropState {
         if target != hit?.day {
             target = hit?.day
         }
-        let onPage: @MainActor (Int) -> Void = hit?.onPage ?? { _ in }
+        let onPage = hit?.onPage
         hover(edge: hit?.edge ?? 0) { [weak self] delta in
             guard let self else { return }
-            onPage(delta)
+            onPage?(delta)
             Task { @MainActor [weak self] in
                 // 페이지 넘김 애니메이션이 끝난 뒤의 위치로 다시 잰다.
                 try? await Task.sleep(for: .milliseconds(450))
