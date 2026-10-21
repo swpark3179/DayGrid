@@ -2,7 +2,8 @@ import DayGridCore
 import SwiftUI
 import UIKit
 
-/// 하루 상세에서 일정을 꾹 눌러 다른 날로 옮기는 동안의 미리보기와 놓을 날짜.
+/// 일정을 꾹 눌러 달력의 다른 날로 옮기는 동안의 미리보기와 놓을 날짜.
+/// 하루 상세에서 옮기기(원래 날짜가 있음)와 "나중에"에서 달력에 넣기(원래 날짜 없음)가 함께 쓴다.
 ///
 /// - 미리보기는 창 맨 위에 붙인다. 시트 안의 SwiftUI 뷰는 시트 밖에 그릴 수 없어서다.
 /// - 손가락 아래 날짜는 `CalendarDropState.hover(atWindowPoint:)`가 찾고, 달력이 그 칸을 강조한다.
@@ -22,7 +23,7 @@ final class ItemMoveSession {
     private var lastTarget: LocalDate?
     private let selection = UISelectionFeedbackGenerator()
 
-    func begin(title: String, colorHex: String, from date: LocalDate, at point: CGPoint, in window: UIWindow) {
+    func begin(title: String, colorHex: String, from date: LocalDate?, at point: CGPoint, in window: UIWindow) {
         end()
         originalDate = date
         startPoint = point
@@ -64,7 +65,7 @@ final class ItemMoveSession {
         return target
     }
 
-    /// 미리보기를 떼고 달력 강조를 지운다. 옮기는 중이 아니면 아무것도 하지 않는다("나중에" 끌기의 강조를 건드리지 않게).
+    /// 미리보기를 떼고 달력 강조를 지운다. 옮기는 중이 아니면 아무것도 하지 않는다.
     func end() {
         guard let preview else { return }
         preview.view.removeFromSuperview()
@@ -86,7 +87,8 @@ final class ItemMoveSession {
 struct ItemMovePreview: View {
     let title: String
     let colorHex: String
-    let originalDate: LocalDate
+    /// 원래 날짜. "나중에" 항목이면 `nil`
+    let originalDate: LocalDate?
     let state: CalendarDropState
 
     var body: some View {

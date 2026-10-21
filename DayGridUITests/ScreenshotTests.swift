@@ -165,5 +165,18 @@ final class ScreenshotTests: XCTestCase {
         input.typeText("Shortcut Task\n")
         XCTAssertTrue(app.descendants(matching: .any)["inbox.list"].staticTexts["Shortcut Task"].waitForExistence(timeout: 5))
         attachScreenshot(of: app, named: "15-quick-add-shortcut")
+
+        // 입력창 안을 누르면 계속 쓰고, 밖(제목 줄)을 누르면 키보드가 내려간다.
+        // 시뮬레이터에 하드웨어 키보드가 붙어 있으면 화면 키보드가 보이지 않으므로 입력창 포커스로 확인한다.
+        func waitForFocus(_ isFocused: Bool) -> XCTWaiter.Result {
+            let predicate = NSPredicate(format: "hasKeyboardFocus == %@", NSNumber(value: isFocused))
+            return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: input)], timeout: 5)
+        }
+        XCTAssertEqual(waitForFocus(true), .completed, "엔터 뒤에도 이어서 쓸 수 있어야 한다")
+        input.tap()
+        XCTAssertEqual(waitForFocus(true), .completed, "입력창 안을 누르면 키보드가 내려가지 않아야 한다")
+        // 제목 줄의 왼쪽(편집 버튼이 없는 곳)
+        app.navigationBars["나중에"].coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
+        XCTAssertEqual(waitForFocus(false), .completed, "입력창 밖을 누르면 키보드가 내려가야 한다")
     }
 }

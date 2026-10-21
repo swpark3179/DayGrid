@@ -242,6 +242,9 @@ docs/ROADMAP.md, CLAUDE.md
     - 앱도 고쳤다(Phase 14).
       - 안쪽 오류 없는 묶음 실패를 `unexplainedPartialFailure`로 따로 안내한다.
       - 실패하면 그 시각의 앱 기록(OSLogStore)을 읽어 원인을 찾고, 복사용 설명에 붙인다.
+  - Phase 14 빌드(2026-10-21 06:38Z)의 앱 기록이 원인을 찾았다: `invalidArguments(12): Cannot create new type CD_PersonalHoliday in production schema ×2`(사용자 확인).
+    - 앱은 이것을 `schemaMismatch`로 나눈다. 앱 쪽 고칠 것은 없다.
+    - check(실행 #4, 09:36Z)에서도 Production에는 `Users`만 있었다. 할 일은 그대로 사용자가 Console에서 Deploy Schema Changes → check로 확인 → 앱을 다시 열어 체크리스트 7장을 확인하는 것이다.
 - **구현 메모(사용자 결정: 스키마는 GitHub Actions로 자동 준비, 동기화는 항상 켬)**
   - TestFlight 빌드는 CloudKit **Production**을 쓴다.
     - Production 스키마는 자동으로 생기지 않는다. Development에 넣은 뒤 CloudKit Console에서 배포해야 한다.
@@ -385,6 +388,33 @@ docs/ROADMAP.md, CLAUDE.md
       - Core `CloudKitErrorReader.failure(fromLog:)`가 기록에 찍힌 CKError 설명(`"Server Rejected Request" (15/2000); server message = "…"`)을 오류 값으로 되살린다. 그다음 같은 규칙으로 나눈다.
       - 찾은 원인은 `CloudSyncState.attachLog`가 넣는다. 원인을 몰랐던 실패만 바꾸고, 복사용 설명에 "앱 기록:"을 붙인다.
 
+### Phase 15 — "나중에" 키보드, 꾹 눌러 달력에 넣기 다시 만들기 (사용자 요청 2026-10-21)
+- "나중에" 입력창에 쓰는 중 빈 곳을 누르면 키보드가 내려간다.
+- "나중에" 항목을 오래 눌러 달력에 넣기가 기기에서 동작하지 않았다(사용자 확인). 탭은 달력으로 바뀌지만 놓아도 들어가지 않았다.
+  - 꾹 누르면 탭을 바꾸지 않고 목록 위에 달력을 덮는다. 손가락을 떼지 않고 날짜 위에서 떼면 그 날로 들어간다.
+  - 넣은 뒤에는 달력 탭에서 그 달을 보여준다(사용자 결정).
+- iCloud "Cannot create new type CD_PersonalHoliday in production schema" → Phase 9 현황 참고(Production 미배포, 앱 변경 없음).
+- **완료 기준:** 앱 단위 테스트(`CalendarDropStateTests`: 창 좌표 → 날짜, 숨긴 페이지, 가장자리 넘기기)가 통과한다. UI 테스트에서 "나중에" → 달력 넣기(스크린샷 29, 기대 실패 없음)와 키보드 내리기가 통과한다.
+- **구현 메모**
+  - 원인: Phase 11의 시스템 끌어 놓기(`onDrag`)는 끌기를 시작하자마자 달력 탭으로 바꿨다. 탭이 바뀌면 끌기를 시작한 목록이 창에서 빠져 끌기가 끝난다(Phase 11 "나중에 할 테스트"의 두 번째 원인 후보).
+  - 그래서 하루 상세에서 옮기기(Phase 14)와 같은 방식으로 바꿨다.
+    - 행의 탭(편집)과 꾹 누르기를 `WindowPressGesture` 하나가 받는다. 누른 행은 끝까지 창에 남는다.
+    - 꾹 누르면 `InboxCalendarOverlay`(연·월, 안내, 요일, 달 페이지)를 목록 위에 덮는다.
+      - 누르기와 접근성은 받지 않는다.
+      - 머리 줄 높이를 달력 탭과 비슷하게 두어 날짜 칸이 거의 같은 자리에 온다.
+    - 미리보기와 놓을 날짜는 `ItemMoveSession`이 맡는다(원래 날짜 없음).
+    - 놓으면 `schedule(on:using: scheduleHint)`로 넣고, `RootView`가 달력 탭으로 바꾼다. `CalendarTab`은 `monthToShow`로 그 달을 연다.
+    - 16pt 넘게 움직이지 않았거나 달력 밖에서 떼면 그대로 둔다.
+  - `CalendarPageAnchor`가 페이지의 달 넘기기(`onPage`)도 등록한다. 가장자리에 머무르면 손가락 아래 달력(달력 탭이나 덮개)을 넘긴다.
+    - 예전의 전역 `CalendarDropState.onPage`는 뺐다.
+    - 창에 있어도 숨겨진 페이지는 건너뛴다.
+  - "나중에" 목록의 `onMove`는 편집 중에만 켠다. 편집 밖에서도 켜 두면 목록의 끌어 순서 바꾸기가 꾹 누르기와 겹친다.
+  - 시스템 끌어 놓기 코드(`InboxDragPayload`, `CalendarDropDelegate`, `Info.plist`의 `UTExportedTypeDeclarations`)는 뺐다.
+  - 키보드: `KeyboardDismissOnTap`이 입력창에 포커스가 있는 동안 창에 UIKit 탭 제스처를 단다.
+    - 다른 제스처를 막지 않고 막히지도 않는다(`cancelsTouchesInView = false`, `canPrevent`/`canBePrevented` false).
+    - 입력창(`UITextInput`) 안의 탭은 뺀다.
+    - SwiftUI `onTapGesture`를 목록에 달면 입력창과 행 버튼까지 가로채서 쓰지 않았다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -429,7 +459,8 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 10 "반복" 탭 배지: UI 테스트로는 확인할 수 없다. 기기 체크리스트 8-4로 확인한다.
   - iOS 26 탭 막대는 배지 숫자를 접근성 라벨·값에 넣지 않는다. PR #14 CI에서 라벨 "반복", 값이 비어 있었다.
   - 개수 계산은 `RecurringTaskTests.sampleDataHasTwoDueTasksToday`가 확인한다.
-- [ ] Phase 11 "나중에" → 달력 놓기: UI 테스트(`DragTests.testDraggingAnInboxItemOntoTheCalendar`)의 마지막 확인을 기대 실패(strict 아님)로 두었다. 기기 체크리스트 9-5–9-7로 확인한다.
+- [x] Phase 11 "나중에" → 달력 놓기: UI 테스트(`DragTests.testDraggingAnInboxItemOntoTheCalendar`)의 마지막 확인을 기대 실패(strict 아님)로 두었다. 기기 체크리스트 9-5–9-7로 확인한다.
+  - 2026-10-21 기기에서도 놓기가 들어가지 않았다(사용자 확인). Phase 15에서 탭을 바꾸지 않는 방식으로 다시 만들었다.
   - PR #15 CI에서 끌기를 시작하자 달력 탭으로 바뀌었다. 그러나 놓은 뒤 항목이 어느 날에도 없었다.
   - 원인 후보
     - XCUITest의 끌기가 시스템 끌어 놓기로 이어지지 않음
@@ -450,6 +481,14 @@ docs/ROADMAP.md, CLAUDE.md
   - 기기
     - 체크리스트 12장
     - 앱 기록 읽기(OSLogStore)가 실제로 CloudKit 오류 줄을 찾는지는 Production 배포 전 빌드에서만 볼 수 있다. 체크리스트 7-2로 확인한다.
+      - 2026-10-21에 확인했다. `invalidArguments(12): Cannot create new type CD_PersonalHoliday in production schema`를 찾았다(사용자 확인).
+
+- [ ] Phase 15 "나중에" 키보드, 꾹 눌러 달력에 넣기: PR CI 확인
+  - 앱: `CalendarDropStateTests`(창 좌표 → 날짜, 숨긴·빠진 페이지, 가장자리 넘기기)
+  - UI
+    - `DragTests.testDraggingAnInboxItemOntoTheCalendar`(스크린샷 29): 덮개 달력의 10/14에 넣으면 달력 탭으로 바뀌고 그 날에 보인다.
+    - `ScreenshotTests.testQuickAddShortcut`: 입력창 안을 누르면 포커스가 그대로이고, 제목 줄을 누르면 포커스가 풀린다.
+  - 기기: 체크리스트 13장
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
@@ -470,3 +509,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 12: 잠금화면 위젯(남은 반복 할일)
 - [ ] Phase 13: 하루 상세 타임라인(보기 방식 설정, 업무 시간, 빈 곳 눌러 새 일정)
 - [ ] Phase 14: 달력 막대(하루짜리 시간 일정), 하루 상세에서 꾹 눌러 옮기기, 타임라인 본문 버튼, 동기화 진단(앱 기록)
+- [ ] Phase 15: "나중에" 키보드 내리기, 꾹 눌러 덮개 달력에 넣기(탭을 바꾸지 않음)
