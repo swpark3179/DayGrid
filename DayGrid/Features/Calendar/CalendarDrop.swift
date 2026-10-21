@@ -94,9 +94,10 @@ final class CalendarDropState {
     }
 
     /// 창에 남아 있지만 보이지 않는 달력(뷰나 그 위의 뷰가 숨겨짐)은 놓을 곳이 아니다.
+    /// 창 자체는 보지 않는다. 손가락이 닿은 창은 늘 보이고, 화면에 띄우지 않은 창(`isHidden` 기본값 true)에서도 페이지를 찾을 수 있어야 한다.
     private static func isHidden(_ view: UIView) -> Bool {
         var current: UIView? = view
-        while let candidate = current {
+        while let candidate = current, !(candidate is UIWindow) {
             if candidate.isHidden {
                 return true
             }
