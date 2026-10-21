@@ -8,7 +8,11 @@ import UIKit
 @MainActor
 struct CalendarDropStateTests {
     /// 2026년 10월(일요일 시작)은 9/27–10/31, 5주다.
-    private let october = MonthLayout.visibleDays(of: LocalDate(year: 2026, month: 10, day: 1), firstWeekday: 1)
+    private let october = MonthLayout.visibleDays(of: LocalDate(year: 2026, month: 10, day: 1)!, firstWeekday: 1)
+
+    private func day(_ year: Int, _ month: Int, _ day: Int) -> LocalDate {
+        LocalDate(year: year, month: month, day: day)!
+    }
 
     /// 창 안의 350×500 격자. 칸은 가로 50, 세로 100이다.
     private func makeGrid(in container: UIView? = nil) -> (window: UIWindow, grid: UIView) {
@@ -25,7 +29,7 @@ struct CalendarDropStateTests {
 
     @Test func endingTheHoverClearsTheTarget() {
         let state = CalendarDropState()
-        state.target = LocalDate(year: 2026, month: 10, day: 22)
+        state.target = day(2026, 10, 22)
         state.endHover()
         #expect(state.target == nil)
     }
@@ -36,15 +40,15 @@ struct CalendarDropStateTests {
         state.registerPage(grid, visibleDays: october, onPage: { _ in })
 
         let first = state.day(atWindowPoint: CGPoint(x: 30, y: 150))
-        #expect(first?.day == LocalDate(year: 2026, month: 9, day: 27))
+        #expect(first?.day == day(2026, 9, 27))
         #expect(first?.edge == -1, "왼쪽 가장자리")
 
         let middle = state.day(atWindowPoint: CGPoint(x: 200, y: 350))
-        #expect(middle?.day == LocalDate(year: 2026, month: 10, day: 14), "셋째 줄 가운데 칸")
+        #expect(middle?.day == day(2026, 10, 14), "셋째 줄 가운데 칸")
         #expect(middle?.edge == 0)
 
         let last = state.day(atWindowPoint: CGPoint(x: 370, y: 590))
-        #expect(last?.day == LocalDate(year: 2026, month: 10, day: 31))
+        #expect(last?.day == day(2026, 10, 31))
         #expect(last?.edge == 1, "오른쪽 가장자리")
 
         #expect(state.day(atWindowPoint: CGPoint(x: 200, y: 50))?.day == nil, "격자 밖")
@@ -74,7 +78,7 @@ struct CalendarDropStateTests {
         let recorder = PageRecorder()
         state.registerPage(grid, visibleDays: october, onPage: { recorder.deltas.append($0) })
 
-        #expect(state.hover(atWindowPoint: CGPoint(x: 30, y: 350)) == LocalDate(year: 2026, month: 10, day: 11))
+        #expect(state.hover(atWindowPoint: CGPoint(x: 30, y: 350)) == day(2026, 10, 11))
         try await Task.sleep(for: .milliseconds(1200))
         state.endHover()
         #expect(recorder.deltas.first == -1, "왼쪽 가장자리에 머무르면 그 페이지의 달력을 이전 달로 넘긴다")
