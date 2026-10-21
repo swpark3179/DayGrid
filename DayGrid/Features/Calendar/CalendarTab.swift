@@ -7,6 +7,8 @@ struct CalendarTab: View {
     let today: LocalDate
     /// 값이 들어오면 그 달로 넘기고 하루 상세를 연다(알림을 눌렀을 때).
     @Binding var dayToOpen: LocalDate?
+    /// 값이 들어오면 그 달로 넘긴다("나중에" 항목을 달력에 넣었을 때).
+    @Binding var monthToShow: LocalDate?
 
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
     @Query private var people: [Person]
@@ -15,15 +17,19 @@ struct CalendarTab: View {
     @State private var editorMode: ItemEditorView.Mode?
     @State private var isShowingBirthdays = false
     @State private var isPickingMonth = false
-    @State private var droppedCount = 0
-    @Environment(\.modelContext) private var modelContext
 
     /// 오늘 기준 앞뒤로 넘길 수 있는 달 수.
     private static let monthsAroundToday = 120
 
-    init(today: LocalDate, dayToOpen: Binding<LocalDate?> = .constant(nil)) {
+    /// 넘길 수 있는 달(`monthIndex`). "나중에"의 달력 덮개도 같은 범위를 쓴다.
+    static func monthRange(around today: LocalDate) -> ClosedRange<Int> {
+        (today.monthIndex - monthsAroundToday)...(today.monthIndex + monthsAroundToday)
+    }
+
+    init(today: LocalDate, dayToOpen: Binding<LocalDate?> = .constant(nil), monthToShow: Binding<LocalDate?> = .constant(nil)) {
         self.today = today
         _dayToOpen = dayToOpen
+        _monthToShow = monthToShow
         _selectedMonth = State(initialValue: today.monthIndex)
     }
 
@@ -42,23 +48,17 @@ struct CalendarTab: View {
                             onSelectDay: { selectedDay = DaySelection(date: $0) },
                             onAddItem: { editorMode = .new($0) },
                             onAddRange: { editorMode = .newRange($0, $1) },
-                            onPage: { page(by: $0) },
-                            onDropItem: scheduleDroppedItem
+                            onPage: { page(by: $0) }
                         )
                         .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .sensoryFeedback(.success, trigger: droppedCount)
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $selectedDay) { selection in
                 // 시트 높이(보통 medium/large, 옮기는 동안 작게)는 DayDetailView가 정한다.
                 DayDetailView(date: selection.date)
-            }
-            .onAppear {
-                // 하루 상세에서 꾹 눌러 옮기다가 가장자리에 머무르면 달을 넘긴다.
-                CalendarDropState.shared.onPage = { delta in page(by: delta) }
             }
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
@@ -68,6 +68,16 @@ struct CalendarTab: View {
                 dayToOpen = nil
                 selectedMonth = day.monthIndex
                 selectedDay = DaySelection(date: day)
+            }
+            .onChange(of: monthToShow, initial: true) { _, day in
+                guard let day else { return }
+                monthToShow = nil
+                // 먼 달로 건너뛸 때 사이의 달을 모두 넘기는 애니메이션은 하지 않는다.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    selectedMonth = day.monthIndex
+                }
             }
             .sheet(isPresented: $isPickingMonth) {
                 MonthPickerSheet(selectedMonth: selectedMonth, todayMonth: today.monthIndex, range: monthRange) { index in
@@ -125,7 +135,7 @@ struct CalendarTab: View {
         }
     }
 
-    /// 이전·다음 달로 넘긴다(끌기 중 가장자리에 머무를 때).
+    /// 이전·다음 달로 넘긴다(꾹 눌러 끄는 중 가장자리에 머무를 때).
     private func page(by delta: Int) {
         let next = selectedMonth + delta
         guard monthRange.contains(next) else { return }
@@ -134,23 +144,13 @@ struct CalendarTab: View {
         }
     }
 
-    /// "나중에"에서 끌어 온 항목을 그 날로 넣는다. 미룰 때 남긴 모양(종일·시간, 길이)을 그대로 쓴다.
-    private func scheduleDroppedItem(_ id: UUID, on day: LocalDate) {
-        var descriptor = FetchDescriptor<Item>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        guard let item = try? modelContext.fetch(descriptor).first, !item.isScheduled else { return }
-        item.schedule(on: day, using: item.scheduleHint)
-        try? modelContext.save()
-        droppedCount += 1
-    }
-
     /// 헤더의 + 버튼으로 추가할 날짜. 이번 달을 보고 있으면 오늘, 아니면 보고 있는 달의 1일.
     private var dayForNewItem: LocalDate {
         selectedMonth == today.monthIndex ? today : LocalDate(firstDayOfMonthIndex: selectedMonth)
     }
 
     private var monthRange: ClosedRange<Int> {
-        (today.monthIndex - Self.monthsAroundToday)...(today.monthIndex + Self.monthsAroundToday)
+        Self.monthRange(around: today)
     }
 
     /// 왼쪽 위 연·월. 누르면 연·월을 골라 바로 이동한다.

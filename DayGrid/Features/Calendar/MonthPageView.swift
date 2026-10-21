@@ -1,14 +1,13 @@
 import DayGridCore
 import SwiftData
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// 달력 한 달 페이지. 그 달에 보이는 날짜 범위의 일정만 가져와서 배치한다.
 ///
 /// - 날짜를 누르면 하루 상세가 열린다.
 /// - 꾹 누른 채 다른 날짜까지 끌면 그 기간의 새 일정을 만든다. 움직이지 않고 놓으면 그 날 새 일정이다.
-/// - "나중에" 항목을 끌어 와 놓으면 그 날로 들어간다. 가장자리에 머무르면 이전·다음 달로 넘어간다.
-/// - 하루 상세에서 꾹 눌러 옮길 때는 격자 뒤의 `CalendarPageAnchor`로 손가락 아래 날짜를 찾는다.
+/// - 하루 상세에서 꾹 눌러 옮기거나 "나중에" 항목을 꾹 눌러 넣을 때는 격자 뒤의 `CalendarPageAnchor`로 손가락 아래 날짜를 찾는다.
+///   가장자리에 머무르면 `onPage`로 이전·다음 달로 넘긴다.
 struct MonthPageView: View {
     let month: LocalDate
     let today: LocalDate
@@ -17,7 +16,6 @@ struct MonthPageView: View {
     let onAddItem: (LocalDate) -> Void
     let onAddRange: (LocalDate, LocalDate) -> Void
     let onPage: @MainActor (Int) -> Void
-    let onDropItem: (UUID, LocalDate) -> Void
 
     @Environment(HolidayService.self) private var holidayService
     @Query private var items: [Item]
@@ -35,8 +33,7 @@ struct MonthPageView: View {
         onSelectDay: @escaping (LocalDate) -> Void,
         onAddItem: @escaping (LocalDate) -> Void,
         onAddRange: @escaping (LocalDate, LocalDate) -> Void = { _, _ in },
-        onPage: @escaping @MainActor (Int) -> Void = { _ in },
-        onDropItem: @escaping (UUID, LocalDate) -> Void = { _, _ in }
+        onPage: @escaping @MainActor (Int) -> Void = { _ in }
     ) {
         self.month = month
         self.today = today
@@ -45,7 +42,6 @@ struct MonthPageView: View {
         self.onAddItem = onAddItem
         self.onAddRange = onAddRange
         self.onPage = onPage
-        self.onDropItem = onDropItem
         let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
         _items = Query(filter: Item.predicate(overlapping: visibleDays), sort: \Item.startDayKey)
         _personalHolidays = Query(filter: PersonalHoliday.predicate(overlapping: visibleDays))
@@ -85,27 +81,17 @@ struct MonthPageView: View {
                     .frame(height: rowHeight)
                 }
             }
-            .background(CalendarPageAnchor(visibleDays: visibleDays).allowsHitTesting(false))
+            .background(CalendarPageAnchor(visibleDays: visibleDays, onPage: onPage).allowsHitTesting(false))
             .contentShape(Rectangle())
             .gesture(RangePressGesture { phase, location in
                 handleRangePress(phase, at: location, size: geometry.size, visibleDays: visibleDays)
             })
-            .onDrop(
-                of: [InboxDragPayload.type],
-                delegate: CalendarDropDelegate(
-                    size: geometry.size,
-                    visibleDays: visibleDays,
-                    state: dropState,
-                    onPage: onPage,
-                    onDrop: onDropItem
-                )
-            )
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: rangeStart) { _, new in new != nil }
         .sensoryFeedback(.selection, trigger: rangeEnd) { old, new in old != nil && new != nil }
     }
 
-    /// 강조할 날짜: 꾹 눌러 고르는 기간, 아니면 "나중에" 항목을 놓으려는 날.
+    /// 강조할 날짜: 꾹 눌러 고르는 기간, 아니면 끌어 온 일정을 놓으려는 날.
     private func highlighted(in visibleDays: ClosedRange<LocalDate>) -> ClosedRange<LocalDate>? {
         if let rangeStart, let rangeEnd {
             return min(rangeStart, rangeEnd)...max(rangeStart, rangeEnd)

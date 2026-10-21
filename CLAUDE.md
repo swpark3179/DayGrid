@@ -30,6 +30,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 색은 `DayStyle`의 규칙을 따른다: 공휴일과 일요일은 빨강, 개인 휴일은 주황, 토요일은 파랑이다. 화면 코드에 색을 따로 쓰지 않는다.
 - `Item`의 `startDayKey`/`endDayKey`는 yyyymmdd 정수이고 0이면 날짜 없음("나중에 할일")이다. 시간 일정에서는 조회용 색인일 뿐이므로, 표시할 날짜는 `calendarEntry(in:)`로 다시 계산한다.
 - "나중에"로 보낼 때는 `unschedule()`이 아니라 `moveToInbox(order: Item.topInboxOrder(in:))`를 쓴다. 직전 일정의 모양(`ScheduleHint`)이 남아, 다시 날짜를 정할 때 기본값이 된다. 목록 순서는 `inboxOrder` 오름차순이다.
+- "나중에" 입력창 밖을 누르면 키보드가 내려간다(`KeyboardDismissOnTap`이 창에 UIKit 탭을 단다). 목록에 SwiftUI `onTapGesture`를 달지 않는다. 입력창과 행 버튼까지 가로챈다.
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
   - 막대와 칩은 Core `CalendarEntry.style`이 정한다. 일정은 하루짜리 시간 일정도 막대다. 칩(색 점과 제목)은 하루 안에 끝나는 시간 할일뿐이다(사용자 결정 2026-10-21).
   - 하루 상세 목록의 "시간" 묶음은 `CalendarEntry.isTimedWithinOneDay`로 나눈다. `style`로 나누지 않는다.
@@ -39,14 +40,15 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 날짜 칸(`DayHitTarget`)은 `Button`이 아니라 접근성 요소다.
     - 격자 안에 SwiftUI 버튼이나 제스처를 더하지 않는다. SwiftUI는 자식 제스처를 먼저 주므로, 꾹 누르기가 시작되지 못한다.
   - 꾹 누르는 동안은 손가락 아래 스크롤 뷰(달 넘김)를 멈춘다.
-  - "나중에" → 달력 끌기
-    - 데이터는 앱 안 전용 형식 `InboxDragPayload.type`으로 싣는다(`Info.plist`의 `UTExportedTypeDeclarations`).
-    - 놓을 항목 id는 `CalendarDropState`에서 꺼낸다.
-    - 놓으면 `item.schedule(on:using: item.scheduleHint)`로 넣는다.
+  - "나중에" → 달력 넣기(Phase 15)
+    - 행의 탭(편집)과 꾹 누르기는 `WindowPressGesture` 하나가 받는다. 시스템 끌어 놓기(`onDrag`)와 탭 바꾸기는 쓰지 않는다. 탭을 바꾸면 누른 행이 창에서 빠져 손가락 추적이 끊긴다.
+    - 꾹 누르는 동안 목록 위에 `InboxCalendarOverlay`를 덮는다. 날짜 칸은 하루 상세에서 옮기기와 같이 `CalendarDropState`가 창 좌표로 구한다.
+    - 놓으면 `item.schedule(on:using: item.scheduleHint)`로 넣고, 달력 탭에서 그 달을 연다(`CalendarTab`의 `monthToShow`).
+    - `onMove`는 편집 중에만 켠다. 편집 밖에서도 켜면 목록의 끌어 순서 바꾸기가 꾹 누르기와 겹친다.
 - 하루 상세에서 꾹 눌러 다른 날로 옮기기(Phase 14)
   - 행의 탭(편집)과 꾹 누르기(옮기기)는 `WindowPressGesture`(`DayPressRecognizer`) 하나가 받는다. 행에 `onTapGesture`를 다시 달지 않는다.
   - 위치는 창 좌표다. 행은 시트 안에, 놓을 곳은 시트 뒤의 달력에 있기 때문이다.
-    - 달 페이지마다 격자 뒤에 `CalendarPageAnchor`(UIKit 뷰)를 깐다.
+    - 달 페이지마다 격자 뒤에 `CalendarPageAnchor`(UIKit 뷰)를 깐다. 그 페이지의 달 넘기기(`onPage`)도 함께 등록한다. 숨겨진 페이지는 건너뛴다.
     - 날짜 칸은 `CalendarDropState.day(atWindowPoint:)`/`hover(atWindowPoint:)`로 구한다.
   - 시트 높이(medium/large, 옮기는 동안 `DayDetailView.movingDetent`)는 `DayDetailView`가 정한다.
     - 옮기는 동안은 목록 높이를 고정한다(`frozenHeight`). 시트와 함께 목록이 줄면 셀이 재사용되어 손가락 추적이 끊긴다.

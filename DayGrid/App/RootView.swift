@@ -17,6 +17,7 @@ struct RootView: View {
     @State private var selectedTab: AppTab = .calendar
     @State private var inboxFocusRequest = 0
     @State private var dayToOpen: LocalDate?
+    @State private var monthToShow: LocalDate?
     @Query(filter: RecurringTask.activePredicate) private var activeRecurringTasks: [RecurringTask]
 
     /// 주기가 돌아왔는데 아직 하지 않은 반복 할일 수. 0이면 배지를 보이지 않는다.
@@ -27,10 +28,12 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("달력", systemImage: "calendar", value: AppTab.calendar) {
-                CalendarTab(today: clock.today, dayToOpen: $dayToOpen)
+                CalendarTab(today: clock.today, dayToOpen: $dayToOpen, monthToShow: $monthToShow)
             }
             Tab("나중에", systemImage: "tray", value: AppTab.inbox) {
-                InboxTab(focusRequest: inboxFocusRequest) {
+                // 꾹 눌러 달력에 넣으면 달력 탭에서 그 달을 보여준다(사용자 결정 2026-10-21).
+                InboxTab(focusRequest: inboxFocusRequest) { day in
+                    monthToShow = day
                     selectedTab = .calendar
                 }
             }

@@ -1,7 +1,8 @@
 import XCTest
 
 /// 끌기 동작을 확인하고 스크린샷을 남긴다.
-/// - Phase 11: 꾹 눌러 기간 만들기, "나중에" → 달력 놓기(28–29)
+/// - Phase 11: 꾹 눌러 기간 만들기(28)
+/// - Phase 15: "나중에" 항목을 꾹 눌러 덮개 달력에 넣기(29)
 /// - 하루 상세에서 꾹 눌러 다른 날로 옮기기(33)
 final class DragTests: XCTestCase {
     override func setUpWithError() throws {
@@ -45,31 +46,36 @@ final class DragTests: XCTestCase {
     func testDraggingAnInboxItemOntoTheCalendar() throws {
         let app = launchApp()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
-        // 놓을 칸의 화면 위치를 먼저 기록한다(끌기 중에는 달력 탭으로 바뀐 뒤에야 보인다)
-        let targetFrame = app.buttons["calendar.day.2026-10-22"].frame
+        // 놓을 칸(10/14, 가운데 줄 가운데 칸)의 화면 위치. 꾹 누르는 동안 "나중에" 목록 위에 거의 같은 자리의 달력이 덮인다.
+        let targetFrame = app.buttons["calendar.day.2026-10-14"].frame
 
         tabButton("나중에", in: app).tap()
         let list = element("inbox.list", in: app)
         let row = list.cells.containing(.staticText, identifier: "책 반납하기").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
 
-        let origin = app.coordinate(withNormalizedOffset: .zero)
-        let target = origin.withOffset(CGVector(dx: targetFrame.midX, dy: targetFrame.midY))
+        let target = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: targetFrame.midX, dy: targetFrame.midY))
         row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 1.2, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.6)
+            .press(forDuration: 1.0, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.5)
 
-        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 5), "끌기를 시작하면 달력으로 바뀌어야 한다")
+        // 날짜 위에서 떼면 달력 탭으로 바뀌고 그 달이 보인다
+        XCTAssertTrue(app.buttons["calendar.add"].waitForExistence(timeout: 5), "달력에 넣으면 달력 탭으로 바뀌어야 한다")
+        XCTAssertTrue(app.staticTexts["2026년 10월"].exists)
         attachScreenshot(of: app, named: "29-inbox-drop")
-        app.buttons["calendar.day.2026-10-22"].tap()
-        let dayBar = app.navigationBars["10월 22일 (목)"]
+        app.buttons["calendar.day.2026-10-14"].tap()
+        let dayBar = app.navigationBars["10월 14일 (수)"]
         XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
-        // PR #15 CI: 탭은 달력으로 바뀌었지만 놓기가 들어가지 않았다(어느 날에도 없음). 원인을 찾을 때까지
-        // 기대 실패로 두고 기기 체크리스트 9장으로 확인한다. strict가 아니므로 통과하면 그대로 통과다.
-        XCTExpectFailure("시뮬레이터 XCUITest의 끌기에서 달력 놓기가 들어가지 않는다(docs/ROADMAP.md 나중에 할 테스트)", strict: false)
         XCTAssertTrue(
             element("dayDetail.list", in: app).staticTexts["책 반납하기"].waitForExistence(timeout: 5),
             "놓은 날의 하루 상세에 보여야 한다"
         )
+        app.buttons["닫기"].tap()
+        XCTAssertTrue(dayBar.waitForNonExistence(timeout: 5))
+
+        tabButton("나중에", in: app).tap()
+        XCTAssertTrue(list.staticTexts["선물 고르기"].waitForExistence(timeout: 5))
+        XCTAssertFalse(list.staticTexts["책 반납하기"].exists, "달력에 넣은 항목은 나중에 목록에서 빠져야 한다")
     }
 
     @MainActor
