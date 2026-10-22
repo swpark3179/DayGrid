@@ -104,14 +104,13 @@ struct RecurringTaskEditView: View {
                     Text("주기가 시작되는 날 이 시각에 한 번 알립니다. 이미 완료한 주기는 알리지 않습니다.")
                 }
 
-                Section {
-                    Picker("카테고리", selection: $categoryID) {
-                        Text("없음").tag(UUID?.none)
-                        ForEach(categories) { category in
-                            Text(category.name).tag(Optional(category.id))
-                        }
-                    }
-                    if task != nil {
+                Section("카테고리") {
+                    CategoryChips(categories: categories, selection: $categoryID)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                }
+
+                if task != nil {
+                    Section {
                         Toggle("사용", isOn: $isActive)
                     }
                 }

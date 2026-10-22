@@ -21,6 +21,12 @@ final class CalendarDropState {
     /// 손가락 아래 날짜(그 칸을 강조한다)
     var target: LocalDate?
 
+    /// 방금 일정이 들어간 날짜(달력이 한 번 빛나게 한다). `land(itemID:days:)`가 넣고 잠시 뒤 비운다.
+    var landing: CalendarLanding?
+
+    /// 착지 표시를 남겨 두는 시간. 그 뒤에 그 달을 다시 열어도 빛나지 않는다.
+    nonisolated static let landingDuration: Duration = .milliseconds(1500)
+
     @ObservationIgnored private var edge = 0
     @ObservationIgnored private var edgeTask: Task<Void, Never>?
     @ObservationIgnored private var pages: [ObjectIdentifier: Page] = [:]
@@ -56,6 +62,18 @@ final class CalendarDropState {
         lastWindowPoint = nil
     }
 
+    /// 일정을 놓은 날(하루 상세에서 옮기기, "나중에"에서 넣기)이나 "오늘"로 돌아온 날을 달력에서 한 번 빛나게 한다.
+    /// `itemID`가 있으면 그 일정의 막대도 튀어 들어온다. 새로 부르면 앞의 표시를 덮어쓴다.
+    func land(itemID: UUID?, days: ClosedRange<LocalDate>) {
+        let landing = CalendarLanding(itemID: itemID, days: days)
+        self.landing = landing
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.landingDuration)
+            guard let self, self.landing?.id == landing.id else { return }
+            self.landing = nil
+        }
+    }
+
     // MARK: - 창 좌표로 날짜 찾기
 
     /// 달 페이지의 격자 뷰를 등록한다. 같은 뷰를 다시 넣으면 보이는 날짜와 달 넘기기만 바꾼다.
@@ -72,6 +90,27 @@ final class CalendarDropState {
     /// 페이지 넘김(`TabView`)의 옆 달은 화면 밖에 있으므로, 손가락이 들어 있는 페이지는 지금 보이는 달 하나다.
     func day(atWindowPoint point: CGPoint) -> (day: LocalDate, edge: Int)? {
         page(atWindowPoint: point).map { (day: $0.day, edge: $0.edge) }
+    }
+
+    /// 화면에 보이는 달 페이지에서 `day` 칸의 창 좌표. 끌던 미리보기를 놓은 칸으로 빨려 들게 할 때 쓴다.
+    /// 칸은 `MonthLayout`과 같이 7열 × 주 수의 같은 크기다. 보이는 페이지에 그 날이 없으면 `nil`.
+    func windowFrame(of day: LocalDate) -> CGRect? {
+        for page in pages.values {
+            guard let view = page.view, view.window != nil, !Self.isHidden(view), page.visibleDays.contains(day) else { continue }
+            let frame = view.convert(view.bounds, to: nil)
+            guard view.window?.bounds.intersects(frame) ?? false else { continue }
+            let index = page.visibleDays.lowerBound.days(until: day)
+            let weekCount = max(1, (page.visibleDays.lowerBound.days(until: page.visibleDays.upperBound) + 1) / 7)
+            let width = frame.width / 7
+            let height = frame.height / CGFloat(weekCount)
+            return CGRect(
+                x: frame.minX + CGFloat(index % 7) * width,
+                y: frame.minY + CGFloat(index / 7) * height,
+                width: width,
+                height: height
+            )
+        }
+        return nil
     }
 
     private func page(atWindowPoint point: CGPoint) -> (day: LocalDate, edge: Int, onPage: @MainActor (Int) -> Void)? {
@@ -132,6 +171,14 @@ final class CalendarDropState {
         }
         return hit?.day
     }
+}
+
+/// 달력에 방금 들어간 일정의 표시(`CalendarDropState.land`). 같은 날에 다시 놓아도 다시 빛나도록 `id`를 새로 만든다.
+struct CalendarLanding: Equatable, Sendable {
+    let id = UUID()
+    /// 튀어 들어올 막대의 일정. "오늘"로 돌아왔을 때는 `nil`
+    let itemID: UUID?
+    let days: ClosedRange<LocalDate>
 }
 
 /// 달 페이지 격자와 같은 크기의 빈 UIKit 뷰. 꾹 눌러 끌 때(하루 상세에서 옮기기, "나중에"에서 넣기) `CalendarDropState`가

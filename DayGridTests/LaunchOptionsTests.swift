@@ -21,6 +21,17 @@ struct LaunchOptionsTests {
         #expect(LaunchOptions(arguments: ["DayGrid"]).quickAction == nil)
     }
 
+    @Test func tipsAreHiddenInTestRunsUnlessAsked() {
+        #expect(!LaunchOptions(arguments: ["DayGrid"]).hidesTips)
+        #expect(LaunchOptions(arguments: ["DayGrid", "-UITestSeedData"]).hidesTips)
+        let host = LaunchOptions(arguments: ["DayGrid"], environment: ["XCTestConfigurationFilePath": "/tmp/x.xctestconfiguration"])
+        #expect(host.hidesTips)
+        let shown = LaunchOptions(arguments: ["DayGrid", "-UITestSeedData", "-UITestShowTips"])
+        #expect(shown.showsTips)
+        #expect(!shown.hidesTips)
+        #expect(!LaunchOptions(arguments: ["DayGrid"]).showsTips)
+    }
+
     @Test func cloudSyncIsOffForTestRuns() {
         #expect(LaunchOptions(arguments: ["DayGrid"]).usesCloudSync)
         #expect(!LaunchOptions(arguments: ["DayGrid", "-UITestSeedData"]).usesCloudSync)

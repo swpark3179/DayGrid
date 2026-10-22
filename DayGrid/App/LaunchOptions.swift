@@ -5,6 +5,7 @@ import DayGridCore
 /// - `-UITestFixedToday yyyy-MM-dd`: 오늘 날짜를 고정한다.
 /// - `-UITestSeedData`: 메모리 전용 저장소에 샘플 데이터를 넣고 시작한다.
 /// - `-UITestQuickAction addTask`: 홈 화면 퀵 액션으로 연 것처럼 시작한다.
+/// - `-UITestShowTips`: 꾹 누르기 안내 팁(TipKit)을 보인다. 테스트 실행에서는 보통 숨긴다(`hidesTips`).
 ///
 /// 다크 모드는 설정 키를 인자 도메인으로 넘긴다(`-appearance dark`, `AppSettings.appearanceKey`).
 ///
@@ -14,15 +15,20 @@ struct LaunchOptions: Equatable {
     var seedSampleData = false
     var quickAction: QuickAction?
     var isUnitTestHost = false
+    var showsTips = false
 
     /// iCloud(CloudKit)에 연결된 저장소를 쓸지
     var usesCloudSync: Bool { !seedSampleData && !isUnitTestHost }
+
+    /// 팁을 숨길지. 팁이 끼면 스크린샷과 달력 칸 위치가 실행마다 달라지므로 테스트 실행에서는 숨긴다.
+    var hidesTips: Bool { (seedSampleData || isUnitTestHost) && !showsTips }
 
     init(arguments: [String], environment: [String: String] = [:]) {
         isUnitTestHost = environment["XCTestConfigurationFilePath"] != nil
         fixedToday = Self.value(after: "-UITestFixedToday", in: arguments).flatMap { LocalDate(iso8601: $0) }
         seedSampleData = arguments.contains("-UITestSeedData")
         quickAction = Self.value(after: "-UITestQuickAction", in: arguments).flatMap { QuickAction(rawValue: $0) }
+        showsTips = arguments.contains("-UITestShowTips")
     }
 
     private static func value(after flag: String, in arguments: [String]) -> String? {

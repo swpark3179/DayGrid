@@ -1,6 +1,7 @@
 import DayGridCore
 import SwiftData
 import SwiftUI
+import TipKit
 import UIKit
 
 /// 날짜를 누르면 열리는 하루 상세 시트. 종일·기간, 시간, 할일 순으로 보여준다.
@@ -10,6 +11,9 @@ import UIKit
 /// 행을 꾹 누르면 옮기기가 된다(사용자 요청 2026-10-21). 시트가 아래로 작아져 달력이 보이고,
 /// 손가락을 떼지 않고 다른 날짜 위에서 놓으면 그만큼 날짜를 옮긴다(`Item.move(byDays:)`, 시각과 길이는 그대로).
 /// 달력 밖이나 같은 날에 놓으면 그대로 두고 시트를 되돌린다.
+///
+/// 지우기, 복제, "나중에"는 확인 없이 바로 저장하고, 시트 아래쪽에 잠깐 "실행 취소" 토스트를 띄운다(`UndoToastState`).
+/// 옮기기는 시트가 닫히므로 토스트 대신 달력의 놓은 날이 한 번 빛난다(`CalendarDropState.land`).
 ///
 /// 설정의 보기 방식이 타임라인이면, 시간이 있는 일정과 할일은 업무 시간 타임라인(`DayTimelineView`)에 놓고
 /// 종일·기간과 시간 없는 할일은 그 아래에 목록으로 보여준다. 타임라인 블록은 꾹 눌러 같은 동작을 고른다.
@@ -38,6 +42,9 @@ struct DayDetailView: View {
     /// 옮기는 동안 고정하는 목록 높이. 시트가 작아져도 목록은 그대로 두어 셀이 재사용되지 않게 한다
     /// (꾹 누른 행의 셀이 빠지면 손가락 추적이 끊긴다).
     @State private var frozenHeight: CGFloat?
+    @State private var toast = UndoToastState()
+    /// 옮기기 팁을 보일지(`MoveItemTip.shouldDisplayUpdates`). 숨긴 팁이 빈 행으로 남지 않게 따로 둔다.
+    @State private var showsMoveTip = false
 
     init(date: LocalDate) {
         self.date = date
@@ -52,6 +59,11 @@ struct DayDetailView: View {
 
         NavigationStack {
             List {
+                if showsMoveTip, canMoveRows(agenda, isTimeline: isTimeline) {
+                    TipView(MoveItemTip())
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+                }
                 specialDaysSection
                 if isTimeline {
                     timelineSection(rows: agenda.timed, itemsByID: itemsByID)
@@ -88,6 +100,12 @@ struct DayDetailView: View {
             }
             .sheet(item: $readingItem) { selection in
                 ItemReaderView(item: selection.item, timeText: selection.timeText)
+            }
+        }
+        .undoToast(toast, hidden: movingItemID != nil)
+        .task {
+            for await shouldDisplay in MoveItemTip().shouldDisplayUpdates {
+                showsMoveTip = shouldDisplay
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
@@ -188,6 +206,11 @@ struct DayDetailView: View {
         }
     }
 
+    /// 꾹 눌러 옮길 수 있는 목록 행이 있는지(옮기기 팁을 보일지). 타임라인의 블록은 꾹 누르면 메뉴라서 세지 않는다.
+    private func canMoveRows(_ agenda: DayAgenda, isTimeline: Bool) -> Bool {
+        isTimeline ? !(agenda.spanning.isEmpty && agenda.tasks.isEmpty) : !agenda.isEmpty
+    }
+
     /// 시트 높이. 옮기는 동안은 작은 높이 하나만 두어 시트가 끌려 커지지 않게 한다.
     private var detents: Set<PresentationDetent> {
         movingItemID == nil ? [.medium, .large] : [Self.movingDetent]
@@ -200,6 +223,8 @@ struct DayDetailView: View {
             editorMode = .edit(item)
         case .began:
             guard movingItemID == nil, let window else { return }
+            MoveItemTip().invalidate(reason: .actionPerformed)
+            toast.dismiss()
             frozenHeight = contentHeight > 0 ? contentHeight : nil
             detentBeforeMove = detent
             movingItemID = item.id
@@ -218,13 +243,16 @@ struct DayDetailView: View {
             if let target = moveSession.finish(at: point) {
                 item.move(byDays: date.days(until: target))
                 try? modelContext.save()
-                // 시트는 작은 채로 닫는다. 달력에 옮긴 결과가 바로 보인다.
+                if let entry = item.calendarEntry() {
+                    CalendarDropState.shared.land(itemID: item.id, days: entry.startDay...entry.endDay)
+                }
+                // 시트는 작은 채로 닫는다. 달력에 옮긴 결과가 바로 보이고, 놓은 날이 한 번 빛난다.
                 dismiss()
             } else {
                 endMove()
             }
         case .cancelled:
-            moveSession.end()
+            moveSession.end(animated: true)
             endMove()
         }
     }
@@ -237,19 +265,34 @@ struct DayDetailView: View {
     }
 
     private func delete(_ item: Item) {
+        let snapshot = ItemSnapshot(item)
         modelContext.delete(item)
         try? modelContext.save()
+        toast.show("‘\(snapshot.title)’ 삭제함", systemImage: "trash") { [modelContext] in
+            modelContext.insert(snapshot.makeItem())
+            try? modelContext.save()
+        }
     }
 
     private func duplicate(_ item: Item) {
-        modelContext.insert(item.duplicate())
+        let copy = item.duplicate()
+        modelContext.insert(copy)
         try? modelContext.save()
+        toast.show("‘\(item.title)’ 복제함", systemImage: "plus.square.on.square") { [modelContext] in
+            modelContext.delete(copy)
+            try? modelContext.save()
+        }
     }
 
     /// 날짜를 비우고 "나중에" 목록 맨 위로 보낸다. 직전 일정의 모양은 힌트로 남는다.
     private func moveToInbox(_ item: Item) {
+        let snapshot = ItemSnapshot(item)
         item.moveToInbox(order: Item.topInboxOrder(in: modelContext))
         try? modelContext.save()
+        toast.show("‘\(snapshot.title)’ 나중에로 보냄", systemImage: "tray") { [modelContext] in
+            snapshot.apply(to: item)
+            try? modelContext.save()
+        }
     }
 }
 

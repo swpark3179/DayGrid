@@ -163,4 +163,14 @@ struct LocalDateKoreanTests {
         #expect(date(2026, 10, 28).koreanMonthDayText == "10월 28일")
         #expect(date(2026, 10, 19).koreanMonthDayWeekdayText == "10월 19일 (월)")
     }
+
+    @Test func koreanRangeText() {
+        #expect(date(2026, 10, 12).koreanRangeText(through: date(2026, 10, 12)) == "10월 12일 · 하루")
+        #expect(date(2026, 10, 12).koreanRangeText(through: date(2026, 10, 16)) == "10월 12일 – 16일 · 5일")
+        // 거꾸로 끌어도 앞 날짜부터 쓴다
+        #expect(date(2026, 10, 16).koreanRangeText(through: date(2026, 10, 12)) == "10월 12일 – 16일 · 5일")
+        #expect(date(2026, 10, 30).koreanRangeText(through: date(2026, 11, 2)) == "10월 30일 – 11월 2일 · 4일")
+        // 해가 바뀌면 달이 같아도 달을 쓴다
+        #expect(date(2026, 12, 31).koreanRangeText(through: date(2027, 1, 1)) == "12월 31일 – 1월 1일 · 2일")
+    }
 }

@@ -29,7 +29,9 @@ struct MonthPickerSheet: View {
             VStack(spacing: 20) {
                 HStack {
                     Button("이전 해", systemImage: "chevron.left") {
-                        year -= 1
+                        withAnimation(.snappy) {
+                            year -= 1
+                        }
                     }
                     .labelStyle(.iconOnly)
                     .disabled(year <= yearRange.lowerBound)
@@ -39,10 +41,13 @@ struct MonthPickerSheet: View {
                     Text(verbatim: "\(year)년")
                         .font(.title2.bold())
                         .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(year)))
                         .accessibilityIdentifier("monthPicker.year")
                     Spacer()
                     Button("다음 해", systemImage: "chevron.right") {
-                        year += 1
+                        withAnimation(.snappy) {
+                            year += 1
+                        }
                     }
                     .labelStyle(.iconOnly)
                     .disabled(year >= yearRange.upperBound)

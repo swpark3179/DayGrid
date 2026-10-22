@@ -1,6 +1,7 @@
 import DayGridCore
 import SwiftData
 import SwiftUI
+import TipKit
 
 /// 달력 한 달 페이지. 그 달에 보이는 날짜 범위의 일정만 가져와서 배치한다.
 ///
@@ -23,6 +24,10 @@ struct MonthPageView: View {
     @Query private var people: [Person]
     @State private var rangeStart: LocalDate?
     @State private var rangeEnd: LocalDate?
+    /// 꾹 누르는 중인 날짜(기간 고르기가 시작되기 전). 숫자 둘레에 링이 찬다.
+    @State private var chargingDay: LocalDate?
+    /// 기간을 고르는 손가락의 위치. 그 위에 기간 문구를 띄운다.
+    @State private var pressLocation: CGPoint?
     private let dropState = CalendarDropState.shared
 
     init(
@@ -70,14 +75,27 @@ struct MonthPageView: View {
                         itemsByID: itemsByID,
                         marks: marks,
                         highlighted: highlighted(in: visibleDays),
+                        charging: chargingDay,
+                        landing: dropState.landing,
                         onSelectDay: onSelectDay
                     )
                     .frame(height: rowHeight)
                 }
             }
             .background(CalendarPageAnchor(visibleDays: visibleDays, onPage: onPage).allowsHitTesting(false))
+            .overlay(alignment: .topLeading) {
+                if let pressLocation, let rangeStart, let rangeEnd {
+                    RangeLabel(text: rangeStart.koreanRangeText(through: rangeEnd))
+                        .position(
+                            x: min(max(pressLocation.x, RangeLabel.halfWidth), max(RangeLabel.halfWidth, geometry.size.width - RangeLabel.halfWidth)),
+                            y: max(pressLocation.y - 56, 16)
+                        )
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
             .contentShape(Rectangle())
-            .gesture(RangePressGesture { phase, location in
+            .gesture(RangePressGesture(onPress: handlePressChange) { phase, location in
                 handleRangePress(phase, at: location, size: geometry.size, visibleDays: visibleDays)
             })
         }
@@ -107,14 +125,19 @@ struct MonthPageView: View {
         )
         switch phase {
         case .tap:
+            chargingDay = nil
             // 짧게 누르면 하루 상세. 격자 밖(가장자리 너머)은 무시한다.
             if let day = MonthLayout.day(atX: location.x, y: location.y, width: size.width, height: size.height, in: visibleDays) {
                 onSelectDay(day)
             }
         case .began:
+            chargingDay = nil
             rangeStart = date
             rangeEnd = date
+            pressLocation = location
+            RangePressTip().invalidate(reason: .actionPerformed)
         case .changed:
+            pressLocation = location
             if let date, date != rangeEnd {
                 rangeEnd = date
             }
@@ -129,10 +152,22 @@ struct MonthPageView: View {
             }
             rangeStart = nil
             rangeEnd = nil
+            pressLocation = nil
         case .cancelled:
             rangeStart = nil
             rangeEnd = nil
+            pressLocation = nil
         }
+    }
+
+    /// 손가락이 닿으면(창 좌표) 그 날짜에 링을 채우기 시작하고, 떼거나 달을 넘기면 지운다.
+    /// 날짜는 끌어 놓기와 같이 `CalendarDropState`가 이 페이지의 `CalendarPageAnchor`로 찾는다.
+    private func handlePressChange(_ windowPoint: CGPoint?) {
+        guard let windowPoint, rangeStart == nil else {
+            chargingDay = nil
+            return
+        }
+        chargingDay = dropState.day(atWindowPoint: windowPoint)?.day
     }
 
     /// 보이는 날짜의 공휴일, 개인 휴일, 생일. 반복 할일은 달력에 보이지 않는다(반복 탭에서만 다룬다).
@@ -144,5 +179,27 @@ struct MonthPageView: View {
             personalHolidays: personalHolidays.compactMap { $0.mark },
             birthdays: people.map { (name: $0.name, birthday: $0.birthday) }
         )
+    }
+}
+
+/// 꾹 눌러 끄는 동안 손가락 위에 뜨는 기간 문구. 예: "10월 12일 – 16일 · 5일"
+private struct RangeLabel: View {
+    /// 화면 가장자리에서 잘리지 않게 가운데를 이만큼 안쪽에 둔다(가장 긴 문구의 반쯤).
+    static let halfWidth: CGFloat = 96
+
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.footnote.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.black.opacity(0.82), in: Capsule())
+            .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+            .accessibilityHidden(true)
     }
 }

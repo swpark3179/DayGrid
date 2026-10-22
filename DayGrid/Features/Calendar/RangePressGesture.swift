@@ -20,10 +20,23 @@ struct RangePressGesture: UIGestureRecognizerRepresentable {
         case cancelled
     }
 
+    /// 손가락이 닿으면 창 좌표, 떼거나 실패하면 `nil`(꾹 누르기를 채우는 표시용). 꾹 누르기가 시작돼도 손을 뗄 때까지 `nil`이 오지 않는다.
+    var onPress: ((CGPoint?) -> Void)?
     let onChange: (Phase, CGPoint) -> Void
 
+    init(onPress: ((CGPoint?) -> Void)? = nil, onChange: @escaping (Phase, CGPoint) -> Void) {
+        self.onPress = onPress
+        self.onChange = onChange
+    }
+
     func makeUIGestureRecognizer(context: Context) -> DayPressRecognizer {
-        DayPressRecognizer()
+        let recognizer = DayPressRecognizer()
+        recognizer.onPressChange = onPress
+        return recognizer
+    }
+
+    func updateUIGestureRecognizer(_ recognizer: DayPressRecognizer, context: Context) {
+        recognizer.onPressChange = onPress
     }
 
     func handleUIGestureRecognizerAction(_ recognizer: DayPressRecognizer, context: Context) {
@@ -84,6 +97,10 @@ final class DayPressRecognizer: UIGestureRecognizer {
     /// `.ended`가 짧은 탭이었는지
     private(set) var isTap = false
 
+    /// 한 손가락이 닿으면 창 좌표, 끝나거나 실패하면 `nil`. 꾹 누르기가 차는 동안의 표시(달력 날짜의 링)에 쓴다.
+    var onPressChange: ((CGPoint?) -> Void)?
+    private var isReportingPress = false
+
     private var startPoint: CGPoint = .zero
     private var pressTimer: Timer?
     private var pausedScrollViews: [UIScrollView] = []
@@ -101,6 +118,10 @@ final class DayPressRecognizer: UIGestureRecognizer {
         }
         guard state == .possible else { return }
         startPoint = touch.location(in: nil)
+        if let onPressChange {
+            isReportingPress = true
+            onPressChange(startPoint)
+        }
         pressTimer?.invalidate()
         pressTimer = Timer.scheduledTimer(withTimeInterval: Self.minimumPressDuration, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -157,6 +178,14 @@ final class DayPressRecognizer: UIGestureRecognizer {
         pressTimer = nil
         isTap = false
         resumeScrolling()
+        endPressReport()
+    }
+
+    /// 누르기 표시를 끝낸다. 실패해도 손가락은 아직 닿아 있을 수 있어서(달을 넘기는 중) `reset()`을 기다리지 않는다.
+    private func endPressReport() {
+        guard isReportingPress else { return }
+        isReportingPress = false
+        onPressChange?(nil)
     }
 
     private func pressTimerFired() {
@@ -171,6 +200,7 @@ final class DayPressRecognizer: UIGestureRecognizer {
 
     private func fail() {
         pressTimer?.invalidate()
+        endPressReport()
         if state == .possible {
             state = .failed
         }

@@ -61,6 +61,18 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 위치 → 분은 `DayTimeline.minute(atY:height:)`로만 구한다.
   - 보기 방식과 업무 시간은 `AppSettings`의 키(`dayDetailStyle`, `workdayStartMinute`, `workdayEndMinute`)를 쓴다.
   - 타임라인 보기에서는 `DayAgenda.make(separatingTimed: true)`가 시간이 있는 것을 모두 `timed`로 보낸다.
+- UI·모션(Phase 17)
+  - 짧은 움직임은 `.snappy`다. 동작 줄이기(`accessibilityReduceMotion`, UIKit은 `UIAccessibility.isReduceMotionEnabled`)면 크기와 위치는 두고 투명도만 바꾼다.
+  - 달력 강조(꾹 눌러 고르는 기간, 끌어 놓을 칸)는 `WeekRowView`의 `DayBand`가 주마다 띠 하나로 그린다. 칸마다 따로 칠하지 않는다.
+    - 꾹 누르는 동안의 링은 `DayPressRecognizer.onPressChange`(창 좌표, 끝나면 `nil`)로 받는다. 기간 문구는 Core `LocalDate.koreanRangeText(through:)`다.
+  - 일정이 달력에 들어간 뒤(하루 상세 옮기기, "나중에" 넣기, 먼 달에서 "오늘")에는 `CalendarDropState.land(itemID:days:)`를 부른다. 그 날이 빛나고 막대가 튀어 들어온다.
+  - 확인 없이 바로 저장하는 지우기·복제·"나중에"는 `UndoToastState.show(_:systemImage:undo:)`로 "실행 취소" 토스트를 띄운다. 되돌리기는 `ItemSnapshot`(`makeItem()`, `apply(to:)`)으로 한다.
+    - 토스트는 그 화면(시트) 안의 `.undoToast(_:hidden:)`에 둔다. 창에 붙이지 않는다. 시트가 닫힌 뒤 달력 칸을 가리면 UI 테스트가 칸을 누르지 못한다.
+  - 완료 체크 기호는 `CompletionCheckmark`를 쓴다. 바꾸기는 `withAnimation(.snappy)` 안에서 한다.
+  - 카테고리 고르기는 `CategoryChips`다(일정 편집, 반복 할일 편집). Form 행 안의 칩 버튼은 `.plain`으로 둔다.
+  - 꾹 누르기 안내는 TipKit 팁(`GestureTips.swift`)이다.
+    - 팁 행은 `shouldDisplayUpdates`가 참일 때만 만든다. 숨긴 `TipView`도 빈 행이나 여백을 남길 수 있다.
+    - 테스트 실행에서는 팁을 숨긴다(`LaunchOptions.hidesTips`). 스크린샷과 달력 칸 위치가 바뀌기 때문이다.
 - 모델 이름에 `Category`를 쓰지 않는다. Objective-C 런타임 타입과 겹치므로 `ItemCategory`를 쓴다.
 - SwiftData 모델은 CloudKit 호환으로 만든다. 모든 속성에 기본값을 주거나 optional로 두고, 관계는 optional로 둔다. `@Attribute(.unique)`는 쓰지 않는다.
 - iCloud 동기화(Phase 9)
@@ -80,14 +92,15 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 화면 코드에서 `preferredColorScheme`을 쓰지 않는다. 시스템(nil)으로 되돌릴 때 바로 돌아오지 않는 경우가 있다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`)
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
   - 실행 인자 `-dayDetailStyle timeline`은 하루 상세를 타임라인으로 연다(UserDefaults 인자 도메인).
   - 실행 인자 `-appearance dark`는 테마를 다크로 연다(같은 인자 도메인).
+  - 실행 인자 `-UITestShowTips`는 숨겨 둔 팁을 보인다(팁 스크린샷용).
     - 설정의 Picker를 눌러 바꾸지 않는다. 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29와 33, `TimelineTests` 30–32. 새 화면은 35부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29와 33, `TimelineTests` 30–32, `MotionTests` 35–37. 새 화면은 38부터 붙인다.
   - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.

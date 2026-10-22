@@ -1,6 +1,7 @@
 import DayGridCore
 import SwiftData
 import SwiftUI
+import TipKit
 import UIKit
 
 /// 날짜를 정하지 않은 할일과 일정("나중에" 목록).
@@ -10,6 +11,8 @@ import UIKit
 /// - 항목을 꾹 누르면 목록 위에 달력이 덮인다(`InboxCalendarOverlay`). 손을 떼지 않고 날짜 위에서 떼면 그 날로 들어가고,
 ///   달력 탭에서 그 달이 열린다. 달력 밖에서 떼거나 거의 움직이지 않고 떼면 그대로 둔다.
 ///   행의 탭(편집)과 꾹 누르기는 하루 상세와 같은 `WindowPressGesture` 하나가 받는다.
+/// - 새 행이 들어오고 완료한 행이 "완료"로 옮겨 가는 것은 `@Query`의 애니메이션으로 움직인다.
+///   밀어서 지우면 아래쪽에 잠깐 "실행 취소" 토스트가 뜬다(`UndoToastState`).
 struct InboxTab: View {
     /// 값이 커지면 입력창에 포커스를 준다(홈 화면 퀵 액션).
     let focusRequest: Int
@@ -20,7 +23,8 @@ struct InboxTab: View {
     @Environment(\.modelContext) private var modelContext
     @Query(
         filter: Item.inboxPredicate,
-        sort: [SortDescriptor(\Item.inboxOrder), SortDescriptor(\Item.createdAt)]
+        sort: [SortDescriptor(\Item.inboxOrder), SortDescriptor(\Item.createdAt)],
+        animation: .snappy
     ) private var items: [Item]
     @Query(sort: \ItemCategory.sortOrder) private var categories: [ItemCategory]
     @State private var newTitle = ""
@@ -35,6 +39,12 @@ struct InboxTab: View {
     @State private var moveSession = ItemMoveSession()
     /// 덮개 달력이 보여주는 달(`monthIndex`)
     @State private var overlayMonth = 0
+    @State private var toast = UndoToastState()
+    /// 빠른 입력으로 넣은 수. 늘 때마다 입력창에 잠깐 "넣음"이 보이고 가벼운 햅틱이 온다.
+    @State private var addedCount = 0
+    @State private var isShowingAdded = false
+    /// 달력에 넣기 팁을 보일지(`InboxDropTip.shouldDisplayUpdates`). 숨긴 팁이 빈 행으로 남지 않게 따로 둔다.
+    @State private var showsDropTip = false
 
     init(focusRequest: Int = 0, onScheduled: @escaping (LocalDate) -> Void = { _ in }) {
         self.focusRequest = focusRequest
@@ -52,6 +62,21 @@ struct InboxTab: View {
                         .focused($isInputFocused)
                         .onSubmit(addTask)
                         .accessibilityIdentifier("inbox.input")
+                        .overlay(alignment: .trailing) {
+                            if isShowingAdded {
+                                Label("넣음", systemImage: "checkmark")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.green)
+                                    .allowsHitTesting(false)
+                                    .accessibilityHidden(true)
+                                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                            }
+                        }
+                }
+                if showsDropTip, !pending.isEmpty {
+                    TipView(InboxDropTip())
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 }
                 if items.isEmpty {
                     ContentUnavailableView(
@@ -87,6 +112,21 @@ struct InboxTab: View {
                 }
             }
             .environment(\.editMode, $editMode)
+            .undoToast(toast, hidden: movingItemID != nil)
+            .task {
+                for await shouldDisplay in InboxDropTip().shouldDisplayUpdates {
+                    showsDropTip = shouldDisplay
+                }
+            }
+            .sensoryFeedback(.impact(weight: .light), trigger: addedCount)
+            .task(id: addedCount) {
+                guard addedCount > 0 else { return }
+                withAnimation(.snappy) { isShowingAdded = true }
+                try? await Task.sleep(for: .milliseconds(1200))
+                // 이어서 넣으면 새 작업이 다시 보이므로, 취소된 작업은 지우지 않는다.
+                guard !Task.isCancelled else { return }
+                withAnimation(.snappy) { isShowingAdded = false }
+            }
             .sheet(item: $assigningItem) { item in
                 AssignDateSheet(item: item, today: clock.today)
                     .presentationDetents([.medium, .large])
@@ -129,8 +169,7 @@ struct InboxTab: View {
             ))
             .swipeActions(edge: .trailing) {
                 Button("삭제", role: .destructive) {
-                    modelContext.delete(item)
-                    try? modelContext.save()
+                    delete(item)
                 }
                 Button("날짜") {
                     isInputFocused = false
@@ -158,6 +197,7 @@ struct InboxTab: View {
         item.inboxOrder = Item.topInboxOrder(in: modelContext)
         modelContext.insert(item)
         try? modelContext.save()
+        addedCount += 1
         newTitle = ""
         // 엔터를 치면 입력창이 포커스를 잃는다. 이번 차례와 다음 차례에 다시 포커스를 줘서 이어서 쓸 수 있게 한다.
         isInputFocused = true
@@ -172,6 +212,8 @@ struct InboxTab: View {
             editorMode = .edit(item)
         case .began:
             guard movingItemID == nil, let window else { return }
+            InboxDropTip().invalidate(reason: .actionPerformed)
+            toast.dismiss()
             isInputFocused = false
             overlayMonth = clock.today.monthIndex
             withAnimation(.easeOut(duration: 0.15)) {
@@ -195,12 +237,26 @@ struct InboxTab: View {
             guard let target, !item.isScheduled else { return }
             item.schedule(on: target, using: item.scheduleHint)
             try? modelContext.save()
+            if let entry = item.calendarEntry() {
+                CalendarDropState.shared.land(itemID: item.id, days: entry.startDay...entry.endDay)
+            }
             onScheduled(target)
         case .cancelled:
-            moveSession.end()
+            moveSession.end(animated: true)
             withAnimation(.easeOut(duration: 0.15)) {
                 movingItemID = nil
             }
+        }
+    }
+
+    /// 밀어서 지운다. 확인은 묻지 않고, 잠깐 뜨는 토스트로 되살릴 수 있다.
+    private func delete(_ item: Item) {
+        let snapshot = ItemSnapshot(item)
+        modelContext.delete(item)
+        try? modelContext.save()
+        toast.show("‘\(snapshot.title)’ 삭제함", systemImage: "trash") { [modelContext] in
+            modelContext.insert(snapshot.makeItem())
+            try? modelContext.save()
         }
     }
 
