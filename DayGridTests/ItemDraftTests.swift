@@ -292,8 +292,8 @@ struct ItemDraftTests {
         #expect(item.endDayKey == 20_261_023)
     }
 
-    /// 하루 상세의 + 버튼은 그 날 하루의 종일 일정(시간 지정 꺼짐)으로 연다.
-    @Test func plusButtonDraftIsOneDayWithoutTime() {
+    /// 새 일정(달력 머리의 +, 날짜를 꾹 눌렀다 떼기, 하루 상세의 +)은 그 날 하루의 종일 일정(시간 지정 꺼짐)으로 연다.
+    @Test func newItemDraftIsOneDayWithoutTime() {
         let draft = ItemDraft.newAllDay(from: day(2026, 10, 21), through: day(2026, 10, 21), categoryID: nil, timeZone: seoul)
         #expect(!draft.hasTime)
         #expect(draft.hasDate)

@@ -6,6 +6,7 @@ import UIKit
 /// 화면마다 `@State`로 두고, 그 화면 아래쪽에 `UndoToastView`를 얹는다(`undoToast(_:hidden:)`).
 ///
 /// - 4초 뒤 내려간다. VoiceOver를 쓰는 중이면 버튼까지 갈 시간을 주려고 8초를 둔다.
+///   UI 테스트에서는 20초를 둔다(`LaunchOptions.keepsToastsLonger`).
 /// - 새로 띄우면 앞의 토스트를 바꾼다(앞의 되돌리기는 할 수 없게 된다).
 /// - 시트 안에서 띄운 토스트는 시트와 함께 사라진다. 달력 칸을 가리지 않게 하려는 것이다.
 @MainActor
@@ -20,13 +21,18 @@ final class UndoToastState {
 
     static let duration: TimeInterval = 4
     static let voiceOverDuration: TimeInterval = 8
+    static let uiTestDuration: TimeInterval = 20
+    /// 앱이 시작할 때 `LaunchOptions.keepsToastsLonger`로 정한다.
+    static var usesUITestDuration = false
 
     private(set) var toast: Toast?
 
     @ObservationIgnored private var dismissTask: Task<Void, Never>?
 
     func show(_ message: String, systemImage: String, undo: @escaping @MainActor () -> Void) {
-        let duration = UIAccessibility.isVoiceOverRunning ? Self.voiceOverDuration : Self.duration
+        let duration = Self.usesUITestDuration
+            ? Self.uiTestDuration
+            : (UIAccessibility.isVoiceOverRunning ? Self.voiceOverDuration : Self.duration)
         let toast = Toast(message: message, systemImage: systemImage, undo: undo)
         withAnimation(.snappy) {
             self.toast = toast

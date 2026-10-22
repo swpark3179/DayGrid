@@ -4,6 +4,7 @@ import XCTest
 /// - 달력 일정에는 "날짜 지정" 토글이 없고, "시간 지정"이 종일 대신 쓰인다.
 /// - 카테고리 → 본문 → 알림 순이고, 알림은 한 줄의 칩이다(38).
 /// - "나중에 할일로 미루기"를 누르면 시트가 닫히고 "나중에" 탭이 열린다(39).
+/// - 달력 머리의 +와 날짜를 꾹 눌렀다 떼기는 시간 지정이 꺼진 그 날 하루로 연다.
 ///
 /// 알림 칩을 누르면 알림 권한 창이 떠서 화면을 가리므로, 칩은 누르지 않고 배치만 본다. 켜고 끄기는 기기 체크리스트 16장으로 확인한다.
 final class EditorTests: XCTestCase {
@@ -69,5 +70,25 @@ final class EditorTests: XCTestCase {
         XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
         XCTAssertTrue(dayList.staticTexts["점심 약속"].waitForExistence(timeout: 5))
         XCTAssertFalse(dayList.staticTexts["주간 회의"].exists, "미룬 일정은 하루 상세에서 빠져야 한다")
+    }
+
+    @MainActor
+    func testNewItemsFromTheCalendarStartWithoutTime() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
+        let editorBar = app.navigationBars["새 일정"]
+
+        app.buttons["calendar.add"].tap()
+        XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "+를 누르면 새 일정 화면이 열려야 한다")
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "0", "달력 머리의 +는 시간 없이 시작해야 한다")
+        app.buttons["취소"].tap()
+        XCTAssertTrue(editorBar.waitForNonExistence(timeout: 5))
+
+        // 꾹 눌렀다 움직이지 않고 떼면 그 날 새 일정이다.
+        app.buttons["calendar.day.2026-10-21"].press(forDuration: 1.0)
+        XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "꾹 눌렀다 떼면 새 일정 화면이 열려야 한다")
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "0", "꾹 눌렀다 떼면 시간 없이 시작해야 한다")
+        app.buttons["취소"].tap()
+        XCTAssertTrue(editorBar.waitForNonExistence(timeout: 5))
     }
 }

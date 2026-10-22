@@ -40,7 +40,8 @@ struct ItemDraft: Equatable {
         return ItemDraft(start: start, end: start.addingTimeInterval(3600), categoryID: categoryID)
     }
 
-    /// `first`…`last`(순서 무관)의 새 종일 일정. 달력에서 꾹 눌러 끈 기간, 하루 상세의 + 버튼(그 날 하루)이 쓴다.
+    /// `first`…`last`(순서 무관)의 새 종일 일정. 달력에서 꾹 눌러 끈 기간과, 새 일정 버튼(그 날 하루)이 쓴다.
+    /// "시간 지정"을 켜면 09:00–10:00부터 고친다.
     static func newAllDay(from first: LocalDate, through last: LocalDate, categoryID: UUID?, timeZone: TimeZone = .current) -> ItemDraft {
         let startDay = min(first, last)
         let endDay = max(first, last)

@@ -21,6 +21,7 @@ struct DayGridApp: App {
         }
         NotificationScheduler.shared.container = modelContainer
         WidgetSnapshotWriter.shared.container = modelContainer
+        UndoToastState.usesUITestDuration = options.keepsToastsLonger
         Self.configureTips(options)
     }
 

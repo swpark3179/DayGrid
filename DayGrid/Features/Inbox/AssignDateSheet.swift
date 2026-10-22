@@ -45,7 +45,8 @@ struct AssignDateSheet: View {
                 }
 
                 Section {
-                    Toggle("종일", isOn: $hint.isAllDay)
+                    // 일정 편집과 같이 종일 대신 "시간 지정"이다(사용자 요청 2026-10-22).
+                    Toggle("시간 지정", isOn: hasTimeBinding.animation(.snappy))
                     if hint.isAllDay {
                         Stepper("기간 \(hint.dayCount)일", value: $hint.dayCount, in: 1...60)
                     } else {
@@ -74,6 +75,14 @@ struct AssignDateSheet: View {
         Binding(
             get: { day.date(hour: 12) },
             set: { day = LocalDate($0) }
+        )
+    }
+
+    /// "시간 지정" 토글. 종일(`hint.isAllDay`)의 반대다.
+    private var hasTimeBinding: Binding<Bool> {
+        Binding(
+            get: { !hint.isAllDay },
+            set: { hint.isAllDay = !$0 }
         )
     }
 

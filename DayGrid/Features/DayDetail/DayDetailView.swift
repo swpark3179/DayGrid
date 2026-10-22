@@ -92,9 +92,9 @@ struct DayDetailView: View {
                     Button("닫기") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    // 시간을 정하지 않은 그 날 하루 일정으로 연다(사용자 요청 2026-10-22). 시각부터 열려면 타임라인의 빈 곳을 누른다.
+                    // 시간을 정하지 않은 그 날 하루 일정으로 연다. 시각부터 열려면 타임라인의 빈 곳을 누른다.
                     Button("일정 추가", systemImage: "plus") {
-                        editorMode = .newRange(date, date)
+                        editorMode = .new(date)
                     }
                     .accessibilityIdentifier("dayDetail.add")
                 }

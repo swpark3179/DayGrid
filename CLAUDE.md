@@ -69,6 +69,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 일정이 달력에 들어간 뒤(하루 상세 옮기기, "나중에" 넣기, 먼 달에서 "오늘")에는 `CalendarDropState.land(itemID:days:)`를 부른다. 그 날이 빛나고 막대가 튀어 들어온다.
   - 확인 없이 바로 저장하는 지우기·복제·"나중에"는 `UndoToastState.show(_:systemImage:undo:)`로 "실행 취소" 토스트를 띄운다. 되돌리기는 `ItemSnapshot`(`makeItem()`, `apply(to:)`)으로 한다.
     - 토스트는 그 화면(시트) 안의 `.undoToast(_:hidden:)`에 둔다. 창에 붙이지 않는다. 시트가 닫힌 뒤 달력 칸을 가리면 UI 테스트가 칸을 누르지 못한다.
+    - UI 테스트(`-UITestSeedData`)에서는 토스트가 20초 남는다(`LaunchOptions.keepsToastsLonger`). 느린 CI 러너에서는 4초 안에 누르지 못한다(PR #25).
   - 완료 체크 기호는 `CompletionCheckmark`를 쓴다. 바꾸기는 `withAnimation(.snappy)` 안에서 한다.
   - 카테고리 고르기는 `CategoryChips`다(일정 편집, 반복 할일 편집). 알림 고르기는 `ReminderChips`다. Form 행 안의 칩 버튼은 `.plain`으로 둔다.
   - 꾹 누르기 안내는 TipKit 팁(`GestureTips.swift`)이다.
@@ -115,12 +116,12 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 달력 일정에는 "날짜 지정" 토글을 두지 않는다. "나중에" 항목을 고칠 때만 보인다(`ItemEditorView.isInboxItem`, 열 때의 값).
     - 달력 일정은 삭제 바로 위의 "나중에 할일로 미루기"로 보낸다. 고친 내용을 `hasDate = false`인 초안으로 `apply`한다(→ `moveToInbox(order: Item.topInboxOrder(in:))`).
     - 그다음 `CalendarTab`이 하루 상세를 닫는다(위의 편집 시트도 함께 닫힌다). 시트가 다 닫힌 뒤(`onDismiss`) "나중에" 탭을 연다.
-  - 종일 토글 대신 "시간 지정"(`ItemDraft.hasTime`, `isAllDay`의 반대)을 쓴다.
+  - 종일 토글 대신 "시간 지정"(`ItemDraft.hasTime`, `isAllDay`의 반대)을 쓴다. "날짜 정하기" 시트(`AssignDateSheet`)도 같다.
   - 알림은 `ReminderChips`(한 줄 칩, 여러 개를 켤 수 있음)다. 시간 지정이면 정시·10분 전·1시간 전·하루 전, 아니면 당일·전날 오전 9시다.
   - 새 일정의 기본값
-    - 하루 상세의 +: 시간 없는 그 날 하루(`.newRange(date, date)`)
+    - 달력 머리의 +, 날짜를 꾹 눌렀다 그대로 떼기, 하루 상세의 +: 시간 없는 그 날 하루(`.new` → `ItemDraft.newAllDay`)
+    - 꾹 눌러 끈 기간: 그 기간의 종일(`.newRange`)
     - 타임라인 빈 곳: 그 시각부터(`.newTimed`)
-    - 달력 헤더의 +, 날짜를 꾹 눌렀다 그대로 떼기: 시간 일정(`.new`)
 - 마크다운 서식 변환은 Core `MarkdownFormatter`(UTF-16 범위)가 한다. 화면 코드에서 문자열을 직접 고치지 않는다. 목록 행의 첫 줄은 `MarkdownSummary.firstLine(of:)`로 구한다.
   - 미리보기의 체크리스트 누르기는 Core `MarkdownTaskList.toggle(at:in:)`로 원문을 고친다.
   - `preview.js`의 체크 번호(`data-task-index`)와 Core의 체크 찾기 규칙은 같아야 한다. 한쪽을 바꾸면 다른 쪽도 바꾼다.

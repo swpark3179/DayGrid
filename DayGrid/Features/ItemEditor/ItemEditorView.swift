@@ -11,8 +11,10 @@ import SwiftUI
 /// - 알림은 칩(`ReminderChips`)으로 여러 개를 켜고 끈다.
 struct ItemEditorView: View {
     enum Mode: Identifiable {
+        /// 시간을 정하지 않은 그 날 하루 새 일정(사용자 요청 2026-10-22).
+        /// 달력 머리의 +, 날짜를 꾹 눌렀다 그대로 떼기, 하루 상세의 +가 연다.
         case new(LocalDate)
-        /// 시간을 정하지 않은 새 일정. 달력에서 꾹 눌러 끈 기간, 하루 상세의 + 버튼(그 날 하루)이 연다.
+        /// 달력에서 꾹 눌러 끈 기간의 새 종일 일정
         case newRange(LocalDate, LocalDate)
         /// 하루 상세 타임라인의 빈 곳을 눌러 그 시각(자정부터 지난 분)부터 여는 새 일정
         case newTimed(LocalDate, minute: Int)
@@ -51,7 +53,7 @@ struct ItemEditorView: View {
         }
         switch mode {
         case .new(let day):
-            _draft = State(initialValue: .new(on: day, categoryID: nil))
+            _draft = State(initialValue: .newAllDay(from: day, through: day, categoryID: nil))
         case .newRange(let start, let end):
             _draft = State(initialValue: .newAllDay(from: start, through: end, categoryID: nil))
         case .newTimed(let day, let minute):

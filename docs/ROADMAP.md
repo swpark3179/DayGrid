@@ -519,15 +519,17 @@ docs/ROADMAP.md, CLAUDE.md
   - "나중에" 항목을 고칠 때는 토글을 그대로 둔다. 편집에서 날짜를 정해 달력에 넣는 길이기 때문이다.
 - 순서를 제목 → 날짜·시간 → 카테고리 → 본문 → 알림으로 바꾼다.
 - 알림을 카테고리처럼 한 줄 칩으로 바꾼다. 카테고리와 달리 여러 개를 켤 수 있다.
-- "종일" 토글을 반대 뜻의 "시간 지정"으로 바꾼다. 켜면 시각까지, 끄면 날짜만 고른다.
+- "종일" 토글을 반대 뜻의 "시간 지정"으로 바꾼다. 켜면 시각까지, 끄면 날짜만 고른다. "날짜 정하기" 시트도 같다.
 - 새 일정의 기본값
   - 타임라인의 빈 곳: 그 시각부터 "시간 지정"이 켜진 채 연다(예전과 같다).
-  - 하루 상세의 +: "시간 지정"이 꺼진 그 날 하루로 연다.
+  - 하루 상세의 +, 달력 머리의 +, 날짜를 꾹 눌렀다 그대로 떼기: "시간 지정"이 꺼진 그 날 하루로 연다.
 - 모델과 CloudKit 스키마는 바뀌지 않는다.
 - **완료 기준**
-  - 앱 단위 테스트 `ItemDraftTests`가 통과한다: `hasTimeIsTheOppositeOfAllDay`, `plusButtonDraftIsOneDayWithoutTime`, `deferringSavesTheEditsAndKeepsTheShape`
+  - 앱 단위 테스트가 통과한다.
+    - `ItemDraftTests`: `hasTimeIsTheOppositeOfAllDay`, `newItemDraftIsOneDayWithoutTime`, `deferringSavesTheEditsAndKeepsTheShape`
+    - `LaunchOptionsTests.toastsStayLongerInUITests`
   - UI 테스트 `EditorTests`(스크린샷 38–39)가 통과한다.
-  - 기존 테스트가 "시간 지정"으로 통과한다: `DragTests`(28), `ScreenshotTests.testDayDetailAndEditing`, `TimelineTests`
+  - 기존 테스트가 "시간 지정"으로 통과한다: `DragTests`(28), `ScreenshotTests.testDayDetailAndEditing`, `testInboxAssignAndDefer`, `TimelineTests`
   - 기기 체크리스트 16장으로 확인한다.
 - **구현 메모**
   - 미루기
@@ -540,7 +542,15 @@ docs/ROADMAP.md, CLAUDE.md
     - `ReminderChips`(`Features/Common`)다. `CategoryChips`와 같은 크기의 캡슐이고, 켠 칩은 강조 색으로 채운다.
     - 칩을 켜서 비트가 늘 때 `requestAuthorization()`을 부른다(예전 토글과 같다).
     - UI 테스트는 칩을 누르지 않는다. 알림 권한 창이 떠서 화면을 가리기 때문이다. 켜고 끄기는 기기 체크리스트 16-3으로 확인한다.
-  - "날짜 정하기" 시트(`AssignDateSheet`)의 "종일" 토글은 이번에 바꾸지 않았다(요청 범위가 일정 편집 화면).
+  - 새 일정
+    - `ItemEditorView.Mode.new(day)`가 `ItemDraft.newAllDay(from: day, through: day)`로 연다. 달력 머리의 +, 꾹 눌렀다 떼기, 하루 상세의 +가 모두 이 길이다.
+    - 시간 일정으로 여는 길은 타임라인의 빈 곳(`.newTimed`)뿐이다.
+  - "날짜 정하기" 시트(`AssignDateSheet`)도 "시간 지정" 토글이다(`hint.isAllDay`의 반대 바인딩).
+  - 토스트 시간
+    - PR #25 첫 CI(2026-10-22): 빌드는 됐고 92개 중 91개가 통과했다.
+      - `MotionTests.testUndoToastBringsBackASwipeDeletedItem`만 "toast.undo"를 누르지 못했다.
+      - 기록으로 보면 지운 뒤 스크린샷까지 5초가 걸려, 4초짜리 토스트가 먼저 내려갔다. main의 직전 두 번은 통과했다.
+    - UI 테스트(`-UITestSeedData`)에서는 토스트를 20초 둔다(`LaunchOptions.keepsToastsLonger` → `UndoToastState.usesUITestDuration`). 앱에서는 그대로 4초(VoiceOver면 8초)다.
 
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
@@ -644,7 +654,9 @@ docs/ROADMAP.md, CLAUDE.md
   - UI
     - `EditorTests`: 편집 배치와 알림 칩(38), 미룬 뒤 "나중에" 탭(39)
       - 하루 상세와 편집 시트가 함께 닫히고 "나중에" 탭이 열리는지 본다. 안 되면 탭을 바꾸는 시점(`onDismiss`)부터 의심한다.
-    - "시간 지정"으로 바꾼 확인: `DragTests`(28), `ScreenshotTests.testDayDetailAndEditing`(09는 이제 종일로 열린 화면), `TimelineTests`
+    - `EditorTests.testNewItemsFromTheCalendarStartWithoutTime`: 달력 머리의 +, 꾹 눌렀다 떼기
+    - "시간 지정"으로 바꾼 확인: `DragTests`(28), `ScreenshotTests.testDayDetailAndEditing`(09는 이제 종일로 열린 화면), `testInboxAssignAndDefer`(날짜 정하기), `TimelineTests`
+    - `MotionTests.testUndoToastBringsBackASwipeDeletedItem`: UI 테스트에서 토스트를 20초 둔 뒤 통과하는지 본다.
   - 기기: 체크리스트 16장
 
 ## 진행 방식과 현황
@@ -669,4 +681,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 15: "나중에" 키보드 내리기, 꾹 눌러 덮개 달력에 넣기(탭을 바꾸지 않음)
 - [ ] Phase 16: 테마 설정(시스템/라이트/다크), 달력 탭에서 반복 할일 빼기
 - [ ] Phase 17: UI·모션 개선(충전 링, 기간 띠, 착지 펄스, 되돌리기 토스트, 끌기 미리보기, 체크 피드백, 팁, 제목 숫자 전환, 카테고리 칩, 빠른 입력)
-- [ ] Phase 18: 일정 편집 화면 정리(날짜 토글 대신 "나중에 할일로 미루기", 카테고리 → 본문 → 알림, 알림 칩, "시간 지정", 하루 상세 +는 시간 없이)
+- [ ] Phase 18: 일정 편집 화면 정리(날짜 토글 대신 "나중에 할일로 미루기", 카테고리 → 본문 → 알림, 알림 칩, "시간 지정", 새 일정은 시간 없이)
