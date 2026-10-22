@@ -8,9 +8,15 @@ struct WeekRowView: View {
     let laneLimit: Int
     let itemsByID: [UUID: Item]
     var marks: [LocalDate: DayMark] = [:]
-    /// 강조할 날짜(꾹 눌러 고르는 기간, "나중에" 항목을 놓으려는 날)
+    /// 강조할 날짜(꾹 눌러 고르는 기간, "나중에" 항목을 놓으려는 날). 주 안에서 이어진 둥근 띠 하나로 그린다.
     var highlighted: ClosedRange<LocalDate>?
+    /// 꾹 누르는 중인 날짜. 기간 고르기가 시작될 때까지 숫자 둘레에 링이 찬다.
+    var charging: LocalDate?
+    /// 방금 일정이 들어간 날짜(`CalendarDropState.land`). 한 번 빛나고, 그 일정의 막대가 튀어 들어온다.
+    var landing: CalendarLanding?
     var onSelectDay: (LocalDate) -> Void = { _ in }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let dayNumberHeight: CGFloat = 26
     static let laneHeight: CGFloat = 16
@@ -26,15 +32,20 @@ struct WeekRowView: View {
         GeometryReader { geometry in
             let columnWidth = geometry.size.width / 7
             ZStack(alignment: .topLeading) {
+                if let band = DayBand(range: highlighted, in: week) {
+                    band.shape
+                        .fill(Color.accentColor.opacity(0.14))
+                        .overlay(band.shape.stroke(Color.accentColor.opacity(0.6), lineWidth: 1.5))
+                        .frame(width: band.width(columnWidth: columnWidth), height: max(0, geometry.size.height - 4))
+                        .offset(x: band.x(columnWidth: columnWidth), y: 2)
+                        .transition(.opacity)
+                        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: highlighted)
+                }
+
                 HStack(spacing: 0) {
                     ForEach(week.days) { day in
-                        DayNumberView(day: day, isToday: day.date == today, mark: marks[day.date])
+                        DayNumberView(day: day, isToday: day.date == today, mark: marks[day.date], isCharging: day.date == charging)
                             .frame(width: columnWidth, height: geometry.size.height, alignment: .top)
-                            .background {
-                                if highlighted?.contains(day.date) == true {
-                                    Rectangle().fill(Color.accentColor.opacity(0.18))
-                                }
-                            }
                     }
                 }
 
@@ -43,6 +54,7 @@ struct WeekRowView: View {
                         let leadingInset: CGFloat = segment.continuesFromPreviousWeek ? 0 : 2
                         let trailingInset: CGFloat = segment.continuesToNextWeek ? 0 : 2
                         EntryView(segment: segment, item: item)
+                            .modifier(LandingPop(token: landing?.itemID == segment.entryID ? landing?.id : nil))
                             .frame(
                                 width: max(0, CGFloat(segment.length) * columnWidth - leadingInset - trailingInset),
                                 height: Self.laneHeight
@@ -67,6 +79,14 @@ struct WeekRowView: View {
                                 y: Self.dayNumberHeight + CGFloat(laneLimit - 1) * Self.lanePitch
                             )
                     }
+                }
+
+                if let landing, let band = DayBand(range: landing.days, in: week) {
+                    LandingPulse(shape: band.shape)
+                        .frame(width: band.width(columnWidth: columnWidth), height: max(0, geometry.size.height - 4))
+                        .offset(x: band.x(columnWidth: columnWidth), y: 2)
+                        .id(landing.id)
+                        .allowsHitTesting(false)
                 }
 
                 // 맨 위에 날짜별 접근성 요소를 깐다. 탭과 꾹 누르기는 달력 페이지의 `RangePressGesture` 하나가 받는다.
@@ -115,6 +135,7 @@ private struct DayNumberView: View {
     let day: MonthGrid.Day
     let isToday: Bool
     let mark: DayMark?
+    var isCharging = false
 
     var body: some View {
         HStack(spacing: 1) {
@@ -125,6 +146,11 @@ private struct DayNumberView: View {
                 .background {
                     if isToday {
                         Circle().fill(Color.accentColor)
+                    }
+                }
+                .overlay {
+                    if isCharging {
+                        PressChargeRing()
                     }
                 }
             if let label = mark?.calendarLabel {
@@ -198,5 +224,126 @@ private struct EntryView: View {
 
     private var color: Color {
         Color(hex: item.category?.colorHex ?? CategoryPalette.uncategorizedHex)
+    }
+}
+
+/// 강조 범위가 이 주에서 차지하는 열. 범위가 앞뒤 주로 이어지면 그쪽 모서리를 평평하게 두어 띠가 이어져 보이게 한다.
+private struct DayBand {
+    static let cornerRadius: CGFloat = 10
+    static let inset: CGFloat = 2
+
+    let startColumn: Int
+    let length: Int
+    let continuesFromPreviousWeek: Bool
+    let continuesToNextWeek: Bool
+
+    init?(range: ClosedRange<LocalDate>?, in week: MonthGrid.Week) {
+        guard let range, let firstDay = week.days.first, let lastDay = week.days.last,
+              let first = week.days.firstIndex(where: { range.contains($0.date) }),
+              let last = week.days.lastIndex(where: { range.contains($0.date) })
+        else { return nil }
+        startColumn = first
+        length = last - first + 1
+        continuesFromPreviousWeek = range.lowerBound < firstDay.date
+        continuesToNextWeek = range.upperBound > lastDay.date
+    }
+
+    var shape: UnevenRoundedRectangle {
+        let leading = continuesFromPreviousWeek ? 0 : Self.cornerRadius
+        let trailing = continuesToNextWeek ? 0 : Self.cornerRadius
+        return UnevenRoundedRectangle(
+            topLeadingRadius: leading,
+            bottomLeadingRadius: leading,
+            bottomTrailingRadius: trailing,
+            topTrailingRadius: trailing
+        )
+    }
+
+    func x(columnWidth: CGFloat) -> CGFloat {
+        CGFloat(startColumn) * columnWidth + (continuesFromPreviousWeek ? 0 : Self.inset)
+    }
+
+    func width(columnWidth: CGFloat) -> CGFloat {
+        let insets = (continuesFromPreviousWeek ? 0 : Self.inset) + (continuesToNextWeek ? 0 : Self.inset)
+        return max(0, CGFloat(length) * columnWidth - insets)
+    }
+}
+
+/// 꾹 누르는 동안 날짜 숫자 둘레에 차오르는 링. 다 차는 때가 기간 고르기가 시작되는 때다(`DayPressRecognizer.minimumPressDuration`).
+/// 달을 넘기려고 스치는 손가락에는 보이지 않도록 조금 늦게 시작한다.
+private struct PressChargeRing: View {
+    static let delay: TimeInterval = 0.1
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress: CGFloat = 0
+    @State private var isVisible = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: progress)
+            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .frame(width: 28, height: 28)
+            .opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(false)
+            .onAppear {
+                let duration = max(0.05, DayPressRecognizer.minimumPressDuration - Self.delay)
+                withAnimation(.easeOut(duration: 0.08).delay(Self.delay)) {
+                    isVisible = true
+                }
+                withAnimation(reduceMotion ? nil : .linear(duration: duration).delay(Self.delay)) {
+                    progress = 1
+                }
+            }
+    }
+}
+
+/// 일정이 방금 들어간 칸. 한 번 칠했다가 지우고, 테두리가 바깥으로 퍼지며 사라진다. 동작 줄이기면 칠만 한다.
+private struct LandingPulse: View {
+    let shape: UnevenRoundedRectangle
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isFaded = false
+
+    var body: some View {
+        ZStack {
+            shape.fill(Color.accentColor.opacity(isFaded ? 0 : 0.22))
+            if !reduceMotion {
+                shape.stroke(Color.accentColor, lineWidth: 2)
+                    .scaleEffect(isFaded ? 1.08 : 0.98)
+                    .opacity(isFaded ? 0 : 1)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.8).delay(0.05)) {
+                isFaded = true
+            }
+        }
+    }
+}
+
+/// 방금 들어간 일정의 막대가 작게 시작해 제자리 크기로 튀어 들어온다. 달 페이지가 나중에 그려져도(탭을 바꾼 뒤) 보이도록
+/// 처음 나타날 때도 `token`을 본다.
+private struct LandingPop: ViewModifier {
+    let token: UUID?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var popCount = 0
+
+    func body(content: Content) -> some View {
+        content
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: popCount) { view, scale in
+                view.scaleEffect(scale, anchor: .leading)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    LinearKeyframe(CGFloat(0.6), duration: 0.01)
+                    SpringKeyframe(CGFloat(1), duration: 0.4, spring: .snappy(extraBounce: 0.15))
+                }
+            }
+            .onChange(of: token, initial: true) { _, token in
+                if token != nil, !reduceMotion {
+                    popCount += 1
+                }
+            }
     }
 }

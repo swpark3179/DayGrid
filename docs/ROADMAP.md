@@ -440,6 +440,79 @@ docs/ROADMAP.md, CLAUDE.md
       - `RootView`는 위젯 주소(`AppRoute`)와 같은 경로로 처리한다.
       - 다른 알림은 예전처럼 그 날의 하루 상세를 연다.
 
+### Phase 17 — UI·모션 개선 (사용자 요청 2026-10-22)
+- 디자인 검토(아티팩트 "DayGrid UI·모션 개선안")의 P1–P3 9개 항목을 모두 넣는다(사용자 결정).
+- 꾹 누르기와 밀기는 보이지 않는 동작이다. 누르는 동안의 표시, 놓은 뒤의 확인, 되돌리기를 채운다.
+  - P1
+    - 꾹 누르기 충전 링과 기간 띠
+    - 착지 펄스
+    - 되돌리기 토스트
+  - P2
+    - 끌기 미리보기의 들어 올림, 빨려 들어감, 되돌아감
+    - 체크 완료 피드백
+    - 숨은 제스처 안내(TipKit)
+  - P3
+    - 달력 제목 숫자 전환, 먼 달에서 오늘로 바로 가기
+    - 편집 화면 카테고리 색 칩
+    - "나중에" 빠른 입력 행 들어오기
+- 모델과 CloudKit 스키마는 바뀌지 않는다.
+- **완료 기준**
+  - Core 테스트(`LocalDate.koreanRangeText`)가 통과한다.
+  - 앱 단위 테스트가 통과한다.
+    - `ItemStoreTests`: 스냅샷으로 되살리기, 나중에 되돌리기
+    - `CalendarDropStateTests`: 칸 프레임, 착지 덮어쓰기
+    - `LaunchOptionsTests`: 팁
+  - UI 테스트 `MotionTests`(스크린샷 35–37)가 통과한다.
+  - 움직임은 기기 체크리스트 15장으로 확인한다.
+- **설계와 다른 점**
+  - 꾹 눌러 옮기기에는 토스트를 띄우지 않는다. 시트가 닫히므로 달력의 놓은 날이 빛나는 것으로 알린다.
+  - "나중에"로 보낸 토스트의 버튼은 "보기" 대신 "실행 취소"다.
+  - 취소선은 긋는 애니메이션 대신 색과 함께 바뀐다(SwiftUI `strikethrough`는 애니메이션되지 않는다).
+- **구현 메모**
+  - 공통
+    - 짧은 움직임은 `.snappy`다.
+    - 동작 줄이기(`accessibilityReduceMotion`, `UIAccessibility.isReduceMotionEnabled`)면 크기와 위치 변화를 빼고 투명도만 바꾼다.
+    - 격자 안에 새로 그린 것은 누르기를 받지 않는다.
+  - 충전 링
+    - `DayPressRecognizer.onPressChange`는 손가락이 닿으면 창 좌표를, 끝나거나 실패하면 `nil`을 알린다.
+      - 실패(달 넘김)는 손가락이 닿아 있어도 바로 알린다. `reset()`은 손을 뗄 때 오기 때문이다.
+    - `MonthPageView`가 `CalendarDropState.day(atWindowPoint:)`로 날짜를 찾는다. `WeekRowView`의 `PressChargeRing`이 0.1초 뒤부터 0.3초 동안 찬다.
+  - 기간 띠
+    - `WeekRowView`의 `DayBand`가 강조 범위를 주마다 띠 하나로 그린다. 앞뒤 주로 이어지는 쪽은 평평하다.
+    - 끌어 놓을 칸도 같은 띠다.
+    - 손가락 위 문구는 Core `LocalDate.koreanRangeText(through:)`다.
+  - 착지 펄스
+    - 하루 상세 옮기기, "나중에" 넣기, "오늘"(먼 달에서 바로 이동, 연·월 시트의 오늘 포함)이 `CalendarDropState.land(itemID:days:)`를 부른다.
+    - 1.5초 동안 `landing`이 남는다. 그동안 그려진 달 페이지가 한 번 빛난다(`LandingPulse`). 그 일정의 막대는 `LandingPop`(keyframe)으로 튀어 들어온다.
+  - 끌기 미리보기
+    - `ItemMoveSession.begin`이 0.92 크기에서 spring으로 들어 올린다.
+    - 놓으면 `CalendarDropState.windowFrame(of:)`의 칸 중심으로 줄어들며 사라진다. 취소하면 시작한 자리로 돌아간다.
+  - 체크: `CompletionCheckmark`(기호 바꾸기 + bounce + 완료일 때만 success 햅틱)를 할일, 반복 할일, 읽기 화면이 같이 쓴다.
+  - 반복 탭 월 요약
+    - 18pt 진행 링을 붙인다.
+    - 글자 "이번 달 5/15"는 그대로 두고 숫자만 굴린다. UI 테스트가 글자로 찾기 때문이다.
+  - 토스트
+    - 상태는 `UndoToastState`(화면마다 `@State`), 화면은 `.undoToast(_:hidden:)`다. 4초(VoiceOver면 8초) 뒤 내려간다.
+    - 남은 시간 막대는 뺐다. 막대가 4초 동안 움직이면 XCUITest가 앱이 멈추기를 기다리느라, 토스트가 내려간 뒤에야 "실행 취소"를 누르려 했다(PR #24 첫 CI).
+    - 되돌리기는 `ItemSnapshot`으로 한다.
+      - 지운 것: 같은 `id`, 만든 시각, 완료 표시로 되살린다.
+      - "나중에": 그때의 날짜와 힌트로 돌린다.
+      - 복제: 복사본을 지운다.
+    - 하루 상세(목록 밀기, 타임라인 메뉴)와 "나중에"(밀어서 삭제)에 띄운다.
+    - 시트 안에 띄우므로 시트가 닫히면 함께 사라진다. 달력 칸을 가리지 않는다.
+  - 팁
+    - `GestureTips.swift`에 `RangePressTip`, `MoveItemTip`, `InboxDropTip`가 있다.
+    - 보일 때만 행을 만든다(`shouldDisplayUpdates`). 숨긴 `TipView`가 빈 행이나 여백으로 남아 스크린샷과 칸 위치를 바꾸지 않게 하려는 것이다.
+    - 직접 해 보면 `.began`에서 닫는다.
+    - 테스트 실행에서는 `Tips.hideAllTipsForTesting()`, `-UITestShowTips`면 `resetDatastore` + `showAllTipsForTesting()`이다.
+  - 카테고리 칩
+    - `CategoryChips`를 일정 편집과 반복 할일 편집이 같이 쓴다.
+    - Form 행 안의 버튼이 함께 눌리지 않게 `.plain`으로 둔다.
+    - 반복 할일 편집의 "사용" 토글은 따로 섹션으로 옮겼다.
+  - "나중에"
+    - items `@Query(animation: .snappy)`
+    - 빠른 입력으로 넣으면 입력창에 "넣음"이 1.2초 보이고 light 햅틱이 온다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -525,6 +598,18 @@ docs/ROADMAP.md, CLAUDE.md
     - `testRecurringTasks`: 10/19 하루 상세에 반복 할일이 없다.
   - 기기: 체크리스트 14장
 
+- [ ] Phase 17 UI·모션 개선: PR CI 확인
+  - Core: `LocalDateKoreanTests.koreanRangeText`
+  - 앱
+    - `ItemStoreTests.aDeletedItemComesBackFromItsSnapshot`, `undoingMoveToInboxPutsTheScheduleBack`
+    - `CalendarDropStateTests.aDayCellHasAWindowFrame`, `landingReplacesTheEarlierLanding`
+    - `LaunchOptionsTests.tipsAreHiddenInTestRunsUnlessAsked`
+  - UI
+    - `MotionTests`: 팁(35), 되돌리기 토스트(36), 카테고리 칩(37)
+      - PR #24 첫 CI(2026-10-22): 빌드는 됐고 88개 중 87개가 통과했다. `testUndoToastBringsBackASwipeDeletedItem`만 "toast.undo"를 누르지 못했다. 토스트의 4초짜리 남은 시간 막대 애니메이션 때문이었다. 막대를 빼고 다시 확인한다.
+    - 기존 테스트가 그대로 통과하는지 본다: 밀기 삭제·나중에, 끌기(28, 29, 33), 반복 체크, 편집 화면
+  - 기기: 체크리스트 15장
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -546,3 +631,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 14: 달력 막대(하루짜리 시간 일정), 하루 상세에서 꾹 눌러 옮기기, 타임라인 본문 버튼, 동기화 진단(앱 기록)
 - [ ] Phase 15: "나중에" 키보드 내리기, 꾹 눌러 덮개 달력에 넣기(탭을 바꾸지 않음)
 - [ ] Phase 16: 테마 설정(시스템/라이트/다크), 달력 탭에서 반복 할일 빼기
+- [ ] Phase 17: UI·모션 개선(충전 링, 기간 띠, 착지 펄스, 되돌리기 토스트, 끌기 미리보기, 체크 피드백, 팁, 제목 숫자 전환, 카테고리 칩, 빠른 입력)

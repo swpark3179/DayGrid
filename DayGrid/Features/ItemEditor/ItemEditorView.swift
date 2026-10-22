@@ -54,9 +54,10 @@ struct ItemEditorView: View {
                 }
 
                 Section {
-                    Toggle("날짜 지정", isOn: $draft.hasDate)
+                    // 켜고 끌 때 아래 줄이 열리고 닫히도록 바인딩에 애니메이션을 단다.
+                    Toggle("날짜 지정", isOn: $draft.hasDate.animation(.snappy))
                     if draft.hasDate {
-                        Toggle("종일", isOn: $draft.isAllDay)
+                        Toggle("종일", isOn: $draft.isAllDay.animation(.snappy))
                         DatePicker("시작", selection: startBinding, displayedComponents: dateComponents)
                         DatePicker("종료", selection: $draft.end, in: draft.earliestEnd()..., displayedComponents: dateComponents)
                     }
@@ -74,13 +75,9 @@ struct ItemEditorView: View {
                     }
                 }
 
-                Section {
-                    Picker("카테고리", selection: $draft.categoryID) {
-                        Text("없음").tag(UUID?.none)
-                        ForEach(categories) { category in
-                            Text(category.name).tag(Optional(category.id))
-                        }
-                    }
+                Section("카테고리") {
+                    CategoryChips(categories: categories, selection: $draft.categoryID)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
 
                 Section("본문") {

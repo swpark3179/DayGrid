@@ -8,6 +8,8 @@ import UIKit
 /// - 미리보기는 창 맨 위에 붙인다. 시트 안의 SwiftUI 뷰는 시트 밖에 그릴 수 없어서다.
 /// - 손가락 아래 날짜는 `CalendarDropState.hover(atWindowPoint:)`가 찾고, 달력이 그 칸을 강조한다.
 /// - 손가락을 거의 움직이지 않고 놓으면 옮기지 않는다(꾹 눌렀다 떼기만 해도 아래 날짜로 옮겨지지 않게).
+/// - 미리보기는 들어 올리듯 나타나고, 놓으면 그 칸으로 줄어들며 사라진다. 취소하면 시작한 자리로 돌아가며 사라진다.
+///   동작 줄이기(`UIAccessibility.isReduceMotionEnabled`)면 크기와 위치는 두고 투명도만 바꾼다.
 @MainActor
 final class ItemMoveSession {
     /// 이만큼 넘게 움직여야 놓았을 때 옮긴다.
@@ -24,7 +26,7 @@ final class ItemMoveSession {
     private let selection = UISelectionFeedbackGenerator()
 
     func begin(title: String, colorHex: String, from date: LocalDate?, at point: CGPoint, in window: UIWindow) {
-        end()
+        end(animated: false)
         originalDate = date
         startPoint = point
         hasMoved = false
@@ -35,6 +37,15 @@ final class ItemMoveSession {
         host.view.frame = frame(at: point, in: window)
         window.addSubview(host.view)
         preview = host
+        // 들어 올리기: 조금 작고 투명하게 시작해 제 크기로
+        host.view.alpha = 0
+        if !Self.reducesMotion {
+            host.view.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
+        }
+        UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0, options: [.allowUserInteraction, .beginFromCurrentState]) {
+            host.view.alpha = 1
+            host.view.transform = .identity
+        }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         selection.prepare()
     }
@@ -53,12 +64,17 @@ final class ItemMoveSession {
     }
 
     /// 놓은 곳의 날짜. 거의 움직이지 않았거나, 달력 밖이거나, 원래 날이면 `nil`이다.
+    /// 날짜가 있으면 미리보기가 그 칸으로 빨려 들고, 없으면 시작한 자리로 돌아간다.
     func finish(at point: CGPoint) -> LocalDate? {
         var target = hasMoved ? dropState.day(atWindowPoint: point)?.day : nil
         if target == originalDate {
             target = nil
         }
-        end()
+        if let target, let cell = dropState.windowFrame(of: target) {
+            end(animated: true, toward: CGPoint(x: cell.midX, y: cell.midY), scale: 0.3)
+        } else {
+            end(animated: true)
+        }
         if target != nil {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         }
@@ -66,12 +82,30 @@ final class ItemMoveSession {
     }
 
     /// 미리보기를 떼고 달력 강조를 지운다. 옮기는 중이 아니면 아무것도 하지 않는다.
-    func end() {
+    /// `animated`면 `toward`(창 좌표, 없으면 시작한 자리)로 움직이며 사라진 뒤 뗀다.
+    func end(animated: Bool = false, toward destination: CGPoint? = nil, scale: CGFloat = 0.85) {
         guard let preview else { return }
-        preview.view.removeFromSuperview()
         self.preview = nil
         dropState.endHover()
+        let view: UIView = preview.view
+        guard animated, view.window != nil else {
+            view.removeFromSuperview()
+            return
+        }
+        let center = destination ?? CGPoint(x: startPoint.x, y: startPoint.y - Self.previewSize.height / 2 - 36)
+        let reducesMotion = Self.reducesMotion
+        UIView.animate(withDuration: reducesMotion ? 0.15 : 0.28, delay: 0, options: [.curveEaseIn, .beginFromCurrentState]) {
+            view.alpha = 0
+            if !reducesMotion {
+                view.center = center
+                view.transform = CGAffineTransform(scaleX: scale, y: scale)
+            }
+        } completion: { _ in
+            view.removeFromSuperview()
+        }
     }
+
+    private static var reducesMotion: Bool { UIAccessibility.isReduceMotionEnabled }
 
     /// 손가락 위(가리지 않게)에 놓고, 창 밖으로 나가지 않게 맞춘다.
     private func frame(at point: CGPoint, in window: UIWindow) -> CGRect {

@@ -39,12 +39,12 @@ struct ItemReaderView: View {
         HStack(alignment: .top, spacing: 12) {
             if item.isTask {
                 Button {
-                    item.toggleCompletion()
+                    withAnimation(.snappy) {
+                        item.toggleCompletion()
+                    }
                     try? modelContext.save()
                 } label: {
-                    Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.title2)
-                        .foregroundStyle(item.isCompleted ? Color.accentColor : Color.secondary)
+                    CompletionCheckmark(isDone: item.isCompleted, font: .title2)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel(item.isCompleted ? "완료 취소" : "완료로 표시")

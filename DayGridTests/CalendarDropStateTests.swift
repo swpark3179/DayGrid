@@ -34,6 +34,31 @@ struct CalendarDropStateTests {
         #expect(state.target == nil)
     }
 
+    @Test func aDayCellHasAWindowFrame() {
+        let state = CalendarDropState()
+        let (window, grid) = makeGrid()
+        state.registerPage(grid, visibleDays: october, onPage: { _ in })
+
+        // 10/14는 셋째 줄 넷째 칸이다. 격자는 (25, 100)에서 시작하고 칸은 50×100이다.
+        #expect(state.windowFrame(of: day(2026, 10, 14)) == CGRect(x: 175, y: 300, width: 50, height: 100))
+        #expect(state.windowFrame(of: day(2026, 9, 27)) == CGRect(x: 25, y: 100, width: 50, height: 100))
+        #expect(state.windowFrame(of: day(2026, 11, 1)) == nil, "보이는 범위 밖의 날")
+        withExtendedLifetime(window) {}
+    }
+
+    @Test func landingReplacesTheEarlierLanding() {
+        let state = CalendarDropState()
+        let id = UUID()
+        state.land(itemID: id, days: day(2026, 10, 20)...day(2026, 10, 21))
+        let first = state.landing
+        #expect(first?.itemID == id)
+        #expect(first?.days == day(2026, 10, 20)...day(2026, 10, 21))
+
+        state.land(itemID: nil, days: day(2026, 10, 19)...day(2026, 10, 19))
+        #expect(state.landing?.itemID == nil)
+        #expect(state.landing?.id != first?.id, "같은 날에 다시 놓아도 새 표시여야 한다")
+    }
+
     @Test func theDayUnderAWindowPointIsFound() {
         let state = CalendarDropState()
         let (window, grid) = makeGrid()

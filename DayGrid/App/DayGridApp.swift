@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import TipKit
 
 @main
 struct DayGridApp: App {
@@ -20,6 +21,19 @@ struct DayGridApp: App {
         }
         NotificationScheduler.shared.container = modelContainer
         WidgetSnapshotWriter.shared.container = modelContainer
+        Self.configureTips(options)
+    }
+
+    /// 꾹 누르기 안내 팁(`GestureTips.swift`). 테스트용 설정은 `configure` 전에 해야 한다.
+    private static func configureTips(_ options: LaunchOptions) {
+        if options.showsTips {
+            // 앞선 테스트가 닫은 팁도 다시 보이게 한다.
+            try? Tips.resetDatastore()
+            Tips.showAllTipsForTesting()
+        } else if options.hidesTips {
+            Tips.hideAllTipsForTesting()
+        }
+        try? Tips.configure()
     }
 
     var body: some Scene {

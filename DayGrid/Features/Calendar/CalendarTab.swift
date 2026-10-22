@@ -1,6 +1,7 @@
 import DayGridCore
 import SwiftData
 import SwiftUI
+import TipKit
 
 /// 첫 화면. 좌우로 넘기는 월간 달력.
 struct CalendarTab: View {
@@ -17,6 +18,8 @@ struct CalendarTab: View {
     @State private var editorMode: ItemEditorView.Mode?
     @State private var isShowingBirthdays = false
     @State private var isPickingMonth = false
+    /// 기간 만들기 팁을 보일지(`RangePressTip.shouldDisplayUpdates`). 숨긴 팁이 자리를 차지하지 않게 따로 둔다.
+    @State private var showsRangeTip = false
 
     /// 오늘 기준 앞뒤로 넘길 수 있는 달 수.
     private static let monthsAroundToday = 120
@@ -38,6 +41,12 @@ struct CalendarTab: View {
             VStack(spacing: 0) {
                 header
                 upcomingBirthdayBanner
+                // 꾹 눌러 기간 만들기는 보이지 않는 동작이라 처음 한 번 알려 준다. 격자 밖에 둔다.
+                if showsRangeTip {
+                    TipView(RangePressTip())
+                        .padding(.horizontal)
+                        .padding(.bottom, 6)
+                }
                 WeekdayHeader(firstWeekday: firstWeekday)
                 TabView(selection: $selectedMonth) {
                     ForEach(monthRange, id: \.self) { index in
@@ -56,6 +65,11 @@ struct CalendarTab: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                for await shouldDisplay in RangePressTip().shouldDisplayUpdates {
+                    withAnimation(.snappy) { showsRangeTip = shouldDisplay }
+                }
+            }
             .sheet(item: $selectedDay) { selection in
                 // 시트 높이(보통 medium/large, 옮기는 동안 작게)는 DayDetailView가 정한다.
                 DayDetailView(date: selection.date)
@@ -86,6 +100,9 @@ struct CalendarTab: View {
                     transaction.disablesAnimations = true
                     withTransaction(transaction) {
                         selectedMonth = index
+                    }
+                    if index == today.monthIndex {
+                        pulseToday()
                     }
                 }
                 .presentationDetents([.medium])
@@ -144,6 +161,27 @@ struct CalendarTab: View {
         }
     }
 
+    /// 오늘로 돌아간다. 바로 옆 달이면 넘기는 애니메이션을 하고, 더 멀면 사이의 달을 모두 넘기지 않도록 바로 바꾼다.
+    /// 어느 쪽이든 오늘 칸이 한 번 빛나서 어디인지 보이게 한다.
+    private func goToToday() {
+        if abs(selectedMonth - today.monthIndex) <= 1 {
+            withAnimation {
+                selectedMonth = today.monthIndex
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                selectedMonth = today.monthIndex
+            }
+        }
+        pulseToday()
+    }
+
+    private func pulseToday() {
+        CalendarDropState.shared.land(itemID: nil, days: today...today)
+    }
+
     /// 헤더의 + 버튼으로 추가할 날짜. 이번 달을 보고 있으면 오늘, 아니면 보고 있는 달의 1일.
     private var dayForNewItem: LocalDate {
         selectedMonth == today.monthIndex ? today : LocalDate(firstDayOfMonthIndex: selectedMonth)
@@ -158,8 +196,11 @@ struct CalendarTab: View {
     private var header: some View {
         HStack {
             HStack(spacing: 4) {
+                // 달을 넘기면 숫자가 넘긴 방향으로 굴러간다.
                 Text(LocalDate(firstDayOfMonthIndex: selectedMonth).koreanMonthTitle)
                     .font(.title2.bold())
+                    .contentTransition(.numericText(value: Double(selectedMonth)))
+                    .animation(.snappy, value: selectedMonth)
                     .accessibilityAddTraits(.isHeader)
                 Button("연·월 선택", systemImage: "chevron.down") {
                     isPickingMonth = true
@@ -180,13 +221,9 @@ struct CalendarTab: View {
             .labelStyle(.iconOnly)
             .buttonStyle(.bordered)
             .accessibilityIdentifier("calendar.add")
-            Button("오늘") {
-                withAnimation {
-                    selectedMonth = today.monthIndex
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(selectedMonth == today.monthIndex)
+            Button("오늘", action: goToToday)
+                .buttonStyle(.bordered)
+                .disabled(selectedMonth == today.monthIndex)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

@@ -170,4 +170,59 @@ struct ItemStoreTests {
         #expect(try context.fetchCount(FetchDescriptor<RecurrenceCompletion>()) == 9)
         #expect(tasks.map { $0.completions?.count ?? 0 } == [1, 3, 5])
     }
+
+    @Test func aDeletedItemComesBackFromItsSnapshot() throws {
+        let category = ItemCategory(name: "업무", colorHex: "#E8590C", sortOrder: 0)
+        context.insert(category)
+        let item = Item(title: "보고서", isTask: true, category: category)
+        item.scheduleAllDay(from: day(2026, 10, 30), through: day(2026, 10, 31))
+        item.body = "- [ ] 표 넣기"
+        item.reminderMask = 3
+        item.completedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        item.createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        context.insert(item)
+        try context.save()
+        let id = item.id
+
+        let snapshot = ItemSnapshot(item)
+        context.delete(item)
+        try context.save()
+        #expect(try context.fetchCount(FetchDescriptor<Item>()) == 0)
+
+        context.insert(snapshot.makeItem())
+        try context.save()
+        let restored = try #require(try context.fetch(FetchDescriptor<Item>()).first)
+        #expect(restored.id == id, "되돌리면 같은 id로 돌아와야 한다")
+        #expect(restored.title == "보고서")
+        #expect(restored.isTask)
+        #expect(restored.body == "- [ ] 표 넣기")
+        #expect(restored.startDay == day(2026, 10, 30))
+        #expect(restored.endDay == day(2026, 10, 31))
+        #expect(restored.reminderMask == 3)
+        #expect(restored.completedAt == Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(restored.createdAt == Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(restored.category?.name == "업무")
+    }
+
+    @Test func undoingMoveToInboxPutsTheScheduleBack() throws {
+        let item = Item(title: "독서 모임")
+        let start = day(2026, 10, 22).date(hour: 20, in: seoul)
+        item.scheduleTimed(start: start, end: start.addingTimeInterval(3600), timeZone: seoul)
+        item.inboxOrder = 5
+        context.insert(item)
+        try context.save()
+
+        let snapshot = ItemSnapshot(item)
+        item.moveToInbox(order: -1, timeZone: seoul)
+        #expect(!item.isScheduled)
+
+        snapshot.apply(to: item)
+        #expect(item.isScheduled)
+        #expect(!item.isAllDay)
+        #expect(item.startDate == start)
+        #expect(item.endDate == start.addingTimeInterval(3600))
+        #expect(item.startDay == day(2026, 10, 22))
+        #expect(item.inboxOrder == 5)
+        #expect(item.hintDayCount == 0, "미루기 전의 힌트(없음)로 돌아와야 한다")
+    }
 }

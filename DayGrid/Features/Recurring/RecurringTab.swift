@@ -91,10 +91,15 @@ struct RecurringTaskRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            if showsMonthSummary, task.isActive, let summary = monthSummaryText {
-                Text(summary)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+            if showsMonthSummary, task.isActive, let summary = monthSummary {
+                HStack(spacing: 6) {
+                    MonthProgressRing(fraction: Double(summary.done) / Double(summary.total))
+                    // UI 테스트가 "이번 달"로 시작하는 글자를 찾는다. 숫자만 굴러가게 한다.
+                    Text(verbatim: "이번 달 \(summary.done)/\(summary.total)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText(value: Double(summary.done)))
+                }
             }
         }
         .padding(.vertical, 2)
@@ -105,11 +110,12 @@ struct RecurringTaskRow: View {
         if let current, current.cycle.contains(today) {
             let isDone = Self.isDone(current.status)
             Button {
-                task.toggleCompletion(of: current.cycle, today: today, in: modelContext)
+                // 상세 문구와 이번 달 요약도 함께 바뀌도록 애니메이션 안에서 바꾼다.
+                withAnimation(.snappy) {
+                    task.toggleCompletion(of: current.cycle, today: today, in: modelContext)
+                }
             } label: {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isDone ? Color.accentColor : Color.secondary)
+                CompletionCheckmark(isDone: isDone)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(isDone ? "완료 취소" : "완료로 표시")
@@ -160,9 +166,28 @@ struct RecurringTaskRow: View {
         task.recurrence?.occurrences(in: today...today.adding(days: 62)).first
     }
 
-    private var monthSummaryText: String? {
+    /// 이번 달 완료 수와 주기 수. 이번 달에 주기가 없으면 `nil`.
+    private var monthSummary: (done: Int, total: Int)? {
         guard let recurrence = task.recurrence else { return nil }
         let summary = recurrence.monthSummary(month: today, today: today, completedCycleStarts: Set(task.completionDays.keys))
-        return summary.total > 0 ? "이번 달 \(summary.done)/\(summary.total)" : nil
+        return summary.total > 0 ? summary : nil
+    }
+}
+
+/// 이번 달 완료 비율을 보여 주는 작은 링. 글자("이번 달 5/15")가 같은 내용을 읽어 주므로 VoiceOver에서는 숨긴다.
+private struct MonthProgressRing: View {
+    let fraction: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: min(max(fraction, 0), 1))
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityHidden(true)
     }
 }
