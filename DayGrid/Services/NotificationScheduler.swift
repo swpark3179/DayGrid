@@ -204,11 +204,22 @@ final class NotificationScheduler {
     }
 }
 
-/// 알림을 눌러 열 날짜. 앱 델리게이트가 넣고, `RootView`가 달력에서 그 날을 연 뒤 비운다.
+/// 알림을 눌러 열 곳. 앱 델리게이트가 넣고, `RootView`가 연 뒤 비운다.
 @MainActor
 @Observable
 final class NotificationRouter {
     static let shared = NotificationRouter()
 
+    /// 달력에서 열 하루 상세(일정, 할일, 생일 알림)
     var dayToOpen: LocalDate?
+    /// 열 탭(반복 할일 알림). 반복 할일은 달력에 보이지 않으므로 반복 탭을 연다.
+    var routeToOpen: AppRoute?
+
+    func open(day: LocalDate?, recurringTaskID: UUID?) {
+        if recurringTaskID != nil {
+            routeToOpen = .recurring
+        } else {
+            dayToOpen = day
+        }
+    }
 }

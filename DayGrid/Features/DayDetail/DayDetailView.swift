@@ -4,6 +4,7 @@ import SwiftUI
 import UIKit
 
 /// 날짜를 누르면 열리는 하루 상세 시트. 종일·기간, 시간, 할일 순으로 보여준다.
+/// 반복 할일은 보여 주지 않는다. 반복 탭에서만 다룬다(사용자 결정 2026-10-22).
 /// 행을 왼쪽으로 밀면 삭제·복제, 오른쪽으로 밀면 "나중에"(날짜를 비우고 나중에 목록으로)가 나온다.
 ///
 /// 행을 꾹 누르면 옮기기가 된다(사용자 요청 2026-10-21). 시트가 아래로 작아져 달력이 보이고,
@@ -24,8 +25,6 @@ struct DayDetailView: View {
     @Query private var items: [Item]
     @Query private var personalHolidays: [PersonalHoliday]
     @Query(sort: \Person.name) private var people: [Person]
-    @Query(filter: RecurringTask.activePredicate, sort: \RecurringTask.sortOrder) private var recurringTasks: [RecurringTask]
-    @Environment(AppClock.self) private var clock
     @State private var editorMode: ItemEditorView.Mode?
     @State private var readingItem: ReaderSelection?
     @AppStorage(AppSettings.dayDetailStyleKey) private var style = DayDetailStyle.list
@@ -69,7 +68,6 @@ struct DayDetailView: View {
                     section("시간", rows: agenda.timed, itemsByID: itemsByID)
                 }
                 section("할일", rows: agenda.tasks, itemsByID: itemsByID)
-                recurringSection
             }
             .accessibilityIdentifier("dayDetail.list")
             .navigationTitle(date.koreanMonthDayWeekdayText)
@@ -132,19 +130,6 @@ struct DayDetailView: View {
                 Button("삭제", systemImage: "trash", role: .destructive) { delete(item) }
             }
             .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
-        }
-    }
-
-    /// 이 날이 속한 주기가 있는 반복 할일. 그 주기가 지금 주기면 체크할 수 있다.
-    @ViewBuilder
-    private var recurringSection: some View {
-        let tasks = recurringTasks.filter { $0.cycleStatus(on: date, today: clock.today) != nil }
-        if !tasks.isEmpty {
-            Section("반복 할일") {
-                ForEach(tasks) { task in
-                    RecurringTaskRow(task: task, date: date, today: clock.today)
-                }
-            }
         }
     }
 

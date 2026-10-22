@@ -1,5 +1,10 @@
+import UIKit
+
 /// `@AppStorage` 키.
 enum AppSettings {
+    /// 테마(`AppAppearance`). UI 테스트는 실행 인자 `-appearance dark`로 다크 모드를 켠다.
+    static let appearanceKey = "appearance"
+
     /// 주 시작 요일. 1 = 일요일(기본), 2 = 월요일.
     static let firstWeekdayKey = "firstWeekday"
 
@@ -20,6 +25,32 @@ enum AppSettings {
         case ..<0: []
         case 0: [0]
         default: [0, value]
+        }
+    }
+}
+
+/// 테마. 앱 창 전체(시트 포함)에 건다(`WindowAppearance`).
+enum AppAppearance: String, CaseIterable, Identifiable {
+    /// iPhone의 라이트·다크 모드 설정을 따른다.
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "시스템"
+        case .light: "라이트"
+        case .dark: "다크"
+        }
+    }
+
+    var userInterfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: .unspecified
+        case .light: .light
+        case .dark: .dark
         }
     }
 }

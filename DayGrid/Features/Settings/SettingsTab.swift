@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct SettingsTab: View {
+    @AppStorage(AppSettings.appearanceKey) private var appearance = AppAppearance.system
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
     @Environment(AppClock.self) private var clock
     @AppStorage(AppSettings.birthdayReminderKey) private var birthdayReminder = -1
@@ -15,6 +16,18 @@ struct SettingsTab: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Picker("테마", selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.appearance")
+                } header: {
+                    Text("화면")
+                } footer: {
+                    Text("시스템을 고르면 iPhone의 라이트·다크 모드 설정을 따릅니다.")
+                }
                 Section("달력") {
                     Picker("주 시작 요일", selection: $firstWeekday) {
                         Text("일요일").tag(1)

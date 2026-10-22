@@ -70,9 +70,15 @@ struct RootView: View {
         }
         // 잠금화면 위젯을 누르면 반복 탭을 연다.
         .onOpenURL { url in
-            if AppRoute(url: url) == .recurring {
-                selectedTab = .recurring
+            if let route = AppRoute(url: url) {
+                show(route)
             }
+        }
+        // 반복 할일 알림을 누르면 반복 탭을 연다.
+        .onChange(of: NotificationRouter.shared.routeToOpen, initial: true) { _, route in
+            guard let route else { return }
+            NotificationRouter.shared.routeToOpen = nil
+            show(route)
         }
         .onChange(of: NotificationRouter.shared.dayToOpen, initial: true) { _, day in
             guard let day else { return }
@@ -91,6 +97,13 @@ struct RootView: View {
                 selectedTab = .inbox
                 inboxFocusRequest += 1
             }
+        }
+    }
+
+    private func show(_ route: AppRoute) {
+        switch route {
+        case .recurring:
+            selectedTab = .recurring
         }
     }
 }

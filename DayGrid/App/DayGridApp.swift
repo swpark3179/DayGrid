@@ -4,14 +4,13 @@ import SwiftUI
 @main
 struct DayGridApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    private let launchOptions: LaunchOptions
     private let modelContainer: ModelContainer
     @State private var clock: AppClock
     @State private var holidays: HolidayService
+    @AppStorage(AppSettings.appearanceKey) private var appearance = AppAppearance.system
 
     init() {
         let options = LaunchOptions(arguments: ProcessInfo.processInfo.arguments, environment: ProcessInfo.processInfo.environment)
-        launchOptions = options
         modelContainer = AppModelContainer.make(options: options)
         _clock = State(initialValue: AppClock(fixedToday: options.fixedToday))
         // UI 테스트는 같은 화면이 나오도록 앱에 넣은 공휴일 자료만 쓴다.
@@ -28,7 +27,7 @@ struct DayGridApp: App {
             RootView()
                 .environment(clock)
                 .environment(holidays)
-                .preferredColorScheme(launchOptions.forcesDarkAppearance ? .dark : nil)
+                .background(WindowAppearance(appearance: appearance))
         }
         .modelContainer(modelContainer)
         // 하루 한 번 알림을 다시 맞춘다(앞으로 30일치만 예약해 두므로).
