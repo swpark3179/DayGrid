@@ -19,6 +19,8 @@ import UIKit
 /// 종일·기간과 시간 없는 할일은 그 아래에 목록으로 보여준다. 타임라인 블록은 꾹 눌러 같은 동작을 고른다.
 struct DayDetailView: View {
     let date: LocalDate
+    /// 편집 화면에서 "나중에 할일로 미루기"를 누른 뒤 부른다. 부르는 쪽(달력 탭)이 이 시트를 닫고 "나중에" 탭을 연다.
+    var onMovedToInbox: (() -> Void)?
 
     /// 옮기는 동안의 시트 높이. 달력을 가리지 않게 작게 둔다.
     static let movingDetent = PresentationDetent.height(64)
@@ -46,8 +48,9 @@ struct DayDetailView: View {
     /// 옮기기 팁을 보일지(`MoveItemTip.shouldDisplayUpdates`). 숨긴 팁이 빈 행으로 남지 않게 따로 둔다.
     @State private var showsMoveTip = false
 
-    init(date: LocalDate) {
+    init(date: LocalDate, onMovedToInbox: (() -> Void)? = nil) {
         self.date = date
+        self.onMovedToInbox = onMovedToInbox
         _items = Query(filter: Item.predicate(overlapping: date...date), sort: \Item.startDayKey)
         _personalHolidays = Query(filter: PersonalHoliday.predicate(overlapping: date...date), sort: \PersonalHoliday.name)
     }
@@ -89,6 +92,7 @@ struct DayDetailView: View {
                     Button("닫기") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
+                    // 시간을 정하지 않은 그 날 하루 일정으로 연다. 시각부터 열려면 타임라인의 빈 곳을 누른다.
                     Button("일정 추가", systemImage: "plus") {
                         editorMode = .new(date)
                     }
@@ -96,7 +100,7 @@ struct DayDetailView: View {
                 }
             }
             .sheet(item: $editorMode) { mode in
-                ItemEditorView(mode: mode)
+                ItemEditorView(mode: mode, onMovedToInbox: onMovedToInbox)
             }
             .sheet(item: $readingItem) { selection in
                 ItemReaderView(item: selection.item, timeText: selection.timeText)

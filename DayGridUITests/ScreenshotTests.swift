@@ -75,6 +75,7 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["dayDetail.add"].tap()
         let titleField = app.textFields["editor.title"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "0", "하루 상세의 +는 시간 없이 시작해야 한다")
         titleField.tap()
         titleField.typeText("UI Test")
         attachScreenshot(of: app, named: "09-item-editor")
@@ -131,6 +132,8 @@ final class ScreenshotTests: XCTestCase {
         assignAction.tap()
         let assignBar = app.navigationBars["날짜 정하기"]
         XCTAssertTrue(assignBar.waitForExistence(timeout: 5), "날짜 정하기 시트가 열려야 한다")
+        XCTAssertFalse(app.switches["종일"].exists, "종일 토글은 시간 지정으로 바뀌어야 한다")
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "0", "미룬 적이 없는 할일은 시간 없이 시작해야 한다")
         app.buttons["assign.tomorrow"].tap()
         attachScreenshot(of: app, named: "12-assign-date")
         app.buttons["assign.save"].tap()

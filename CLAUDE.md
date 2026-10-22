@@ -69,8 +69,9 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 일정이 달력에 들어간 뒤(하루 상세 옮기기, "나중에" 넣기, 먼 달에서 "오늘")에는 `CalendarDropState.land(itemID:days:)`를 부른다. 그 날이 빛나고 막대가 튀어 들어온다.
   - 확인 없이 바로 저장하는 지우기·복제·"나중에"는 `UndoToastState.show(_:systemImage:undo:)`로 "실행 취소" 토스트를 띄운다. 되돌리기는 `ItemSnapshot`(`makeItem()`, `apply(to:)`)으로 한다.
     - 토스트는 그 화면(시트) 안의 `.undoToast(_:hidden:)`에 둔다. 창에 붙이지 않는다. 시트가 닫힌 뒤 달력 칸을 가리면 UI 테스트가 칸을 누르지 못한다.
+    - UI 테스트(`-UITestSeedData`)에서는 토스트가 20초 남는다(`LaunchOptions.keepsToastsLonger`). 느린 CI 러너에서는 4초 안에 누르지 못한다(PR #25).
   - 완료 체크 기호는 `CompletionCheckmark`를 쓴다. 바꾸기는 `withAnimation(.snappy)` 안에서 한다.
-  - 카테고리 고르기는 `CategoryChips`다(일정 편집, 반복 할일 편집). Form 행 안의 칩 버튼은 `.plain`으로 둔다.
+  - 카테고리 고르기는 `CategoryChips`다(일정 편집, 반복 할일 편집). 알림 고르기는 `ReminderChips`다. Form 행 안의 칩 버튼은 `.plain`으로 둔다.
   - 꾹 누르기 안내는 TipKit 팁(`GestureTips.swift`)이다.
     - 팁 행은 `shouldDisplayUpdates`가 참일 때만 만든다. 숨긴 `TipView`도 빈 행이나 여백을 남길 수 있다.
     - 테스트 실행에서는 팁을 숨긴다(`LaunchOptions.hidesTips`). 스크린샷과 달력 칸 위치가 바뀌기 때문이다.
@@ -93,7 +94,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 화면 코드에서 `preferredColorScheme`을 쓰지 않는다. 시스템(nil)으로 되돌릴 때 바로 돌아오지 않는 경우가 있다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`)
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
   - 실행 인자 `-dayDetailStyle timeline`은 하루 상세를 타임라인으로 연다(UserDefaults 인자 도메인).
   - 실행 인자 `-appearance dark`는 테마를 다크로 연다(같은 인자 도메인).
@@ -101,15 +102,26 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 설정의 Picker를 눌러 바꾸지 않는다. 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29와 33, `TimelineTests` 30–32, `MotionTests` 35–37. 새 화면은 38부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29와 33, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39. 새 화면은 40부터 붙인다.
   - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.
+  - UI 테스트에서 알림 칩을 누르지 않는다. 알림 권한 창이 떠서 화면을 가린다.
 - 목록 행을 밀 때는 텍스트에서 `swipeLeft()`를 하지 말고, 셀 좌표로 끈다. `drag(_:from:to:)`를 쓰고, 왼쪽으로 밀 때는 85% → 15%, 오른쪽으로 밀 때는 15% → 85%로 끈다. 작은 텍스트에서 밀면 끄는 거리가 짧아 탭으로 처리된다.
   - 끝까지 끌면 첫 번째 동작이 전체 밀기로 바로 실행될 수 있다. 버튼이 나타나면 누르고, 결과(행이 사라짐 등)로 확인한다.
   - 폼 아래쪽 요소(편집 화면의 삭제 버튼 등)는 화면 밖이면 접근성 트리에 없다. 스크롤하거나 화면 안의 요소로 확인한다.
 - CI가 실패하면 "Show test failures" 단계(`xcresulttool get test-results summary`)와 "Export screenshots" 단계의 UI 계층 출력에서 원인을 본다.
 - 편집 화면은 `ItemDraft`(값 타입)를 고치고, 저장할 때만 `apply(to:)`로 모델에 반영한다.
+  - 순서는 제목 → 날짜·시간 → 카테고리 → 본문 → 알림이다(사용자 요청 2026-10-22).
+  - 달력 일정에는 "날짜 지정" 토글을 두지 않는다. "나중에" 항목을 고칠 때만 보인다(`ItemEditorView.isInboxItem`, 열 때의 값).
+    - 달력 일정은 삭제 바로 위의 "나중에 할일로 미루기"로 보낸다. 고친 내용을 `hasDate = false`인 초안으로 `apply`한다(→ `moveToInbox(order: Item.topInboxOrder(in:))`).
+    - 그다음 `CalendarTab`이 하루 상세를 닫는다(위의 편집 시트도 함께 닫힌다). 시트가 다 닫힌 뒤(`onDismiss`) "나중에" 탭을 연다.
+  - 종일 토글 대신 "시간 지정"(`ItemDraft.hasTime`, `isAllDay`의 반대)을 쓴다. "날짜 정하기" 시트(`AssignDateSheet`)도 같다.
+  - 알림은 `ReminderChips`(한 줄 칩, 여러 개를 켤 수 있음)다. 시간 지정이면 정시·10분 전·1시간 전·하루 전, 아니면 당일·전날 오전 9시다.
+  - 새 일정의 기본값
+    - 달력 머리의 +, 날짜를 꾹 눌렀다 그대로 떼기, 하루 상세의 +: 시간 없는 그 날 하루(`.new` → `ItemDraft.newAllDay`)
+    - 꾹 눌러 끈 기간: 그 기간의 종일(`.newRange`)
+    - 타임라인 빈 곳: 그 시각부터(`.newTimed`)
 - 마크다운 서식 변환은 Core `MarkdownFormatter`(UTF-16 범위)가 한다. 화면 코드에서 문자열을 직접 고치지 않는다. 목록 행의 첫 줄은 `MarkdownSummary.firstLine(of:)`로 구한다.
   - 미리보기의 체크리스트 누르기는 Core `MarkdownTaskList.toggle(at:in:)`로 원문을 고친다.
   - `preview.js`의 체크 번호(`data-task-index`)와 Core의 체크 찾기 규칙은 같아야 한다. 한쪽을 바꾸면 다른 쪽도 바꾼다.

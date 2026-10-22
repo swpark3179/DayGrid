@@ -32,6 +32,11 @@ struct LaunchOptionsTests {
         #expect(!LaunchOptions(arguments: ["DayGrid"]).showsTips)
     }
 
+    @Test func toastsStayLongerInUITests() {
+        #expect(!LaunchOptions(arguments: ["DayGrid"]).keepsToastsLonger)
+        #expect(LaunchOptions(arguments: ["DayGrid", "-UITestSeedData"]).keepsToastsLonger)
+    }
+
     @Test func cloudSyncIsOffForTestRuns() {
         #expect(LaunchOptions(arguments: ["DayGrid"]).usesCloudSync)
         #expect(!LaunchOptions(arguments: ["DayGrid", "-UITestSeedData"]).usesCloudSync)

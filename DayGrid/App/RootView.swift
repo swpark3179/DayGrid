@@ -28,7 +28,10 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("달력", systemImage: "calendar", value: AppTab.calendar) {
-                CalendarTab(today: clock.today, dayToOpen: $dayToOpen, monthToShow: $monthToShow)
+                // 일정 편집에서 "나중에 할일로 미루기"를 누르면 "나중에" 탭을 연다(사용자 요청 2026-10-22).
+                CalendarTab(today: clock.today, dayToOpen: $dayToOpen, monthToShow: $monthToShow) {
+                    selectedTab = .inbox
+                }
             }
             Tab("나중에", systemImage: "tray", value: AppTab.inbox) {
                 // 꾹 눌러 달력에 넣으면 달력 탭에서 그 달을 보여준다(사용자 결정 2026-10-21).

@@ -4,8 +4,9 @@ import Foundation
 /// 편집 화면이 다루는 값. 저장하기 전까지는 모델을 건드리지 않는다.
 ///
 /// 종일 일정이면 `start`/`end`의 날짜만 쓰고, 시간 일정이면 시각까지 쓴다.
-/// 이렇게 두면 종일 토글을 켰다 꺼도 고른 날짜가 유지된다.
+/// 이렇게 두면 "시간 지정" 토글(`hasTime`)을 켰다 꺼도 고른 날짜가 유지된다.
 /// 날짜를 끄면(`hasDate == false`) 저장할 때 "나중에" 목록으로 들어가고, 고른 모양은 힌트로 남는다.
+/// 날짜 토글은 "나중에" 항목을 고칠 때만 보인다. 달력의 일정은 "나중에 할일로 미루기"가 `hasDate`를 끄고 저장한다.
 struct ItemDraft: Equatable {
     var title = ""
     var isTask = false
@@ -39,7 +40,8 @@ struct ItemDraft: Equatable {
         return ItemDraft(start: start, end: start.addingTimeInterval(3600), categoryID: categoryID)
     }
 
-    /// 달력에서 꾹 눌러 끈 기간(`first`…`last`, 순서 무관)의 새 종일 일정.
+    /// `first`…`last`(순서 무관)의 새 종일 일정. 달력에서 꾹 눌러 끈 기간과, 새 일정 버튼(그 날 하루)이 쓴다.
+    /// "시간 지정"을 켜면 09:00–10:00부터 고친다.
     static func newAllDay(from first: LocalDate, through last: LocalDate, categoryID: UUID?, timeZone: TimeZone = .current) -> ItemDraft {
         let startDay = min(first, last)
         let endDay = max(first, last)
@@ -78,6 +80,12 @@ struct ItemDraft: Equatable {
         categoryID = item.category?.id
         note = item.body ?? ""
         reminderMask = item.reminderMask
+    }
+
+    /// 편집 화면의 "시간 지정" 토글. 종일(`isAllDay`)의 반대다.
+    var hasTime: Bool {
+        get { !isAllDay }
+        set { isAllDay = !newValue }
     }
 
     var trimmedTitle: String {
