@@ -83,7 +83,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             if action == NotificationScheduler.completeAction {
                 NotificationScheduler.shared.complete(itemID: itemID, taskID: taskID, cycleStart: cycleStart)
             } else if action == UNNotificationDefaultActionIdentifier {
-                NotificationRouter.shared.dayToOpen = day
+                NotificationRouter.shared.open(day: day, recurringTaskID: taskID)
             }
         }
     }

@@ -37,11 +37,21 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(of: app, named: "07-categories")
     }
 
+    /// 설정의 테마를 실행 인자 `-appearance dark`(UserDefaults 인자 도메인)로 다크로 둔다.
+    /// Picker를 눌러 바꾸면 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
     @MainActor
     func testCalendarDarkMode() throws {
-        let app = launchApp(extraArguments: ["-UITestColorScheme", "dark"])
+        let app = launchApp(extraArguments: ["-appearance", "dark"])
         XCTAssertTrue(app.staticTexts["주간 회의"].waitForExistence(timeout: 15))
         attachScreenshot(of: app, named: "03-calendar-dark")
+
+        tabButton("설정", in: app).tap()
+        XCTAssertTrue(app.navigationBars["설정"].waitForExistence(timeout: 5))
+        let theme = element("settings.appearance", in: app).firstMatch
+        XCTAssertTrue(theme.waitForExistence(timeout: 5), "설정에 테마가 있어야 한다")
+        let shown = [theme.label, theme.value as? String ?? ""].joined(separator: " ")
+        XCTAssertTrue(shown.contains("다크") || app.staticTexts["다크"].exists, "테마가 다크로 보여야 한다(지금: \(shown))")
+        attachScreenshot(of: app, named: "34-settings-dark")
     }
 
     @MainActor

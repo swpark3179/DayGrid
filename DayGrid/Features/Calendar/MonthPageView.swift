@@ -21,7 +21,6 @@ struct MonthPageView: View {
     @Query private var items: [Item]
     @Query private var personalHolidays: [PersonalHoliday]
     @Query private var people: [Person]
-    @Query private var recurringCompletions: [RecurrenceCompletion]
     @State private var rangeStart: LocalDate?
     @State private var rangeEnd: LocalDate?
     private let dropState = CalendarDropState.shared
@@ -45,11 +44,6 @@ struct MonthPageView: View {
         let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
         _items = Query(filter: Item.predicate(overlapping: visibleDays), sort: \Item.startDayKey)
         _personalHolidays = Query(filter: PersonalHoliday.predicate(overlapping: visibleDays))
-        let lower = visibleDays.lowerBound.yyyymmdd
-        let upper = visibleDays.upperBound.yyyymmdd
-        _recurringCompletions = Query(filter: #Predicate<RecurrenceCompletion> { completion in
-            completion.completedDayKey >= lower && completion.completedDayKey <= upper
-        })
     }
 
     var body: some View {
@@ -141,15 +135,14 @@ struct MonthPageView: View {
         }
     }
 
-    /// 보이는 날짜의 공휴일, 개인 휴일, 생일.
+    /// 보이는 날짜의 공휴일, 개인 휴일, 생일. 반복 할일은 달력에 보이지 않는다(반복 탭에서만 다룬다).
     private var dayMarks: [LocalDate: DayMark] {
         let visibleDays = MonthLayout.visibleDays(of: month, firstWeekday: firstWeekday)
         return DayMarks.make(
             in: visibleDays,
             holidays: holidayService.holidays(in: visibleDays),
             personalHolidays: personalHolidays.compactMap { $0.mark },
-            birthdays: people.map { (name: $0.name, birthday: $0.birthday) },
-            recurringCompletions: recurringCompletions.compactMap { LocalDate(yyyymmdd: $0.completedDayKey) }
+            birthdays: people.map { (name: $0.name, birthday: $0.birthday) }
         )
     }
 }

@@ -192,8 +192,8 @@ docs/ROADMAP.md, CLAUDE.md
     - 놓침은 저장하지 않는다.
   - 화면
     - "반복" 탭: 지금 주기를 체크하고, 이번 달 완료 수를 보여준다. 편집 화면에서는 매일, 매주(여러 요일), 매월(n일·말일)과 기간, 카테고리, 사용 여부를 정한다.
-    - 하루 상세 아래쪽 "반복 할일" 섹션: 그날이 속한 주기를 보여주고, 지금 주기면 체크할 수 있다.
-    - 달력: 반복 할일을 체크한 날에 ✓를 붙인다.
+    - 하루 상세 아래쪽 "반복 할일" 섹션: 그날이 속한 주기를 보여주고, 지금 주기면 체크할 수 있다. (Phase 16에서 뺐다)
+    - 달력: 반복 할일을 체크한 날에 ✓를 붙인다. (Phase 16에서 뺐다)
   - 알림 시각(`notifyMinute`)은 모델에만 있다. Phase 8에서 화면과 알림을 붙인다.
 
 ### Phase 8 — 알림 (미리알림)
@@ -415,6 +415,31 @@ docs/ROADMAP.md, CLAUDE.md
     - 입력창(`UITextInput`) 안의 탭은 뺀다.
     - SwiftUI `onTapGesture`를 목록에 달면 입력창과 행 버튼까지 가로채서 쓰지 않았다.
 
+### Phase 16 — 테마 설정, 달력 탭에서 반복 할일 빼기 (사용자 요청 2026-10-22)
+- 설정에서 테마를 시스템, 라이트, 다크 중에 고른다(기본은 시스템).
+- 반복 할일은 달력 탭에 보이지 않는다. 반복 탭만으로 충분하다(사용자 결정).
+  - 빠지는 것: 날짜 칸의 ✓, 하루 상세의 "반복 할일" 섹션
+  - 그대로인 것: 반복 탭, 탭 배지, 잠금화면 위젯, 알림
+- **완료 기준**
+  - Core 테스트(`DayMarks`에서 반복 할일 완료를 뺌)와 앱 단위 테스트(`AppSettingsTests`: 테마 값, 알림 누르기 경로)가 통과한다.
+  - UI 테스트에서 다크 스크린샷 03·18과 설정 스크린샷 34가 나온다.
+  - 달력 칸과 하루 상세에 반복 할일이 없다.
+- **구현 메모**
+  - 테마
+    - `AppSettings.appearanceKey`(`AppAppearance`)로 정한다. 설정 맨 위 "화면" 섹션에서 고른다.
+    - `WindowAppearance`(UIKit 뷰)가 이 값을 창의 `overrideUserInterfaceStyle`에 건다.
+      - 창에 걸기 때문에 시트, 끌기 미리보기(`ItemMoveSession`), 본문 미리보기(WKWebView의 `prefers-color-scheme`)도 같이 바뀐다.
+      - SwiftUI `preferredColorScheme`은 시스템(nil)으로 되돌릴 때 바로 돌아오지 않는 경우가 있어 쓰지 않았다.
+    - UI 테스트의 다크 모드는 실행 인자 `-appearance dark`(UserDefaults 인자 도메인)로 켠다. 예전 `-UITestColorScheme dark`(`LaunchOptions.forcesDarkAppearance`)는 뺐다.
+  - 반복 할일
+    - Core `DayMark.completedRecurringCount`와 `DayMarks.make(recurringCompletions:)`를 뺐다. `MonthPageView`도 완료 기록을 조회하지 않는다.
+      - "나중에" 덮개 달력도 `MonthPageView`를 쓰므로 함께 빠졌다.
+    - `DayDetailView`의 "반복 할일" 섹션을 뺐다. 목록 보기와 타임라인 보기 모두 해당한다.
+    - 반복 할일 알림을 누르면 예전에는 그 날의 하루 상세가 열렸다. 섹션이 빠졌으므로 이제 반복 탭을 연다.
+      - `NotificationRouter.open(day:recurringTaskID:)` → `routeToOpen = .recurring`
+      - `RootView`는 위젯 주소(`AppRoute`)와 같은 경로로 처리한다.
+      - 다른 알림은 예전처럼 그 날의 하루 상세를 연다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -490,6 +515,16 @@ docs/ROADMAP.md, CLAUDE.md
     - `ScreenshotTests.testQuickAddShortcut`: 입력창 안을 누르면 포커스가 그대로이고, 제목 줄을 누르면 포커스가 풀린다.
   - 기기: 체크리스트 13장
 
+- [ ] Phase 16 테마 설정, 달력 탭에서 반복 할일 빼기: PR CI 확인
+  - Core: `KoreanCalendarTests`(DayMarks에서 반복 할일 완료를 뺌)
+  - 앱: `AppSettingsTests`(테마 값, `NotificationRouter.open`), `LaunchOptionsTests`
+  - UI
+    - `ScreenshotTests.testCalendarDarkMode`(03, 34): `-appearance dark`로 달력이 어둡고, 설정의 테마가 "다크"로 보인다.
+    - `FeatureScreenshotTests.testBodyPreviewDarkMode`(18)
+    - `testHolidaysAndBirthdays`: 10/12 칸에 반복 할일 완료가 없다.
+    - `testRecurringTasks`: 10/19 하루 상세에 반복 할일이 없다.
+  - 기기: 체크리스트 14장
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -510,3 +545,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 13: 하루 상세 타임라인(보기 방식 설정, 업무 시간, 빈 곳 눌러 새 일정)
 - [ ] Phase 14: 달력 막대(하루짜리 시간 일정), 하루 상세에서 꾹 눌러 옮기기, 타임라인 본문 버튼, 동기화 진단(앱 기록)
 - [ ] Phase 15: "나중에" 키보드 내리기, 꾹 눌러 덮개 달력에 넣기(탭을 바꾸지 않음)
+- [ ] Phase 16: 테마 설정(시스템/라이트/다크), 달력 탭에서 반복 할일 빼기

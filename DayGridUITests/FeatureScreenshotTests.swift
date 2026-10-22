@@ -33,7 +33,7 @@ final class FeatureScreenshotTests: XCTestCase {
 
     @MainActor
     func testBodyPreviewDarkMode() throws {
-        let app = launchApp(extraArguments: ["-UITestColorScheme", "dark"])
+        let app = launchApp(extraArguments: ["-appearance", "dark"])
         openTripBody(in: app)
         attachScreenshot(of: app, named: "18-body-preview-dark")
     }
@@ -66,19 +66,21 @@ final class FeatureScreenshotTests: XCTestCase {
         let app = launchApp()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
 
-        // 날짜 칸의 접근성 라벨에 휴일·생일·반복 할일 완료가 들어 있다
+        // 날짜 칸의 접근성 라벨에 휴일·생일이 들어 있다
         let expectations = [
             ("2026-10-03", "개천절"),
             ("2026-10-05", "대체공휴일"),
             ("2026-10-09", "한글날"),
             ("2026-10-16", "회사 창립기념일"),
             ("2026-10-22", "김민수 생일"),
-            ("2026-10-12", "반복 할일 1개 완료"),
         ]
         for (day, text) in expectations {
             let label = app.buttons["calendar.day.\(day)"].label
             XCTAssertTrue(label.contains(text), "\(day) 칸에 '\(text)'가 있어야 한다(지금: \(label))")
         }
+        // 반복 할일 완료는 달력에 보이지 않는다(사용자 결정 2026-10-22). 샘플 데이터에는 10/12 완료 기록이 있다.
+        let completedDay = app.buttons["calendar.day.2026-10-12"].label
+        XCTAssertFalse(completedDay.contains("반복 할일"), "달력 칸에 반복 할일 완료가 없어야 한다(지금: \(completedDay))")
 
         // 다가오는 생일 배너 → 생일 목록
         let banner = app.buttons["calendar.birthdays"]
@@ -134,20 +136,17 @@ final class FeatureScreenshotTests: XCTestCase {
         let app = launchApp()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
 
-        // 하루 상세 아래쪽 "반복 할일" 섹션에서 오늘 주기를 체크하고 취소한다
+        // 반복 할일은 하루 상세에 보이지 않는다(사용자 결정 2026-10-22). 끝까지 밀어도 없다.
         app.buttons["calendar.day.2026-10-19"].tap()
         let dayBar = app.navigationBars["10월 19일 (월)"]
         XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
         let dayList = element("dayDetail.list", in: app)
-        let dayRow = dayList.cells.containing(.staticText, identifier: "물 2L 마시기").firstMatch
-        for _ in 0..<4 where !dayRow.exists {
+        XCTAssertTrue(dayList.staticTexts["주간 회의"].waitForExistence(timeout: 5))
+        for _ in 0..<4 {
             dayList.swipeUp()
         }
-        XCTAssertTrue(dayRow.waitForExistence(timeout: 5), "하루 상세에 반복 할일 섹션이 있어야 한다")
-        dayRow.buttons["완료로 표시"].tap()
-        XCTAssertTrue(dayRow.buttons["완료 취소"].waitForExistence(timeout: 5), "하루 상세에서 체크할 수 있어야 한다")
-        dayRow.buttons["완료 취소"].tap()
-        XCTAssertTrue(dayRow.buttons["완료로 표시"].waitForExistence(timeout: 5), "하루 상세에서 체크를 취소할 수 있어야 한다")
+        XCTAssertFalse(dayList.staticTexts["물 2L 마시기"].exists, "하루 상세에 반복 할일이 없어야 한다")
+        XCTAssertFalse(dayList.staticTexts["반복 할일"].exists, "하루 상세에 반복 할일 섹션이 없어야 한다")
         app.buttons["닫기"].tap()
         XCTAssertTrue(dayBar.waitForNonExistence(timeout: 5))
 

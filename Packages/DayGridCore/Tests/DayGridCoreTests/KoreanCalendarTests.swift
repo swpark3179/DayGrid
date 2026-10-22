@@ -246,21 +246,3 @@ struct DayMarksPersonalHolidayTests {
         #expect(hangul?.spokenDescription == "한글날, 연차")
     }
 }
-
-@Suite("DayMarks 반복 할일")
-struct DayMarksRecurringTests {
-    @Test func completedRecurringTasksAddACheckMark() {
-        let range = day(2026, 10, 1)...day(2026, 10, 31)
-        let marks = DayMarks.make(
-            in: range,
-            holidays: [],
-            personalHolidays: [],
-            birthdays: [],
-            recurringCompletions: [day(2026, 10, 19), day(2026, 10, 19), day(2026, 11, 2)]
-        )
-        #expect(marks[day(2026, 10, 19)] == DayMark(completedRecurringCount: 2))
-        #expect(marks[day(2026, 10, 19)]?.calendarLabel == "✓")
-        #expect(marks[day(2026, 10, 19)]?.spokenDescription == "반복 할일 2개 완료")
-        #expect(marks.count == 1)
-    }
-}
