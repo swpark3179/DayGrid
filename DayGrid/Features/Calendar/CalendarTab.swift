@@ -10,6 +10,8 @@ struct CalendarTab: View {
     @Binding var dayToOpen: LocalDate?
     /// 값이 들어오면 그 달로 넘긴다("나중에" 항목을 달력에 넣었을 때).
     @Binding var monthToShow: LocalDate?
+    /// 일정 편집에서 "나중에 할일로 미루기"를 누르면, 하루 상세가 닫힌 뒤 부른다. RootView가 "나중에" 탭을 연다.
+    var onShowInbox: () -> Void = {}
 
     @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
     @Query private var people: [Person]
@@ -18,6 +20,8 @@ struct CalendarTab: View {
     @State private var editorMode: ItemEditorView.Mode?
     @State private var isShowingBirthdays = false
     @State private var isPickingMonth = false
+    /// 하루 상세가 닫히면 "나중에" 탭을 열지(일정 편집에서 미뤘을 때)
+    @State private var opensInboxAfterDismiss = false
     /// 기간 만들기 팁을 보일지(`RangePressTip.shouldDisplayUpdates`). 숨긴 팁이 자리를 차지하지 않게 따로 둔다.
     @State private var showsRangeTip = false
 
@@ -29,10 +33,16 @@ struct CalendarTab: View {
         (today.monthIndex - monthsAroundToday)...(today.monthIndex + monthsAroundToday)
     }
 
-    init(today: LocalDate, dayToOpen: Binding<LocalDate?> = .constant(nil), monthToShow: Binding<LocalDate?> = .constant(nil)) {
+    init(
+        today: LocalDate,
+        dayToOpen: Binding<LocalDate?> = .constant(nil),
+        monthToShow: Binding<LocalDate?> = .constant(nil),
+        onShowInbox: @escaping () -> Void = {}
+    ) {
         self.today = today
         _dayToOpen = dayToOpen
         _monthToShow = monthToShow
+        self.onShowInbox = onShowInbox
         _selectedMonth = State(initialValue: today.monthIndex)
     }
 
@@ -70,9 +80,13 @@ struct CalendarTab: View {
                     withAnimation(.snappy) { showsRangeTip = shouldDisplay }
                 }
             }
-            .sheet(item: $selectedDay) { selection in
+            .sheet(item: $selectedDay, onDismiss: { showInboxIfDeferred() }) { selection in
                 // 시트 높이(보통 medium/large, 옮기는 동안 작게)는 DayDetailView가 정한다.
-                DayDetailView(date: selection.date)
+                DayDetailView(date: selection.date) {
+                    // 하루 상세를 닫으면 위의 편집 시트도 함께 닫힌다. 탭은 시트가 다 닫힌 뒤 바꾼다.
+                    opensInboxAfterDismiss = true
+                    selectedDay = nil
+                }
             }
             .sheet(item: $editorMode) { mode in
                 ItemEditorView(mode: mode)
@@ -150,6 +164,12 @@ struct CalendarTab: View {
             .padding(.bottom, 6)
             .accessibilityIdentifier("calendar.birthdays")
         }
+    }
+
+    private func showInboxIfDeferred() {
+        guard opensInboxAfterDismiss else { return }
+        opensInboxAfterDismiss = false
+        onShowInbox()
     }
 
     /// 이전·다음 달로 넘긴다(꾹 눌러 끄는 중 가장자리에 머무를 때).

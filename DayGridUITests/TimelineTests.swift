@@ -56,6 +56,7 @@ final class TimelineTests: XCTestCase {
         target.tap()
         let titleField = app.textFields["editor.title"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5), "빈 곳을 누르면 새 일정 화면이 열려야 한다")
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "1", "타임라인에서 열면 시간 지정이 켜져 있어야 한다")
         titleField.tap()
         titleField.typeText("회의록 정리")
         app.buttons["저장"].tap()

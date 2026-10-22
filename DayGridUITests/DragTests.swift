@@ -21,7 +21,7 @@ final class DragTests: XCTestCase {
 
         let editorBar = app.navigationBars["새 일정"]
         XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "끌고 놓으면 새 일정 화면이 열려야 한다")
-        XCTAssertEqual(app.switches["종일"].value as? String, "1", "기간 일정은 종일로 시작해야 한다")
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "0", "기간 일정은 시간 없이(종일) 시작해야 한다")
         let title = app.textFields["editor.title"]
         title.tap()
         title.typeText("Range")

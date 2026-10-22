@@ -199,6 +199,34 @@ struct ItemDraftTests {
         #expect(item.scheduleHint == ScheduleHint(isAllDay: false, startMinute: 14 * 60, durationMinutes: 90))
     }
 
+    /// 편집 화면의 "나중에 할일로 미루기": 고친 내용을 저장하고, 날짜를 비워 "나중에" 맨 위로 보낸다. 지금 모양은 힌트로 남는다.
+    @Test func deferringSavesTheEditsAndKeepsTheShape() throws {
+        try DefaultCategories.insertIfNeeded(into: context)
+        let categories = try context.fetch(FetchDescriptor<ItemCategory>(sortBy: [SortDescriptor(\.sortOrder)]))
+        let item = Item(title: "치과")
+        context.insert(item)
+        item.scheduleTimed(
+            start: day(2026, 10, 5).date(hour: 14, in: seoul),
+            end: day(2026, 10, 5).date(hour: 15, in: seoul),
+            timeZone: seoul
+        )
+
+        var draft = ItemDraft(item: item, timeZone: seoul)
+        draft.title = "치과 검진"
+        draft.categoryID = categories[1].id
+        draft.hasTime = false
+        draft.end = day(2026, 10, 6).date(hour: 10, in: seoul)
+        draft.hasDate = false
+        draft.apply(to: item, categories: categories, inboxOrder: -2, timeZone: seoul)
+
+        #expect(!item.isScheduled)
+        #expect(item.inboxOrder == -2)
+        #expect(item.title == "치과 검진")
+        #expect(item.category?.id == categories[1].id)
+        #expect(item.scheduleHint.isAllDay)
+        #expect(item.scheduleHint.dayCount == 2)
+    }
+
     @Test func undatedDraftStartsFromTheHint() {
         let item = Item(title: "치과")
         context.insert(item)
@@ -262,6 +290,38 @@ struct ItemDraftTests {
         #expect(item.isAllDay)
         #expect(item.startDayKey == 20_261_021)
         #expect(item.endDayKey == 20_261_023)
+    }
+
+    /// 하루 상세의 + 버튼은 그 날 하루의 종일 일정(시간 지정 꺼짐)으로 연다.
+    @Test func plusButtonDraftIsOneDayWithoutTime() {
+        let draft = ItemDraft.newAllDay(from: day(2026, 10, 21), through: day(2026, 10, 21), categoryID: nil, timeZone: seoul)
+        #expect(!draft.hasTime)
+        #expect(draft.hasDate)
+        #expect(LocalDate(draft.start, in: seoul) == day(2026, 10, 21))
+        #expect(LocalDate(draft.end, in: seoul) == day(2026, 10, 21))
+
+        var named = draft
+        named.title = "장보기"
+        let item = Item(title: "")
+        context.insert(item)
+        named.apply(to: item, categories: [], timeZone: seoul)
+        #expect(item.isAllDay)
+        #expect(item.startDayKey == 20_261_021)
+        #expect(item.endDayKey == 20_261_021)
+    }
+
+    /// "시간 지정"은 종일의 반대다. 켜면 고른 날의 09:00–10:00 시간 일정이 된다.
+    @Test func hasTimeIsTheOppositeOfAllDay() {
+        var draft = ItemDraft.newAllDay(from: day(2026, 10, 21), through: day(2026, 10, 21), categoryID: nil, timeZone: seoul)
+        draft.hasTime = true
+        #expect(!draft.isAllDay)
+        #expect(draft.start == day(2026, 10, 21).date(hour: 9, in: seoul))
+        #expect(draft.end == day(2026, 10, 21).date(hour: 10, in: seoul))
+        draft.hasTime = false
+        #expect(draft.isAllDay)
+
+        let timed = ItemDraft.new(on: day(2026, 10, 30), startMinute: 15 * 60, categoryID: nil, timeZone: seoul)
+        #expect(timed.hasTime, "타임라인의 빈 곳을 누르면 시간 지정이 켜진 채 열린다")
     }
 
     @Test func remindersRoundTripThroughTheDraft() {

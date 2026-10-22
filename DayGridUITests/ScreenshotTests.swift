@@ -75,6 +75,7 @@ final class ScreenshotTests: XCTestCase {
         app.buttons["dayDetail.add"].tap()
         let titleField = app.textFields["editor.title"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.switches["시간 지정"].value as? String, "0", "하루 상세의 +는 시간 없이 시작해야 한다")
         titleField.tap()
         titleField.typeText("UI Test")
         attachScreenshot(of: app, named: "09-item-editor")
