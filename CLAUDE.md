@@ -63,6 +63,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 타임라인 보기에서는 `DayAgenda.make(separatingTimed: true)`가 시간이 있는 것을 모두 `timed`로 보낸다.
 - UI·모션(Phase 17)
   - 짧은 움직임은 `.snappy`다. 동작 줄이기(`accessibilityReduceMotion`, UIKit은 `UIAccessibility.isReduceMotionEnabled`)면 크기와 위치는 두고 투명도만 바꾼다.
+  - 몇 초씩 이어지는 애니메이션(반복, 긴 linear)은 두지 않는다. XCUITest가 앱이 멈추기를 기다리느라 탭이 늦어진다. 토스트의 남은 시간 막대를 이 때문에 뺐다(PR #24).
   - 달력 강조(꾹 눌러 고르는 기간, 끌어 놓을 칸)는 `WeekRowView`의 `DayBand`가 주마다 띠 하나로 그린다. 칸마다 따로 칠하지 않는다.
     - 꾹 누르는 동안의 링은 `DayPressRecognizer.onPressChange`(창 좌표, 끝나면 `nil`)로 받는다. 기간 문구는 Core `LocalDate.koreanRangeText(through:)`다.
   - 일정이 달력에 들어간 뒤(하루 상세 옮기기, "나중에" 넣기, 먼 달에서 "오늘")에는 `CalendarDropState.land(itemID:days:)`를 부른다. 그 날이 빛나고 막대가 튀어 들어온다.

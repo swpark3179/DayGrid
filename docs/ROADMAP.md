@@ -493,6 +493,7 @@ docs/ROADMAP.md, CLAUDE.md
     - 글자 "이번 달 5/15"는 그대로 두고 숫자만 굴린다. UI 테스트가 글자로 찾기 때문이다.
   - 토스트
     - 상태는 `UndoToastState`(화면마다 `@State`), 화면은 `.undoToast(_:hidden:)`다. 4초(VoiceOver면 8초) 뒤 내려간다.
+    - 남은 시간 막대는 뺐다. 막대가 4초 동안 움직이면 XCUITest가 앱이 멈추기를 기다리느라, 토스트가 내려간 뒤에야 "실행 취소"를 누르려 했다(PR #24 첫 CI).
     - 되돌리기는 `ItemSnapshot`으로 한다.
       - 지운 것: 같은 `id`, 만든 시각, 완료 표시로 되살린다.
       - "나중에": 그때의 날짜와 힌트로 돌린다.
@@ -605,6 +606,7 @@ docs/ROADMAP.md, CLAUDE.md
     - `LaunchOptionsTests.tipsAreHiddenInTestRunsUnlessAsked`
   - UI
     - `MotionTests`: 팁(35), 되돌리기 토스트(36), 카테고리 칩(37)
+      - PR #24 첫 CI(2026-10-22): 빌드는 됐고 88개 중 87개가 통과했다. `testUndoToastBringsBackASwipeDeletedItem`만 "toast.undo"를 누르지 못했다. 토스트의 4초짜리 남은 시간 막대 애니메이션 때문이었다. 막대를 빼고 다시 확인한다.
     - 기존 테스트가 그대로 통과하는지 본다: 밀기 삭제·나중에, 끌기(28, 29, 33), 반복 체크, 편집 화면
   - 기기: 체크리스트 15장
 

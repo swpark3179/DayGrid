@@ -15,7 +15,6 @@ final class UndoToastState {
         let id = UUID()
         let message: String
         let systemImage: String
-        let duration: TimeInterval
         let undo: @MainActor () -> Void
     }
 
@@ -28,7 +27,7 @@ final class UndoToastState {
 
     func show(_ message: String, systemImage: String, undo: @escaping @MainActor () -> Void) {
         let duration = UIAccessibility.isVoiceOverRunning ? Self.voiceOverDuration : Self.duration
-        let toast = Toast(message: message, systemImage: systemImage, duration: duration, undo: undo)
+        let toast = Toast(message: message, systemImage: systemImage, undo: undo)
         withAnimation(.snappy) {
             self.toast = toast
         }
@@ -56,12 +55,14 @@ final class UndoToastState {
     }
 }
 
-/// 아래쪽에 뜨는 토스트. 문구, "실행 취소" 버튼, 남은 시간을 보여주는 얇은 막대.
+/// 아래쪽에 뜨는 토스트. 문구와 "실행 취소" 버튼.
+///
+/// 남은 시간 막대는 두지 않는다. 몇 초씩 이어지는 애니메이션이 있으면 XCUITest가 앱이 멈추기를 기다리느라
+/// 토스트가 내려간 뒤에야 버튼을 누르게 된다(PR #24 CI: `MotionTests`에서 "toast.undo"를 찾지 못함).
 struct UndoToastView: View {
     let toast: UndoToastState.Toast
     let onUndo: () -> Void
 
-    @State private var remaining: CGFloat = 1
     @State private var undoCount = 0
 
     var body: some View {
@@ -89,27 +90,12 @@ struct UndoToastView: View {
         .background(Color(white: 0.11).opacity(0.96), in: RoundedRectangle(cornerRadius: 16))
         // 다크 모드에서 배경과 섞이지 않게 옅은 테두리
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.1), lineWidth: 0.5))
-        .overlay(alignment: .bottomLeading) {
-            GeometryReader { geometry in
-                Capsule()
-                    .fill(.white.opacity(0.35))
-                    .frame(width: max(0, (geometry.size.width - 32) * remaining), height: 2)
-                    .offset(x: 16, y: geometry.size.height - 6)
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
         .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
         .sensoryFeedback(.impact(weight: .light), trigger: undoCount)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("toast")
-        .onAppear {
-            withAnimation(.linear(duration: toast.duration)) {
-                remaining = 0
-            }
-        }
     }
 }
 
