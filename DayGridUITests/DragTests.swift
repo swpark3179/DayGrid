@@ -3,7 +3,7 @@ import XCTest
 /// 끌기 동작을 확인하고 스크린샷을 남긴다.
 /// - Phase 11: 꾹 눌러 기간 만들기(28)
 /// - Phase 15: "나중에" 항목을 꾹 눌러 덮개 달력에 넣기(29)
-/// - 하루 상세에서 꾹 눌러 다른 날로 옮기기(33)
+/// - 하루 상세에서 꾹 눌러 다른 날로 옮기기(33), 맨 위 X에 놓아 취소하기(40)
 final class DragTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -82,7 +82,7 @@ final class DragTests: XCTestCase {
     func testLongPressMovesAnItemFromTheDayDetailToAnotherDay() throws {
         let app = launchApp()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
-        // 놓을 칸(10/27, 일정이 없는 날)의 화면 위치. 옮기는 동안 시트가 작아져 달력이 보인다.
+        // 놓을 칸(10/27, 일정이 없는 날)의 화면 위치. 옮기는 동안 시트가 내려가며 사라져 달력이 보인다.
         let targetFrame = app.buttons["calendar.day.2026-10-27"].frame
 
         // 10/22 독서 모임(20:00–21:00)을 꾹 눌러 10/27에 놓는다
@@ -112,5 +112,38 @@ final class DragTests: XCTestCase {
         app.buttons["calendar.day.2026-10-22"].tap()
         XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
         XCTAssertFalse(element("dayDetail.list", in: app).staticTexts["독서 모임"].exists, "원래 날에서는 빠져야 한다")
+    }
+
+    @MainActor
+    func testDroppingOnTheCancelMarkKeepsTheItemAndBringsTheSheetBack() throws {
+        let app = launchApp()
+        XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
+        // 취소 표시(X)는 화면 맨 위 가운데, 달력 머리 줄(연·월)과 같은 높이에 뜬다.
+        let header = app.buttons["calendar.monthTitle"].frame
+        let cancelMark = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: app.frame.midX, dy: header.midY))
+
+        // 10/22 독서 모임을 꾹 눌러 달력 위를 지나 맨 위 X에서 놓는다
+        app.buttons["calendar.day.2026-10-22"].tap()
+        let dayBar = app.navigationBars["10월 22일 (목)"]
+        XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
+        let row = element("dayDetail.list", in: app).staticTexts["독서 모임"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 1.0, thenDragTo: cancelMark, withVelocity: .slow, thenHoldForDuration: 0.5)
+
+        // 옮기지 않고 시트가 원래 높이로 다시 보인다
+        XCTAssertTrue(dayBar.waitForExistence(timeout: 5), "X에 놓으면 하루 상세가 다시 보여야 한다")
+        let keptRow = element("dayDetail.list", in: app).staticTexts["독서 모임"]
+        XCTAssertTrue(keptRow.waitForExistence(timeout: 5), "X에 놓으면 원래 날에 그대로 있어야 한다")
+        // 시트가 다 나타난 뒤에 찍는다. 기다리지 못해도 아래의 누르기로 확인한다.
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: keptRow)
+        _ = XCTWaiter.wait(for: [restored], timeout: 3)
+        attachScreenshot(of: app, named: "40-day-detail-move-cancelled")
+
+        // 감췄던 시트가 투명한 채로 남으면 누르기가 시트를 지나가 편집이 열리지 않는다
+        keptRow.tap()
+        let editorBar = app.navigationBars["일정 편집"]
+        XCTAssertTrue(editorBar.waitForExistence(timeout: 5), "돌아온 시트의 행을 누르면 편집이 열려야 한다")
     }
 }

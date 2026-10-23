@@ -54,6 +54,11 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 날짜 칸은 `CalendarDropState.day(atWindowPoint:)`/`hover(atWindowPoint:)`로 구한다.
   - 시트 높이(medium/large, 옮기는 동안 `DayDetailView.movingDetent`)는 `DayDetailView`가 정한다.
     - 옮기는 동안은 목록 높이를 고정한다(`frozenHeight`). 시트와 함께 목록이 줄면 셀이 재사용되어 손가락 추적이 끊긴다.
+    - 옮기는 동안 시트는 닫지 않고 감춘다(`SheetCard`: 작은 높이로 내리고 카드를 투명하게). 닫으면 누른 행이 창에서 빠져 손가락 추적이 끊긴다(사용자 요청 2026-10-23).
+      - 다른 날에 놓으면 감춘 채로 `dismiss()`한다. 취소하면 원래 높이로 올리며 다시 보인다.
+  - 화면 맨 위 가운데의 취소 표시(X)는 `ItemMoveSession`이 창에 붙인다(`begin(…, showsCancelMark: true)`). 거기서 놓으면 옮기지 않는다.
+    - 놓는 자리는 `ItemMoveSession.cancelZone(in:safeAreaTop:)`다. 달력 칸에 걸치지 않는다.
+    - "나중에" → 달력 넣기에는 X를 두지 않는다. 덮개 달력 밖에서 떼면 취소다.
   - 손가락을 따라가는 미리보기는 `ItemMoveSession`이 창에 붙인다.
   - 옮기기는 `Item.move(byDays:)`로 한다. 연 날짜에서 놓은 날짜까지의 차이만큼 옮기고, 모양(종일 일수, 시각과 길이)은 그대로 둔다.
 - 하루 상세 타임라인(Phase 13)
@@ -102,7 +107,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 설정의 Picker를 눌러 바꾸지 않는다. 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29와 33, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39. 새 화면은 40부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29, 33, 40, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39. 새 화면은 41부터 붙인다.
   - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.
