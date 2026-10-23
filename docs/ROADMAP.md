@@ -552,6 +552,41 @@ docs/ROADMAP.md, CLAUDE.md
       - 기록으로 보면 지운 뒤 스크린샷까지 5초가 걸려, 4초짜리 토스트가 먼저 내려갔다. main의 직전 두 번은 통과했다.
     - UI 테스트(`-UITestSeedData`)에서는 토스트를 20초 둔다(`LaunchOptions.keepsToastsLonger` → `UndoToastState.usesUITestDuration`). 앱에서는 그대로 4초(VoiceOver면 8초)다.
 
+### Phase 19 — 하루 상세에서 옮길 때 시트 닫기, 맨 위 X로 취소 (사용자 요청 2026-10-23)
+- 하루 상세에서 일정이나 할일을 꾹 눌러 옮기기가 되면 시트를 닫아 달력 전체가 보이게 한다. 예전에는 64pt로 작아진 시트가 아래에 남았다.
+- 화면 맨 위 가운데에 X를 띄운다. 거기서 놓으면 옮기지 않는다.
+- 필요한 곳에 움직임을 넣는다.
+- 모델과 CloudKit 스키마는 바뀌지 않는다.
+- **완료 기준**
+  - 앱 단위 테스트 `ItemMoveSessionTests`(X의 자리와 놓는 범위)가 통과한다.
+  - UI 테스트가 통과한다.
+    - `DragTests.testDroppingOnTheCancelMarkKeepsTheItemAndBringsTheSheetBack`(스크린샷 40): X에 놓으면 일정이 그대로이고, 시트가 다시 보이며 행을 누를 수 있다.
+    - 기존 `DragTests.testLongPressMovesAnItemFromTheDayDetailToAnotherDay`(33)
+  - 기기 체크리스트 17장으로 확인한다.
+- **설계와 다른 점:** 취소하면 하루 상세가 원래 높이로 다시 열린다(예전 동작과 같다). 옮기기만 그만두고 그 날의 목록으로 돌아가는 것으로 해석했다.
+- **구현 메모**
+  - 시트는 정말 닫지 않고 감춘다(`DayDetailView`의 `SheetCard`).
+    - 닫으면 꾹 누른 행이 창에서 빠져 손가락 추적이 끊긴다. Phase 11 "나중에" 끌기가 탭을 바꾸다 놓이지 않던 것과 같은 원인이다.
+    - 시트는 예전처럼 `movingDetent`(64pt)로 내린다. large에서 뒤로 물러났던 달력이 제 크기로 돌아온다.
+    - 동시에 카드(띄우기 컨테이너 바로 아래 뷰, 배경과 그림자 포함)의 투명도를 0으로 한다. 내려가며 사라지므로 닫히는 것처럼 보인다.
+      - 카드는 누른 곳의 뷰(`window.hitTest`)에서 응답 사슬로 띄운 화면을 찾아 구한다.
+      - 투명해도 누르던 손가락은 행의 `WindowPressGesture`가 끝까지 받는다.
+      - 어두운 막은 예전처럼 `presentationBackgroundInteraction(.enabled)`으로 끈다.
+    - 다른 날에 놓으면 감춘 채로 `dismiss()`한다. 취소하면 원래 높이로 올리며 0.3초 동안 다시 보인다.
+    - 작아진 시트 위의 안내 줄(`MoveHintBar`)은 뺐다. 놓을 곳 안내는 손가락 위의 미리보기가 한다.
+  - X(`MoveCancelMark`)
+    - `ItemMoveSession.begin(…, showsCancelMark: true)`가 창에 붙인다. 미리보기보다 위에 붙여서, 미리보기가 맨 위로 올라와도 가리지 않는다.
+    - 가운데는 화면 가운데, 안전 영역 위 끝에서 26pt 아래다(`cancelMarkCenter`). 달력 머리 줄의 연·월과 버튼 사이 빈자리다.
+    - 놓는 자리(`cancelZone`)는 가로 120pt이고, 화면 맨 위 끝부터 X 아래 36pt까지다. 달력 칸에 걸치지 않는다.
+    - "나중에" → 달력 넣기에는 두지 않는다(요청 범위 밖). 덮개 달력 밖에서 떼면 예전처럼 취소다.
+  - 움직임
+    - 시작: 미리보기가 들어 올려지고(예전과 같다), 시트가 내려가며 0.2초 동안 사라진다. X는 0.08초 뒤 0.5배에서 spring으로 튀어나온다.
+    - X 위: X가 1.2배로 커지며 채워진다(`.snappy`). 미리보기는 0.85배, 투명도 0.55가 되고 "놓으면 옮기지 않습니다"로 바뀐다. 들어가고 나올 때 선택 햅틱이 온다.
+      - 미리보기 크기를 transform으로 바꾸므로, 손가락을 따라갈 때 `frame` 대신 `center`로 옮긴다.
+    - X에서 놓기: 미리보기가 시작한 자리로 돌아가며 사라지고, X는 줄어들며 사라지고, 시트가 올라오며 나타난다.
+    - 다른 날에 놓기: 예전처럼 미리보기가 그 칸으로 빨려 들고, 놓은 날이 빛나며 막대가 튀어 들어온다. X는 줄어들며 사라진다.
+    - 동작 줄이기면 X와 미리보기는 크기를 바꾸지 않고 투명도만 바꾼다. 시트는 투명도만 바꾸므로 그대로다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -659,6 +694,15 @@ docs/ROADMAP.md, CLAUDE.md
     - `MotionTests.testUndoToastBringsBackASwipeDeletedItem`: UI 테스트에서 토스트를 20초 둔 뒤 통과하는지 본다.
   - 기기: 체크리스트 16장
 
+- [ ] Phase 19 하루 상세에서 옮길 때 시트 닫기, 맨 위 X로 취소: PR CI 확인
+  - 앱: `ItemMoveSessionTests`(X의 자리와 놓는 범위)
+  - UI
+    - `DragTests.testDroppingOnTheCancelMarkKeepsTheItemAndBringsTheSheetBack`(스크린샷 40)
+      - 실패하면 놓은 자리가 `cancelZone` 안인지(시뮬레이터의 안전 영역 높이, 머리 줄 높이)부터 본다.
+      - 시트가 보이는데 행을 누를 수 없으면 카드의 투명도가 돌아오지 않은 것이다.
+    - `DragTests.testLongPressMovesAnItemFromTheDayDetailToAnotherDay`(33): 감춘 시트로도 끌기와 닫기가 그대로인지 본다.
+  - 기기: 체크리스트 17장. 시트가 정말 사라지는지(카드를 못 찾으면 예전처럼 64pt 시트가 남는다)와 움직임은 기기에서만 볼 수 있다.
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -682,3 +726,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 16: 테마 설정(시스템/라이트/다크), 달력 탭에서 반복 할일 빼기
 - [ ] Phase 17: UI·모션 개선(충전 링, 기간 띠, 착지 펄스, 되돌리기 토스트, 끌기 미리보기, 체크 피드백, 팁, 제목 숫자 전환, 카테고리 칩, 빠른 입력)
 - [ ] Phase 18: 일정 편집 화면 정리(날짜 토글 대신 "나중에 할일로 미루기", 카테고리 → 본문 → 알림, 알림 칩, "시간 지정", 새 일정은 시간 없이)
+- [ ] Phase 19: 하루 상세에서 꾹 눌러 옮길 때 시트 닫기, 맨 위 가운데 X로 취소, 움직임

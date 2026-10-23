@@ -8,9 +8,9 @@ import UIKit
 /// 반복 할일은 보여 주지 않는다. 반복 탭에서만 다룬다(사용자 결정 2026-10-22).
 /// 행을 왼쪽으로 밀면 삭제·복제, 오른쪽으로 밀면 "나중에"(날짜를 비우고 나중에 목록으로)가 나온다.
 ///
-/// 행을 꾹 누르면 옮기기가 된다(사용자 요청 2026-10-21). 시트가 아래로 작아져 달력이 보이고,
+/// 행을 꾹 누르면 옮기기가 된다(사용자 요청 2026-10-21). 시트가 내려가며 사라져 달력 전체가 보이고(사용자 요청 2026-10-23),
 /// 손가락을 떼지 않고 다른 날짜 위에서 놓으면 그만큼 날짜를 옮긴다(`Item.move(byDays:)`, 시각과 길이는 그대로).
-/// 달력 밖이나 같은 날에 놓으면 그대로 두고 시트를 되돌린다.
+/// 화면 맨 위 가운데의 취소 표시(X), 달력 밖, 같은 날에 놓으면 그대로 두고 시트를 되돌린다.
 ///
 /// 지우기, 복제, "나중에"는 확인 없이 바로 저장하고, 시트 아래쪽에 잠깐 "실행 취소" 토스트를 띄운다(`UndoToastState`).
 /// 옮기기는 시트가 닫히므로 토스트 대신 달력의 놓은 날이 한 번 빛난다(`CalendarDropState.land`).
@@ -22,7 +22,7 @@ struct DayDetailView: View {
     /// 편집 화면에서 "나중에 할일로 미루기"를 누른 뒤 부른다. 부르는 쪽(달력 탭)이 이 시트를 닫고 "나중에" 탭을 연다.
     var onMovedToInbox: (() -> Void)?
 
-    /// 옮기는 동안의 시트 높이. 달력을 가리지 않게 작게 둔다.
+    /// 옮기는 동안의 시트 높이. 시트는 감추지만(`SheetCard`) large에서 뒤로 물러난 달력이 제 크기로 돌아오도록 작게 둔다.
     static let movingDetent = PresentationDetent.height(64)
 
     @Environment(\.dismiss) private var dismiss
@@ -44,6 +44,8 @@ struct DayDetailView: View {
     /// 옮기는 동안 고정하는 목록 높이. 시트가 작아져도 목록은 그대로 두어 셀이 재사용되지 않게 한다
     /// (꾹 누른 행의 셀이 빠지면 손가락 추적이 끊긴다).
     @State private var frozenHeight: CGFloat?
+    /// 옮기는 동안 투명하게 감춘 시트 카드. 취소하면 되살린다.
+    @State private var hiddenSheetCard: UIView?
     @State private var toast = UndoToastState()
     /// 옮기기 팁을 보일지(`MoveItemTip.shouldDisplayUpdates`). 숨긴 팁이 빈 행으로 남지 않게 따로 둔다.
     @State private var showsMoveTip = false
@@ -115,11 +117,6 @@ struct DayDetailView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         .frame(height: frozenHeight)
         .frame(maxHeight: .infinity, alignment: .top)
-        .overlay(alignment: .top) {
-            if movingItemID != nil {
-                MoveHintBar()
-            }
-        }
         .presentationDetents(detents, selection: $detent)
         .presentationBackgroundInteraction(movingItemID == nil ? .automatic : .enabled)
         .interactiveDismissDisabled(movingItemID != nil)
@@ -232,13 +229,19 @@ struct DayDetailView: View {
             frozenHeight = contentHeight > 0 ? contentHeight : nil
             detentBeforeMove = detent
             movingItemID = item.id
+            // 시트를 닫지 않고 내리며 감춘다. 닫으면 누른 행이 창에서 빠져 손가락 추적이 끊긴다.
+            hiddenSheetCard = SheetCard.containing(window.hitTest(point, with: nil))
+            if let hiddenSheetCard {
+                SheetCard.fade(hiddenSheetCard, visible: false)
+            }
             detent = Self.movingDetent
             moveSession.begin(
                 title: item.title,
                 colorHex: item.category?.colorHex ?? CategoryPalette.uncategorizedHex,
                 from: date,
                 at: point,
-                in: window
+                in: window,
+                showsCancelMark: true
             )
         case .changed:
             moveSession.update(to: point)
@@ -250,7 +253,7 @@ struct DayDetailView: View {
                 if let entry = item.calendarEntry() {
                     CalendarDropState.shared.land(itemID: item.id, days: entry.startDay...entry.endDay)
                 }
-                // 시트는 작은 채로 닫는다. 달력에 옮긴 결과가 바로 보이고, 놓은 날이 한 번 빛난다.
+                // 시트는 감춘 채로 닫는다. 달력에 옮긴 결과가 바로 보이고, 놓은 날이 한 번 빛난다.
                 dismiss()
             } else {
                 endMove()
@@ -261,11 +264,15 @@ struct DayDetailView: View {
         }
     }
 
-    /// 옮기기를 그만두고 시트를 원래 높이로 되돌린다.
+    /// 옮기기를 그만두고 시트를 원래 높이로 되돌린다. 감춘 시트는 올라오며 다시 보인다.
     private func endMove() {
         movingItemID = nil
         detent = detentBeforeMove
         frozenHeight = nil
+        if let hiddenSheetCard {
+            SheetCard.fade(hiddenSheetCard, visible: true)
+        }
+        hiddenSheetCard = nil
     }
 
     private func delete(_ item: Item) {
@@ -377,18 +384,46 @@ private struct AgendaRowView: View {
     }
 }
 
-/// 옮기는 동안 작아진 시트 위쪽에 보이는 안내. 시트의 제목 줄을 덮는다.
-private struct MoveHintBar: View {
-    var body: some View {
-        Label("옮길 날짜 위에서 놓으세요. 여기에 놓으면 취소합니다.", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .background(.bar)
-            .allowsHitTesting(false)
+/// 옮기는 동안 하루 상세 시트를 감춘다(사용자 요청 2026-10-23: 시트를 닫아 달력이 보이게).
+///
+/// 시트를 정말 닫으면 꾹 누른 행이 창에서 빠져 손가락 추적이 끊긴다(Phase 11 "나중에" 끌기가 탭을 바꾸다 놓이지 않던 것과 같은 원인).
+/// 그래서 시트는 띄워 둔 채 작은 높이로 내리고, 카드(배경과 그림자까지)를 투명하게 해서 닫힌 것처럼 보이게 한다.
+/// 투명해도 누르던 손가락은 행의 제스처가 끝까지 받는다. 다른 손가락의 누르기는 카드를 지나 달력으로 간다.
+@MainActor
+private enum SheetCard {
+    /// `view`가 들어 있는 시트의 카드. 띄우기 컨테이너(`UIPresentationController.containerView`) 바로 아래 뷰다.
+    /// 시트 안이 아니면 `nil`
+    static func containing(_ view: UIView?) -> UIView? {
+        guard let view else { return nil }
+        var responder: UIResponder? = view
+        while let current = responder, !(current is UIViewController) {
+            responder = current.next
+        }
+        guard var controller = responder as? UIViewController else { return nil }
+        while let parent = controller.parent {
+            controller = parent
+        }
+        // 띄운 화면이 아니면(달력 탭 등) presentationController를 읽지 않는다. 읽기만 해도 새로 만들어진다.
+        guard controller.presentingViewController != nil,
+              let container = controller.presentationController?.containerView
+        else { return nil }
+        var card = view
+        while let parent = card.superview {
+            if parent === container {
+                return card
+            }
+            card = parent
+        }
+        return nil
+    }
+
+    /// 감출 때는 시트가 내려가는 동안 빨리 사라지고, 되살릴 때는 올라오는 동안 천천히 나타난다.
+    /// 투명도만 바꾸므로 동작 줄이기에서도 그대로 쓴다.
+    static func fade(_ card: UIView, visible: Bool) {
+        let curve: UIView.AnimationOptions = visible ? .curveEaseOut : .curveEaseIn
+        UIView.animate(withDuration: visible ? 0.3 : 0.2, delay: 0, options: [.allowUserInteraction, .beginFromCurrentState, curve]) {
+            card.alpha = visible ? 1 : 0
+        }
     }
 }
 
