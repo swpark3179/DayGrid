@@ -156,18 +156,26 @@ final class FeatureScreenshotTests: XCTestCase {
         for title in ["물 2L 마시기", "헬스장", "관리비 납부"] {
             XCTAssertTrue(list.staticTexts[title].waitForExistence(timeout: 5), "샘플 반복 할일 '\(title)'이 보여야 한다")
         }
-        let summaries = list.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "이번 달"))
-        XCTAssertGreaterThan(summaries.count, 0, "이번 달 완료 요약이 보여야 한다")
+        // 요약 기간은 규칙을 따른다. 매일·요일 여럿인 매주는 이번 주(10/18 일요일부터), 매월은 올해다.
+        // 분모는 그 기간의 주기 전체(남은 것 포함)다.
+        let water = list.cells.containing(.staticText, identifier: "물 2L 마시기").firstMatch
+        let gym = list.cells.containing(.staticText, identifier: "헬스장").firstMatch
+        let bill = list.cells.containing(.staticText, identifier: "관리비 납부").firstMatch
+        XCTAssertTrue(water.staticTexts["이번 주 1/7"].waitForExistence(timeout: 5), "매일은 이번 주 요약이어야 한다(10/18 완료)")
+        XCTAssertTrue(gym.staticTexts["이번 주 0/3"].exists, "월·수·금은 이번 주 요약이어야 한다")
+        XCTAssertTrue(bill.staticTexts["올해 1/4"].exists, "매월은 올해 요약이어야 한다(9/25–12/25 중 9/25 완료)")
+        XCTAssertEqual(list.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "이번 달")).count, 0, "매일·매주(요일 여럿)·매월에 이번 달 요약이 없어야 한다")
         attachScreenshot(of: app, named: "23-recurring")
 
-        // 지금 주기 체크와 취소
-        let water = list.cells.containing(.staticText, identifier: "물 2L 마시기").firstMatch
+        // 지금 주기 체크와 취소. 요약도 함께 바뀐다.
         let check = water.buttons["완료로 표시"]
         XCTAssertTrue(check.waitForExistence(timeout: 5), "아직 체크하지 않은 주기에는 체크박스가 있어야 한다")
         check.tap()
         XCTAssertTrue(water.buttons["완료 취소"].waitForExistence(timeout: 5), "체크하면 완료로 바뀌어야 한다")
+        XCTAssertTrue(water.staticTexts["이번 주 2/7"].waitForExistence(timeout: 5), "체크하면 이번 주 요약이 늘어야 한다")
         water.buttons["완료 취소"].tap()
         XCTAssertTrue(water.buttons["완료로 표시"].waitForExistence(timeout: 5), "다시 누르면 체크가 취소돼야 한다")
+        XCTAssertTrue(water.staticTexts["이번 주 1/7"].waitForExistence(timeout: 5), "체크를 취소하면 요약도 돌아와야 한다")
 
         // 편집 화면
         list.staticTexts["헬스장"].tap()

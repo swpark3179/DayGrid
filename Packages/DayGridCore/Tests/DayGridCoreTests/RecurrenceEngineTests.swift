@@ -84,13 +84,63 @@ struct RecurrenceEngineTests {
         #expect(limited.cycle(containing: day(2026, 10, 21)) == nil)
     }
 
-    @Test func monthSummaryCountsCyclesStartedSoFar() {
-        let completed: Set<LocalDate> = [day(2026, 10, 2), day(2026, 10, 5), day(2026, 10, 9), day(2026, 10, 19)]
-        let summary = mondayWednesdayFriday.monthSummary(month: day(2026, 10, 1), today: day(2026, 10, 19), completedCycleStarts: completed)
-        #expect(summary.done == 4)
-        #expect(summary.total == 8)
-        let future = mondayWednesdayFriday.monthSummary(month: day(2026, 11, 1), today: day(2026, 10, 19), completedCycleStarts: completed)
-        #expect(future.total == 0)
+    @Test func summaryPeriodFollowsTheRule() {
+        #expect(RecurrenceRule.daily.summaryPeriod == .week)
+        #expect(RecurrenceRule.weekly(weekdays: [2, 4, 6]).summaryPeriod == .week)
+        #expect(RecurrenceRule.weekly(weekdays: [1]).summaryPeriod == .month, "요일 하나면 이번 주는 늘 1/1이므로 이번 달로 센다")
+        #expect(RecurrenceRule.monthly(day: 25).summaryPeriod == .year)
+        #expect(RecurrenceRule.monthlyLastDay.summaryPeriod == .year)
+    }
+
+    @Test func summaryPeriodRanges() {
+        #expect(RecurrenceSummaryPeriod.week.range(containing: day(2026, 10, 19)) == day(2026, 10, 18)...day(2026, 10, 24))
+        #expect(RecurrenceSummaryPeriod.week.range(containing: day(2026, 10, 18), firstWeekday: 2) == day(2026, 10, 12)...day(2026, 10, 18))
+        #expect(RecurrenceSummaryPeriod.week.range(containing: day(2026, 10, 19), firstWeekday: 9) == day(2026, 10, 18)...day(2026, 10, 24))
+        #expect(RecurrenceSummaryPeriod.month.range(containing: day(2026, 2, 10)) == day(2026, 2, 1)...day(2026, 2, 28))
+        #expect(RecurrenceSummaryPeriod.year.range(containing: day(2026, 10, 19)) == day(2026, 1, 1)...day(2026, 12, 31))
+    }
+
+    @Test func dailySummaryCountsTheWholeWeek() {
+        let daily = Recurrence(rule: .daily, startDay: day(2026, 10, 1))
+        // 주 첫날(일요일)에도 1/1이 아니다. 남은 날까지 센다.
+        let sunday = daily.summary(on: day(2026, 10, 18), completedCycleStarts: [day(2026, 10, 18)])
+        #expect(sunday == RecurrenceSummary(period: .week, done: 1, total: 7))
+        #expect(sunday?.koreanText == "이번 주 1/7")
+        // 이번 주에 만든 할일은 시작일부터 센다. 지난주 완료는 세지 않는다.
+        let new = Recurrence(rule: .daily, startDay: day(2026, 10, 20))
+        let summary = new.summary(on: day(2026, 10, 20), completedCycleStarts: [day(2026, 10, 17), day(2026, 10, 20)])
+        #expect(summary == RecurrenceSummary(period: .week, done: 1, total: 5))
+    }
+
+    @Test func weeklySummaryUsesTheWeekOrTheMonth() {
+        let completed: Set<LocalDate> = [day(2026, 10, 16), day(2026, 10, 19)]
+        #expect(mondayWednesdayFriday.summary(on: day(2026, 10, 20), completedCycleStarts: completed)
+            == RecurrenceSummary(period: .week, done: 1, total: 3))
+        // 월요일 시작이면 10/18(일)은 10/12 주에 속한다: 10/12, 10/14, 10/16
+        #expect(mondayWednesdayFriday.summary(on: day(2026, 10, 18), firstWeekday: 2, completedCycleStarts: completed)
+            == RecurrenceSummary(period: .week, done: 1, total: 3))
+
+        let sundays = Recurrence(rule: .weekly(weekdays: [1]), startDay: day(2026, 10, 1))
+        let month = sundays.summary(on: day(2026, 10, 19), completedCycleStarts: [day(2026, 10, 4), day(2026, 10, 18)])
+        #expect(month == RecurrenceSummary(period: .month, done: 2, total: 4))
+        #expect(month?.koreanText == "이번 달 2/4")
+    }
+
+    @Test func monthlySummaryUsesTheYear() {
+        let bill = Recurrence(rule: .monthly(day: 25), startDay: day(2026, 9, 1))
+        let summary = bill.summary(on: day(2026, 10, 19), completedCycleStarts: [day(2026, 9, 25)])
+        #expect(summary == RecurrenceSummary(period: .year, done: 1, total: 4), "9/25, 10/25, 11/25, 12/25")
+        #expect(summary?.koreanText == "올해 1/4")
+        #expect(summary?.fraction == 0.25)
+    }
+
+    @Test func noSummaryWithoutCyclesInThePeriod() {
+        let later = Recurrence(rule: .daily, startDay: day(2026, 11, 1))
+        #expect(later.summary(on: day(2026, 10, 19), completedCycleStarts: []) == nil)
+        let ended = Recurrence(rule: .monthly(day: 25), startDay: day(2025, 1, 1), endDay: day(2025, 12, 31))
+        #expect(ended.summary(on: day(2026, 3, 1), completedCycleStarts: []) == nil)
+        let noWeekdays = Recurrence(rule: .weekly(weekdays: []), startDay: day(2026, 10, 1))
+        #expect(noWeekdays.summary(on: day(2026, 10, 19), completedCycleStarts: []) == nil)
     }
 
     @Test func cyclesStartingInARange() {

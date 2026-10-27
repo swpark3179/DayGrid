@@ -26,6 +26,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 반복 할일의 주기와 상태(완료/n일째/놓침)는 Core `Recurrence`로만 계산한다. "오늘 해야 하는데 안 함"(배지, 위젯)은 `Recurrence.isDue`(`RecurringTask.isDue(on:)`)로 센다. 놓침은 저장하지 않는다. 체크는 `RecurringTask.toggleCompletion(of:today:in:)`로 해서 같은 주기에 기록이 둘 생기지 않게 한다.
   - 반복 할일은 달력 탭(날짜 칸의 ✓, 하루 상세)에 보이지 않는다. 반복 탭, 탭 배지, 위젯, 알림에서만 다룬다(사용자 결정 2026-10-22).
   - 반복 할일 알림을 누르면 반복 탭을 연다(`NotificationRouter.open(day:recurringTaskID:)` → `routeToOpen`). 다른 알림은 그 날의 하루 상세를 연다.
+  - 반복 탭의 요약은 Core `Recurrence.summary(on:firstWeekday:completedCycleStarts:)`다. 기간은 `RecurrenceRule.summaryPeriod`가 정한다: 매일·요일 여럿인 매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해(사용자 결정 2026-10-27). 분모는 그 기간의 주기 전체(남은 것 포함)다.
 - 알림은 Core `ReminderPlanner`로 계획하고 `NotificationScheduler.sync()`로만 예약한다. 알림 권한은 사용자가 알림을 켤 때만 묻는다(`requestAuthorization()`). 화면 코드에서 `UNUserNotificationCenter`를 직접 부르지 않는다.
 - 공휴일은 Core `KoreanHolidays`가 계산하고, 앱에서는 `HolidayService`(보정 자료, 연도별 캐시)를 거쳐 쓴다. 날짜 칸 표시는 Core `DayMarks`로 모은다.
   - 공휴일(`DayMark.holidayNames`)과 개인 휴일(`personalHolidayNames`)은 따로 담는다.

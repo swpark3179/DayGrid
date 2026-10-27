@@ -25,6 +25,74 @@ public enum RecurrenceRule: Hashable, Sendable, Codable {
             return "매월 말일"
         }
     }
+
+    /// 반복 탭 요약의 기간: 주기가 여러 번 들어가는 가장 짧은 기간이다(사용자 결정 2026-10-27).
+    /// 매일과 요일 여럿인 매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해다.
+    public var summaryPeriod: RecurrenceSummaryPeriod {
+        switch self {
+        case .daily:
+            return .week
+        case .weekly(let weekdays):
+            return weekdays.count >= 2 ? .week : .month
+        case .monthly, .monthlyLastDay:
+            return .year
+        }
+    }
+}
+
+/// 반복 탭 요약의 기간. 달력 기준이고, 주는 주 시작 요일부터 7일이다.
+public enum RecurrenceSummaryPeriod: Hashable, Sendable {
+    case week
+    case month
+    case year
+
+    /// "이번 주", "이번 달", "올해"
+    public var koreanText: String {
+        switch self {
+        case .week: "이번 주"
+        case .month: "이번 달"
+        case .year: "올해"
+        }
+    }
+
+    /// `date`가 속한 기간.
+    /// - Parameter firstWeekday: 주 시작 요일. 1 = 일요일 … 7 = 토요일. 범위 밖이면 일요일로 본다.
+    public func range(containing date: LocalDate, firstWeekday: Int = 1) -> ClosedRange<LocalDate> {
+        switch self {
+        case .week:
+            let weekStart = (1...7).contains(firstWeekday) ? firstWeekday : 1
+            let first = date.adding(days: -((date.weekday - weekStart + 7) % 7))
+            return first...first.adding(days: 6)
+        case .month:
+            return date.firstDayOfMonth...date.lastDayOfMonth
+        case .year:
+            return LocalDate(firstDayOfMonthIndex: date.year * 12)...LocalDate(firstDayOfMonthIndex: date.year * 12 + 11).lastDayOfMonth
+        }
+    }
+}
+
+/// 반복 탭의 요약 "이번 주 2/7". `total`은 그 기간에 시작하는 주기 수(아직 오지 않은 것 포함), `done`은 그중 완료한 수다.
+/// 분모가 기간 전체이므로 링은 기간 동안 차오르고, 기간 첫날에도 "1/1"이 되지 않는다.
+public struct RecurrenceSummary: Hashable, Sendable {
+    public let period: RecurrenceSummaryPeriod
+    public let done: Int
+    public let total: Int
+
+    public init(period: RecurrenceSummaryPeriod, done: Int, total: Int) {
+        self.period = period
+        self.done = done
+        self.total = total
+    }
+
+    /// 0…1
+    public var fraction: Double {
+        total > 0 ? min(Double(done) / Double(total), 1) : 0
+    }
+
+    /// "이번 주 2/7", "올해 9/12"
+    public var koreanText: String {
+        "\(period.koreanText) \(done)/\(total)"
+    }
 }
 
 /// 반복 할일의 주기 하나: `[start, 다음 발생일)`. `end`는 다음 발생일 전날(포함)이다.
@@ -54,7 +122,7 @@ public enum RecurrenceStatus: Hashable, Sendable {
     case upcoming
 }
 
-/// 반복 할일 계산: 발생일, 날짜가 속한 주기, 주기 상태, 월 요약.
+/// 반복 할일 계산: 발생일, 날짜가 속한 주기, 주기 상태, 기간 요약.
 ///
 /// - 주기는 발생일부터 다음 발생일 전날까지다. 매일은 하루가 주기 하나다.
 /// - `startDay` 이전과 `endDay` 이후에는 발생일이 없다. 마지막 주기도 원래 길이만큼 이어진다.
@@ -108,12 +176,14 @@ public struct Recurrence: Hashable, Sendable, Codable {
         return !completedCycleStarts.contains(cycle.start)
     }
 
-    /// `month`(그 달의 아무 날)에 시작한 주기 중 오늘까지 시작한 것과 그중 완료한 것. "이번 달 3/4 완료"
-    public func monthSummary(month: LocalDate, today: LocalDate, completedCycleStarts: Set<LocalDate>) -> (done: Int, total: Int) {
-        let upper = min(month.lastDayOfMonth, today)
-        guard month.firstDayOfMonth <= upper else { return (0, 0) }
-        let starts = occurrences(in: month.firstDayOfMonth...upper)
-        return (starts.filter { completedCycleStarts.contains($0) }.count, starts.count)
+    /// 반복 탭의 요약. `today`가 속한 요약 기간(`rule.summaryPeriod`)에 시작하는 주기 전체(아직 오지 않은 것 포함)와
+    /// 그중 완료한 것. 그 기간에 주기가 없으면 `nil`.
+    /// - Parameter firstWeekday: 주 시작 요일. 1 = 일요일 … 7 = 토요일
+    public func summary(on today: LocalDate, firstWeekday: Int = 1, completedCycleStarts: Set<LocalDate>) -> RecurrenceSummary? {
+        let period = rule.summaryPeriod
+        let starts = occurrences(in: period.range(containing: today, firstWeekday: firstWeekday))
+        guard !starts.isEmpty else { return nil }
+        return RecurrenceSummary(period: period, done: starts.filter { completedCycleStarts.contains($0) }.count, total: starts.count)
     }
 
     // MARK: - 규칙별 발생일(시작일·종료일과 무관하게)
