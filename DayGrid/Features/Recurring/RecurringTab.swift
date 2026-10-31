@@ -2,7 +2,7 @@ import DayGridCore
 import SwiftData
 import SwiftUI
 
-/// 반복 할일 목록. 지금 주기를 체크하고, 이번 달 완료 수를 본다. 누르면 규칙을 고친다.
+/// 반복 할일 목록. 지금 주기를 체크하고, 규칙에 맞는 기간(이번 주·이번 달·올해)의 완료 수를 본다. 누르면 규칙을 고친다.
 struct RecurringTab: View {
     @Environment(AppClock.self) private var clock
     @Environment(\.modelContext) private var modelContext
@@ -56,7 +56,7 @@ struct RecurringTab: View {
     }
 
     private func row(_ task: RecurringTask) -> some View {
-        RecurringTaskRow(task: task, date: clock.today, today: clock.today, showsMonthSummary: true)
+        RecurringTaskRow(task: task, date: clock.today, today: clock.today, showsSummary: true)
             .contentShape(Rectangle())
             .onTapGesture {
                 editingTask = task
@@ -75,9 +75,10 @@ struct RecurringTaskRow: View {
     let task: RecurringTask
     let date: LocalDate
     let today: LocalDate
-    var showsMonthSummary = false
+    var showsSummary = false
 
     @Environment(\.modelContext) private var modelContext
+    @AppStorage(AppSettings.firstWeekdayKey) private var firstWeekday = 1
 
     var body: some View {
         let current = task.isActive ? task.cycleStatus(on: date, today: today) : nil
@@ -91,11 +92,11 @@ struct RecurringTaskRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            if showsMonthSummary, task.isActive, let summary = monthSummary {
+            if showsSummary, task.isActive, let summary {
                 HStack(spacing: 6) {
-                    MonthProgressRing(fraction: Double(summary.done) / Double(summary.total))
-                    // UI 테스트가 "이번 달"로 시작하는 글자를 찾는다. 숫자만 굴러가게 한다.
-                    Text(verbatim: "이번 달 \(summary.done)/\(summary.total)")
+                    SummaryProgressRing(fraction: summary.fraction)
+                    // UI 테스트가 "이번 주 1/7" 같은 글자로 찾는다. 숫자만 굴러가게 한다.
+                    Text(verbatim: summary.koreanText)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText(value: Double(summary.done)))
@@ -110,7 +111,7 @@ struct RecurringTaskRow: View {
         if let current, current.cycle.contains(today) {
             let isDone = Self.isDone(current.status)
             Button {
-                // 상세 문구와 이번 달 요약도 함께 바뀌도록 애니메이션 안에서 바꾼다.
+                // 상세 문구와 기간 요약도 함께 바뀌도록 애니메이션 안에서 바꾼다.
                 withAnimation(.snappy) {
                     task.toggleCompletion(of: current.cycle, today: today, in: modelContext)
                 }
@@ -166,16 +167,15 @@ struct RecurringTaskRow: View {
         task.recurrence?.occurrences(in: today...today.adding(days: 62)).first
     }
 
-    /// 이번 달 완료 수와 주기 수. 이번 달에 주기가 없으면 `nil`.
-    private var monthSummary: (done: Int, total: Int)? {
-        guard let recurrence = task.recurrence else { return nil }
-        let summary = recurrence.monthSummary(month: today, today: today, completedCycleStarts: Set(task.completionDays.keys))
-        return summary.total > 0 ? summary : nil
+    /// 오늘이 속한 요약 기간(매일·요일 여럿인 매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해)의 완료 수와 주기 수.
+    /// 그 기간에 주기가 없으면 `nil`.
+    private var summary: RecurrenceSummary? {
+        task.recurrence?.summary(on: today, firstWeekday: firstWeekday, completedCycleStarts: Set(task.completionDays.keys))
     }
 }
 
-/// 이번 달 완료 비율을 보여 주는 작은 링. 글자("이번 달 5/15")가 같은 내용을 읽어 주므로 VoiceOver에서는 숨긴다.
-private struct MonthProgressRing: View {
+/// 기간 완료 비율을 보여 주는 작은 링. 글자("이번 주 2/7")가 같은 내용을 읽어 주므로 VoiceOver에서는 숨긴다.
+private struct SummaryProgressRing: View {
     let fraction: Double
 
     var body: some View {

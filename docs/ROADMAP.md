@@ -50,7 +50,7 @@ docs/ROADMAP.md, CLAUDE.md
 
 **반복 할일 규칙** (`RecurrenceEngine`, 단위 테스트로 고정)
 - 주기 하나는 `[이번 발생일, 다음 발생일)` 구간이다. 이 구간 안에서 완료 기록이 없으면, 오늘 화면에 체크박스로 계속 남고 "n일째" 배지가 붙는다.
-- 체크하면 `completedDay`(체크한 날)에 완료 표시가 나타난다. 월 화면에는 "이번 달 3/4 완료" 요약을 보여준다.
+- 체크하면 `completedDay`(체크한 날)에 완료 표시가 나타난다. 반복 탭에는 규칙에 맞는 기간의 요약("이번 주 2/7", "이번 달 2/4", "올해 9/12")을 보여준다(Phase 20).
 - 다음 주기가 오면 지난 주기는 "놓침"으로 판정한다. 놓침은 저장하지 않고 계산으로 구한다. 그리고 새 주기가 나타난다.
 - 매월 31일처럼 없는 날짜는 그 달의 말일로 맞춘다. 매주는 여러 요일을 고를 수 있다. 매일은 하루가 주기 하나다.
 
@@ -587,6 +587,27 @@ docs/ROADMAP.md, CLAUDE.md
     - 다른 날에 놓기: 예전처럼 미리보기가 그 칸으로 빨려 들고, 놓은 날이 빛나며 막대가 튀어 들어온다. X는 줄어들며 사라진다.
     - 동작 줄이기면 X와 미리보기는 크기를 바꾸지 않고 투명도만 바꾼다. 시트는 투명도만 바꾸므로 그대로다.
 
+### Phase 20 — 반복 탭 요약 기간 (사용자 요청 2026-10-27)
+- 반복 탭 오른쪽 요약이 규칙과 상관없이 "이번 달 완료/오늘까지 시작한 주기"였다. 최근에 만든 매일·매주 할일은 "이번 달 1/1"로 보여, 체크 표시와 같은 말만 했다.
+- 요약 기간을 규칙에 맞춘다(사용자 결정). 주기가 여러 번 들어가는 가장 짧은 기간이다.
+  - 매일, 요일 여럿인 매주: 이번 주(설정의 주 시작 요일부터 7일)
+  - 요일 하나인 매주: 이번 달
+  - 매월(n일, 말일): 올해
+- 분모는 그 기간에 시작하는 주기 전체다. 아직 오지 않은 주기도 센다. 그래서 링이 기간 동안 차오르고, 기간 첫날에도 "1/1"이 되지 않는다.
+  - 시작일 전과 종료일 뒤의 주기는 세지 않는다. 그 기간에 주기가 없으면 요약을 숨긴다(예전과 같다).
+- 모델과 CloudKit 스키마는 바뀌지 않는다.
+- **완료 기준**
+  - Core 테스트 `RecurrenceEngineTests`(요약 기간, 기간 범위, 매일·매주·매월 요약, 주기가 없는 기간)가 통과한다.
+  - UI 테스트 `FeatureScreenshotTests.testRecurringTasks`(스크린샷 23)가 통과한다.
+    - 10/19(월) 샘플: 물 2L 마시기 "이번 주 1/7", 헬스장 "이번 주 0/3", 관리비 납부 "올해 1/4"
+    - 체크하면 "이번 주 2/7", 취소하면 "이번 주 1/7"
+  - 기기 체크리스트 18장으로 확인한다.
+- **구현 메모**
+  - Core `RecurrenceRule.summaryPeriod` → `RecurrenceSummaryPeriod`(`range(containing:firstWeekday:)`, `koreanText`)
+  - Core `Recurrence.summary(on:firstWeekday:completedCycleStarts:)` → `RecurrenceSummary`(`done`, `total`, `fraction`, `koreanText`). 예전 `monthSummary`를 대신한다.
+  - `RecurringTaskRow`는 `@AppStorage(AppSettings.firstWeekdayKey)`로 주 시작 요일을 읽는다.
+  - 기간은 오늘이 속한 달력 기간이다. 지난 기간에 시작한 주기(예: 일요일 시작 주에서 금–일 주기)를 이번 주에 체크하면, 상세 문구는 바뀌지만 요약은 그 주기가 시작한 기간에 센다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -703,6 +724,11 @@ docs/ROADMAP.md, CLAUDE.md
     - `DragTests.testLongPressMovesAnItemFromTheDayDetailToAnotherDay`(33): 감춘 시트로도 끌기와 닫기가 그대로인지 본다.
   - 기기: 체크리스트 17장. 시트가 정말 사라지는지(카드를 못 찾으면 예전처럼 64pt 시트가 남는다)와 움직임은 기기에서만 볼 수 있다.
 
+- [ ] Phase 20 반복 탭 요약 기간: PR CI 확인
+  - Core: `RecurrenceEngineTests`(`summaryPeriodFollowsTheRule`, `summaryPeriodRanges`, `dailySummaryCountsTheWholeWeek`, `weeklySummaryUsesTheWeekOrTheMonth`, `monthlySummaryUsesTheYear`, `noSummaryWithoutCyclesInThePeriod`)
+  - UI: `FeatureScreenshotTests.testRecurringTasks`(스크린샷 23)
+  - 기기: 체크리스트 18장
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -727,3 +753,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 17: UI·모션 개선(충전 링, 기간 띠, 착지 펄스, 되돌리기 토스트, 끌기 미리보기, 체크 피드백, 팁, 제목 숫자 전환, 카테고리 칩, 빠른 입력)
 - [ ] Phase 18: 일정 편집 화면 정리(날짜 토글 대신 "나중에 할일로 미루기", 카테고리 → 본문 → 알림, 알림 칩, "시간 지정", 새 일정은 시간 없이)
 - [ ] Phase 19: 하루 상세에서 꾹 눌러 옮길 때 시트 닫기, 맨 위 가운데 X로 취소, 움직임
+- [ ] Phase 20: 반복 탭 요약 기간(매일·매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해)
