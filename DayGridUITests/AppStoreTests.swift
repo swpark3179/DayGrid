@@ -149,7 +149,9 @@ final class AppStorePreviewTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 달력: 달 넘기기 → 꾹 눌러 기간 일정 만들기 → 하루 상세
+    /// 달력: 연·월로 다른 달 보기 → 꾹 눌러 기간 일정 만들기
+    /// 녹화 중에는 밀어서 달을 넘기지 않는다. 러너가 바빠 손가락 움직임이 늦게 닿으면 꾹 누르기(0.4초)가 먼저 시작되어
+    /// 달 넘김이 멈춘다(2026-11-01 실행 #1, #2). 연·월 고르기는 누르기만 하므로 시간에 흔들리지 않는다.
     @MainActor
     func test1CalendarPreview() throws {
         let recorder = try PreviewRecorder()
@@ -159,11 +161,15 @@ final class AppStorePreviewTests: XCTestCase {
 
         try recorder.start("1-calendar")
         AppStoreRun.pause(2.0)
-        // 기본 속도로 넘긴다. 느리게 밀면 꾹 누르기(기간 고르기)가 먼저 시작되어 달 넘김이 멈춘다.
-        app.swipeLeft()
+        app.buttons["calendar.monthTitle"].tap()
+        let pickerBar = app.navigationBars["날짜로 이동"]
+        XCTAssertTrue(pickerBar.waitForExistence(timeout: 5))
+        AppStoreRun.pause(1.0)
+        app.buttons["monthPicker.month.11"].tap()
+        XCTAssertTrue(pickerBar.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["2026년 11월"].waitForExistence(timeout: 5))
         AppStoreRun.pause(1.5)
-        app.swipeRight()
+        app.buttons["오늘"].tap()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 5))
         AppStoreRun.pause(1.0)
 
@@ -189,16 +195,7 @@ final class AppStorePreviewTests: XCTestCase {
         app.buttons["저장"].tap()
         XCTAssertTrue(editorBar.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["제주 여행"].waitForExistence(timeout: 5))
-        AppStoreRun.pause(2.0)
-
-        // 오늘의 하루 상세
-        app.buttons["calendar.day.2026-10-19"].tap()
-        let dayBar = app.navigationBars["10월 19일 (월)"]
-        XCTAssertTrue(dayBar.waitForExistence(timeout: 5))
         AppStoreRun.pause(2.5)
-        app.buttons["닫기"].tap()
-        XCTAssertTrue(dayBar.waitForNonExistence(timeout: 5))
-        AppStoreRun.pause(1.5)
         try recorder.stop("1-calendar")
     }
 
