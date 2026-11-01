@@ -159,10 +159,11 @@ final class AppStorePreviewTests: XCTestCase {
 
         try recorder.start("1-calendar")
         AppStoreRun.pause(2.0)
-        app.swipeLeft(velocity: .slow)
+        // 기본 속도로 넘긴다. 느리게 밀면 꾹 누르기(기간 고르기)가 먼저 시작되어 달 넘김이 멈춘다.
+        app.swipeLeft()
         XCTAssertTrue(app.staticTexts["2026년 11월"].waitForExistence(timeout: 5))
         AppStoreRun.pause(1.5)
-        app.swipeRight(velocity: .slow)
+        app.swipeRight()
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 5))
         AppStoreRun.pause(1.0)
 
@@ -256,6 +257,7 @@ final class AppStorePreviewTests: XCTestCase {
 ///
 /// 1. 테스트가 `<이름>.start`를 만든다. → 녹화기가 녹화를 시작하고 `<이름>.recording`을 만든다.
 /// 2. 테스트가 `<이름>.stop`을 만든다. → 녹화기가 녹화를 끝내 파일을 저장하고 `<이름>.saved`를 만든다.
+/// 테스트가 중간에 실패하면 `.stop`이 없으므로, 녹화기는 다음 `.start`나 `all.done`을 보고 그 녹화를 버린다.
 struct PreviewRecorder {
     let directory: URL
 
@@ -270,10 +272,11 @@ struct PreviewRecorder {
         }
     }
 
+    /// simctl은 녹화를 시작하는 데 30초쯤 걸릴 수 있다(2026-11-01 실행 #1).
     func start(_ name: String) throws {
         try signal("\(name).start")
-        try waitFor("\(name).recording", timeout: 30)
-        AppStoreRun.pause(0.5)
+        try waitFor("\(name).recording", timeout: 120)
+        AppStoreRun.pause(1.0)
     }
 
     func stop(_ name: String) throws {
