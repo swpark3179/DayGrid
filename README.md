@@ -4,6 +4,8 @@
 
 - 계획과 진행 현황: [docs/ROADMAP.md](docs/ROADMAP.md)
 - 개발 규칙: [CLAUDE.md](CLAUDE.md)
+- App Store 등록 준비: [docs/APP_STORE.md](docs/APP_STORE.md)
+- 지원·개인정보 처리방침: https://swpark3179.github.io/DayGrid/
 
 ## 빌드
 

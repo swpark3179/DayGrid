@@ -1,0 +1,172 @@
+name: App Store assets
+
+# App Store 스크린샷(문구·기기 틀)과 미리보기 영상을 만든다. 결과는 `app-store-assets` 아티팩트다(docs/APP_STORE.md).
+# - capture(macOS): 6.9형 시뮬레이터에서 AppStoreScreenshotTests(화면 9장)와 AppStorePreviewTests(영상 2개)를 돌린다.
+# - compose(Linux): 화면에 문구와 기기 틀을 입혀 6.9형·6.3형 크기로 만들고, 영상을 App Store 규격(886x1920, 15–30초)으로 바꾼다.
+# 문구는 appstore/screenshots.json, 화면 순서와 동작은 DayGridUITests/AppStoreTests.swift에서 고친다.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "appstore/**"
+      - "DayGridUITests/AppStoreTests.swift"
+      - "scripts/appstore/**"
+      - ".github/workflows/appstore-assets.yml"
+
+concurrency:
+  group: appstore-assets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capture screens and previews (iPhone 6.9")
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      # xcodebuild가 TEST_RUNNER_를 떼고 UI 테스트 실행기에 넘긴다. 이게 없으면 App Store 테스트는 건너뛴다.
+      TEST_RUNNER_DAYGRID_APPSTORE: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Boot a 6.9-inch simulator
+        id: simulator
+        run: |
+          udid=$(python3 scripts/appstore/large_simulator.py)
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+          xcrun simctl bootstatus "$udid" -b
+          # App Store용 상태 막대: 9:41, 배터리 가득(충전 표시 없음)
+          xcrun simctl status_bar "$udid" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100 || true
+
+      - name: Capture screens and record previews
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          # 시뮬레이터 안의 테스트와 녹화기(record_previews.py)가 이 폴더의 파일로 신호를 주고받는다.
+          handshake="$HOME/Library/Caches/daygrid-appstore"
+          rm -rf "$handshake" build
+          mkdir -p "$handshake" build/appstore/previews-raw
+          python3 scripts/appstore/record_previews.py --udid "$UDID" --handshake "$handshake" --out build/appstore/previews-raw &
+          recorder=$!
+          set +e
+          set -o pipefail
+          TEST_RUNNER_DAYGRID_APPSTORE_HANDSHAKE="$handshake" xcodebuild test \
+            -project DayGrid.xcodeproj \
+            -scheme DayGrid \
+            -destination "id=$UDID" \
+            -only-testing:DayGridUITests/AppStoreScreenshotTests \
+            -only-testing:DayGridUITests/AppStorePreviewTests \
+            -resultBundlePath build/AppStore.xcresult \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/xcodebuild.log
+          status=$?
+          touch "$handshake/all.done"
+          wait "$recorder"
+          exit $status
+
+      - name: Show test failures
+        if: failure()
+        run: |
+          if [ -d build/AppStore.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path build/AppStore.xcresult || true
+          fi
+
+      - name: Export screenshots
+        if: always()
+        run: |
+          mkdir -p build/appstore/raw
+          if [ -d build/AppStore.xcresult ]; then
+            xcrun xcresulttool export attachments --path build/AppStore.xcresult --output-path build/appstore/raw
+            python3 scripts/ci/export_screenshots.py build/appstore/raw
+          fi
+          ls -la build/appstore/raw build/appstore/previews-raw
+          count=$(ls build/appstore/raw/*.png 2>/dev/null | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::App Store 화면이 하나도 없다. 테스트가 건너뛰어졌다면 TEST_RUNNER_DAYGRID_APPSTORE가 넘어갔는지 본다."
+            exit 1
+          fi
+
+      - name: Upload raw captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-store-raw
+          path: build/appstore
+          if-no-files-found: warn
+
+  compose:
+    name: Compose screenshots and encode previews
+    needs: capture
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check store text
+        run: python3 scripts/appstore/check_metadata.py .
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-store-raw
+          path: build/appstore
+
+      - name: Install ffmpeg and Pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet pillow==12.3.0
+
+      - name: Download fonts (Pretendard 1.3.9, SIL OFL)
+        run: |
+          mkdir -p build/fonts
+          base=https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/public/static
+          for weight in Bold Medium; do
+            curl -fsSL -o "build/fonts/Pretendard-$weight.otf" "$base/Pretendard-$weight.otf"
+          done
+          cd build/fonts
+          printf '%s  %s\n' \
+            2e91915fab54df71cc9598ebf608b2bdb54c6fe3c066ac61dff0bc44fca71cc7 Pretendard-Bold.otf \
+            d39e50e4bb52b4993b6a4eeb821a171254745bd824446af01e1f616b89fface0 Pretendard-Medium.otf \
+            | sha256sum -c -
+
+      - name: Compose screenshots
+        run: |
+          .venv/bin/python scripts/appstore/compose_screenshots.py \
+            --config appstore/screenshots.json \
+            --raw build/appstore/raw \
+            --fonts build/fonts \
+            --out build/app-store-assets/screenshots
+
+      - name: Encode previews
+        run: python3 scripts/appstore/encode_previews.py --raw build/appstore/previews-raw --out build/app-store-assets/previews
+
+      - name: Add store text and summary
+        run: |
+          cp -R appstore/metadata build/app-store-assets/metadata
+          {
+            echo "### App Store assets"
+            echo
+            echo "아티팩트 \`app-store-assets\`를 내려받아 App Store Connect에 올린다(docs/APP_STORE.md)."
+            echo
+            echo '```'
+            (cd build/app-store-assets && find . -type f \( -name '*.png' -o -name '*.mp4' \) | sort)
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: app-store-assets
+          path: build/app-store-assets
+          if-no-files-found: error

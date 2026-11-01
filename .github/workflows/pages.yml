@@ -1,0 +1,38 @@
+name: Pages
+
+# 안내 페이지(site/)를 GitHub Pages에 올린다: https://swpark3179.github.io/DayGrid/
+# App Store의 지원 URL, 개인정보 처리방침 URL, 앱의 설정 → 정보 링크(AppLinks)가 이 페이지를 가리킨다.
+# 처음 한 번 저장소 Settings → Pages → Build and deployment → Source를 "GitHub Actions"로 바꿔야 한다(docs/APP_STORE.md).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy site/ to GitHub Pages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5

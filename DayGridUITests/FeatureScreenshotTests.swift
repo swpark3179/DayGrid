@@ -214,6 +214,11 @@ final class FeatureScreenshotTests: XCTestCase {
             "동기화를 쓰지 않는 이유가 보여야 한다"
         )
         attachScreenshot(of: app, named: "25-settings-sync")
+
+        // 정보 섹션의 지원·개인정보 처리방침 링크(App Store 심사 지침 5.1.1). 누르면 Safari가 열리므로 있는지만 본다.
+        let privacy = element("settings.privacy", in: app).firstMatch
+        scrollUntilVisible(privacy, in: app)
+        XCTAssertTrue(element("settings.support", in: app).firstMatch.exists, "설정에 지원 및 문의 링크가 있어야 한다")
     }
 
 }

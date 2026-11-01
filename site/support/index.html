@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DayGrid 지원</title>
+  <meta name="description" content="DayGrid 문의 방법과 자주 묻는 질문">
+  <link rel="icon" href="../icon.png">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+  <header class="app">
+    <img src="../icon.png" alt="">
+    <div>
+      <h1>DayGrid 지원</h1>
+      <p>문의 방법과 자주 묻는 질문</p>
+    </div>
+  </header>
+  <nav>
+    <a href="../">소개</a>
+    <a href="./" aria-current="page">지원</a>
+    <a href="../privacy/">개인정보 처리방침</a>
+  </nav>
+
+  <h2>문의하기</h2>
+  <section class="card">
+    <p>버그, 제안, 궁금한 점은 GitHub 이슈로 남겨 주세요. 남긴 내용은 누구나 볼 수 있으니 일정 내용 같은 개인정보는 빼고 적어 주세요.</p>
+    <p><a href="https://github.com/swpark3179/DayGrid/issues/new">GitHub에 문의 남기기</a> <span class="muted">(GitHub 계정이 필요합니다)</span></p>
+    <p class="muted">함께 알려 주시면 빨리 볼 수 있어요: iPhone 모델, iOS 버전, 앱 버전(앱의 설정 → 정보 → 버전), 어떤 순서로 했을 때 생겼는지.</p>
+  </section>
+
+  <h2>자주 묻는 질문</h2>
+
+  <details>
+    <summary>로그인이나 회원가입이 필요한가요?</summary>
+    <p>필요 없습니다. DayGrid는 iPhone에 로그인한 Apple 계정의 iCloud를 그대로 씁니다. 앱 안에서 따로 로그인하는 화면이 없습니다.</p>
+  </details>
+
+  <details>
+    <summary>iCloud 동기화는 어떻게 켜나요?</summary>
+    <ol>
+      <li>iPhone <strong>설정 → [내 이름]</strong>에서 Apple 계정으로 로그인되어 있는지 확인합니다.</li>
+      <li><strong>설정 → [내 이름] → iCloud</strong>의 iCloud를 사용하는 앱 목록(모두 보기)에서 <strong>DayGrid</strong>가 켜져 있는지 확인합니다.</li>
+      <li>DayGrid의 <strong>설정 → 동기화</strong>에서 상태(최근 동기화 시각)를 볼 수 있습니다.</li>
+    </ol>
+    <p>같은 Apple 계정으로 로그인한 기기끼리 자동으로 맞춰집니다. iCloud에 로그인하지 않아도 앱은 그대로 쓸 수 있고, 데이터는 그 기기에만 저장됩니다.</p>
+  </details>
+
+  <details>
+    <summary>새 iPhone으로 바꾸거나 앱을 지웠다가 다시 깔면요?</summary>
+    <p>같은 Apple 계정으로 로그인하고 DayGrid를 설치하면 iCloud에 있던 데이터를 자동으로 받아 옵니다. 데이터가 많거나 네트워크가 느리면 몇 분 걸릴 수 있습니다.</p>
+  </details>
+
+  <details>
+    <summary>iCloud에서 로그아웃하거나 DayGrid의 iCloud를 끄면 어떻게 되나요?</summary>
+    <p>iOS가 그 계정의 DayGrid 데이터를 이 기기에서 지웁니다. iCloud에 이미 올라간 데이터는 남아 있어서 다시 로그인하거나 켜면 돌아옵니다. 다만 아직 올라가지 않은 최근 변경은 사라질 수 있으니, 끄기 전에 앱의 설정 → 동기화에서 최근 동기화 시각을 확인해 주세요.</p>
+  </details>
+
+  <details>
+    <summary>“동기화 오류”가 보여요.</summary>
+    <ul>
+      <li>“iCloud에 로그인되어 있지 않습니다”: 위의 iCloud 동기화 켜는 방법을 확인해 주세요.</li>
+      <li>“iCloud 저장 공간이 부족합니다”: <strong>설정 → [내 이름] → iCloud</strong>에서 저장 공간을 확인해 주세요. DayGrid의 데이터는 글자뿐이라 아주 작습니다.</li>
+      <li>그 밖의 오류: 앱의 <strong>설정 → 동기화 → 오류 내용 복사</strong>를 눌러 복사한 내용을 문의에 붙여 주세요. 일정 제목 같은 내용이 섞였는지 먼저 확인해 주세요.</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary>알림이 오지 않아요.</summary>
+    <p>iPhone <strong>설정 → 앱 → DayGrid → 알림</strong>에서 알림이 허용되어 있는지 확인해 주세요. DayGrid의 <strong>설정 → 알림 → 시스템 알림 설정 열기</strong>로 바로 갈 수 있습니다. 알림은 일정 편집 화면에서 일정마다 켭니다.</p>
+  </details>
+
+  <details>
+    <summary>연락처의 생일을 가져오려면?</summary>
+    <p>DayGrid의 <strong>설정 → 생일</strong>에서 <strong>연락처에서 가져오기</strong>를 누릅니다. 처음 한 번 연락처 접근을 허용해야 합니다. 이름과 생일만 읽고, 음력 생일이 있으면 음력으로 가져옵니다.</p>
+  </details>
+
+  <details>
+    <summary>잠금화면 위젯은 어떻게 넣나요?</summary>
+    <p>잠금화면을 길게 누르고 <strong>사용자화</strong> → <strong>잠금 화면</strong> → 위젯 자리를 눌러 <strong>DayGrid</strong>의 <strong>남은 반복 할일</strong>을 고릅니다. 오늘 해야 하는데 아직 하지 않은 반복 할일을 보여 줍니다.</p>
+  </details>
+
+  <details>
+    <summary>공휴일이 달라요.</summary>
+    <p>공휴일과 대체공휴일은 앱이 계산하고, 선거일과 임시공휴일은 하루에 한 번까지 받아 오는 보정 자료로 더합니다. 새로 정해진 임시공휴일이 보이지 않으면 문의로 알려 주세요.</p>
+  </details>
+
+  <details>
+    <summary>데이터를 모두 지우고 싶어요.</summary>
+    <p>앱에서 지운 일정은 이 기기와 iCloud에서 함께 지워집니다. 앱을 삭제해도 iCloud의 데이터는 남아 있으니, 모두 지우려면 iPhone <strong>설정 → [내 이름] → iCloud → 저장 공간 관리(계정 저장 공간 관리)</strong>에서 <strong>DayGrid</strong>를 골라 데이터를 삭제해 주세요.</p>
+  </details>
+
+  <footer>
+    <p>© 2026 swpark3179 · <a href="../privacy/">개인정보 처리방침</a></p>
+  </footer>
+</main>
+</body>
+</html>

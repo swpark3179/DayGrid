@@ -73,6 +73,11 @@ struct SettingsTab: View {
                 syncSection
                 Section("정보") {
                     LabeledContent("버전", value: Self.versionText)
+                    // App Store 심사 지침 5.1.1: 개인정보 처리방침은 앱 안에서도 쉽게 열 수 있어야 한다.
+                    Link("지원 및 문의", destination: AppLinks.support)
+                        .accessibilityIdentifier("settings.support")
+                    Link("개인정보 처리방침", destination: AppLinks.privacyPolicy)
+                        .accessibilityIdentifier("settings.privacy")
                 }
             }
             .navigationTitle("설정")
