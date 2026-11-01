@@ -18,6 +18,12 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - 선거일과 임시공휴일: `DayGrid/Resources/holidays/KR-overrides.json`에 더하고 `version`을 올린다. 앱이 main 브랜치의 이 파일을 하루에 한 번까지 받아 온다.
 - 본문 미리보기 JS(markdown-it, DOMPurify): `scripts/vendor_markdown.sh`로만 갱신한다. 버전은 스크립트 안에 고정돼 있다. `DayGrid/Resources/markdown/`은 폴더 참조로 번들에 들어간다(`project.yml`).
 - CloudKit 스키마: `.github/workflows/cloudkit-schema.yml`을 수동 실행한다(mode `check`: 보기만, `import`: Development에 넣기). 두 모드 모두 Production 스키마를 내려받아 `scripts/ci/compare_ckdb.py`로 비교한다(배포 여부 확인). 필요한 Secret은 `CLOUDKIT_MANAGEMENT_TOKEN`, `APPLE_TEAM_ID`다. Production 배포는 사용자가 CloudKit Console에서 한다.
+- App Store 자료(`docs/APP_STORE.md`)
+  - 문구는 `appstore/metadata/ko/*.txt`, 심사 메모는 `appstore/metadata/review_information/notes.txt`다. 길이와 키워드 형식은 `python3 scripts/appstore/check_metadata.py`로 확인한다.
+  - 스크린샷과 미리보기 영상은 "App Store assets" 워크플로(`.github/workflows/appstore-assets.yml`)가 만든다. 결과는 `app-store-assets` 아티팩트다.
+    - 관련 파일(`appstore/**`, `AppStoreTests.swift`, `scripts/appstore/**`)을 바꾼 PR에서 저절로 돈다. 수동 실행도 된다.
+    - 스크린샷 문구는 `appstore/screenshots.json`이다. 글꼴은 Pretendard(OFL)를 워크플로가 받아 해시로 확인한다.
+  - 안내 페이지(소개, 지원, 개인정보 처리방침)는 `site/`다. main에 머지하면 Pages 워크플로가 `https://swpark3179.github.io/DayGrid/`에 올린다.
 - TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, ad-hoc 서명으로 entitlements를 넣는다. 그다음 `scripts/ci/asc_signing.py`가 App Store Connect API로 배포 인증서와 프로파일을 만들고, 수동 서명으로 내보내면서 업로드한다. 끝나면 인증서와 프로파일을 지운다. Xcode 클라우드 서명은 iCloud 컨테이너 조회에서 401이 나서 쓰지 않는다. 입력 `upload`를 끄면 서명까지만 확인한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
 
 ## 규칙
@@ -94,13 +100,23 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 동기화 오류는 Core `CloudKitErrorReader`로 나눈다. 바깥 오류(`partialFailure` 등)만 보지 말고 안쪽 오류까지 펼친다.
     - 이벤트의 오류에 안쪽 오류가 없을 수 있다(빌드 10: `partialFailure(2)`뿐). 그래서 실패하면 `CloudSyncLogReader`(OSLogStore, 이 프로세스)로 그 시각의 CloudKit·Core Data 기록을 읽는다.
     - 읽은 기록은 `CloudKitErrorReader.failure(fromLog:)`/`logReport(_:)`로 나눈 뒤, `CloudSyncState.attachLog`로 붙인다.
+- App Store 등록(Phase 21)
+  - 안내 페이지 URL은 `AppLinks`에 둔다. `appstore/metadata/ko/*_url.txt`와 같아야 한다(`check_metadata.py`가 확인한다).
+  - 설정 → 정보에 지원·개인정보 처리방침 링크를 둔다(심사 지침 5.1.1).
+  - 개인정보 매니페스트는 `DayGrid/PrivacyInfo.xcprivacy`다(`PrivacyManifestTests`).
+    - 이유가 필요한 API(파일 시각, 부팅 시각, 디스크 용량 등)를 새로 쓰면 이유를 더한다.
+    - 개발자나 제3자에게 보내는 데이터가 생기면 매니페스트, `site/privacy/`, ASC의 앱 개인정보를 함께 바꾼다. 지금은 "수집 안 함"이다.
+  - App Store에 새 버전을 낼 때는 `project.yml`의 `MARKETING_VERSION`을 올린다. ASC의 버전과 같아야 한다.
+  - App Store 화면 테스트(`DayGridUITests/AppStoreTests.swift`)는 `TEST_RUNNER_DAYGRID_APPSTORE=1`일 때만 돈다. 보통 CI에서는 건너뛴다.
+    - 스크린샷 이름은 `appstore/screenshots.json`의 `raw`와 같다(01–09). CI 스크린샷 번호와 따로 센다.
+    - 영상 녹화는 시뮬레이터 밖의 `scripts/appstore/record_previews.py`가 한다. 테스트는 `PreviewRecorder.start/stop`으로 신호만 보낸다.
 - UI 문자열은 한국어로 쓴다. 주 시작 요일 기본값은 일요일이다.
 - 테마(시스템/라이트/다크)는 `AppSettings.appearanceKey`(`AppAppearance`, 기본 시스템)다.
   - `WindowAppearance`가 창의 `overrideUserInterfaceStyle`에 건다. 시트, 창에 붙인 미리보기, 본문 미리보기(WKWebView)가 함께 바뀐다.
   - 화면 코드에서 `preferredColorScheme`을 쓰지 않는다. 시스템(nil)으로 되돌릴 때 바로 돌아오지 않는 경우가 있다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`, `settings.support`, `settings.privacy`
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
   - 실행 인자 `-dayDetailStyle timeline`은 하루 상세를 타임라인으로 연다(UserDefaults 인자 도메인).
   - 실행 인자 `-appearance dark`는 테마를 다크로 연다(같은 인자 도메인).
@@ -108,7 +124,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 설정의 Picker를 눌러 바꾸지 않는다. 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29, 33, 40, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39. 새 화면은 41부터 붙인다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29, 33, 40, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39. 새 화면은 41부터 붙인다. App Store 화면(`AppStoreScreenshotTests`)은 따로 01–09다.
   - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.

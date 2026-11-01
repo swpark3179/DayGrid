@@ -1,0 +1,21 @@
+DayGrid is a personal calendar and to-do app for Korean users. No account or sign-in is required, so no demo account is needed.
+
+iCloud sync
+- Data is stored with SwiftData and synced through CloudKit to the user's own iCloud private database (container iCloud.io.github.swpark3179.DayGrid), using the Apple Account already signed in on the device.
+- If the device is not signed in to iCloud, the app works fully and keeps data on the device. Settings > 동기화 shows the sync status.
+
+Gestures worth trying
+- Calendar: long-press a date and drag across days to create a multi-day event. A long-press without moving opens a new event for that day.
+- Day sheet (tap a date): long-press an item and drag it onto another date to move it. Dropping on the X at the top cancels.
+- 나중에 (Later) tab: type a task and press return. Long-press a task and drag it onto a date in the calendar overlay to schedule it.
+- 반복 (Recurring) tab: check off the current cycle of a recurring task.
+
+Permissions
+- Contacts: asked only when the user taps "연락처에서 가져오기" in Settings > 생일, to read birthdays. Nothing is uploaded to us.
+- Notifications: asked only when the user turns on a reminder (event reminders, birthday reminders, recurring task reminders). All notifications are local.
+
+Network
+- Besides iCloud, the app downloads one public JSON file of Korean election days and temporary public holidays from raw.githubusercontent.com, at most once a day. No analytics, advertising or tracking.
+
+Lock Screen widget
+- "남은 반복 할일" shows recurring tasks that are due today but not done yet.

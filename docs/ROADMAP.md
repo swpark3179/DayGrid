@@ -608,6 +608,30 @@ docs/ROADMAP.md, CLAUDE.md
   - `RecurringTaskRow`는 `@AppStorage(AppSettings.firstWeekdayKey)`로 주 시작 요일을 읽는다.
   - 기간은 오늘이 속한 달력 기간이다. 지난 기간에 시작한 주기(예: 일요일 시작 주에서 금–일 주기)를 이번 주에 체크하면, 상세 문구는 바뀌지만 요약은 그 주기가 시작한 기간에 센다.
 
+### Phase 21 — App Store 등록 준비 (사용자 요청 2026-11-01)
+- App Store Connect에 넣을 문구, 지원·개인정보 처리방침 페이지, 스크린샷과 미리보기 영상을 만든다. 넣는 순서와 답은 `docs/APP_STORE.md`에 있다.
+- 문구: `appstore/metadata/ko/*.txt`(fastlane deliver와 같은 파일 이름), 심사 메모 `review_information/notes.txt`
+  - 길이와 키워드 형식은 `scripts/appstore/check_metadata.py`가 확인한다. URL은 앱의 `AppLinks`와 같아야 한다.
+- 안내 페이지: `site/`(소개, 지원, 개인정보 처리방침) → Pages 워크플로(main) → `https://swpark3179.github.io/DayGrid/`
+  - 처음 한 번 사용자가 Settings → Pages의 Source를 GitHub Actions로 바꾼다.
+  - 문의 창구는 GitHub 이슈다. 이메일은 사용자가 정하면 지원 페이지에 더한다.
+- 앱
+  - 설정 → 정보에 "지원 및 문의", "개인정보 처리방침" 링크(심사 지침 5.1.1: 앱 안에서도 개인정보 처리방침을 열 수 있어야 한다)
+  - 개인정보 매니페스트 `DayGrid/PrivacyInfo.xcprivacy`: 추적 없음, 수집 데이터 없음, UserDefaults 이유 CA92.1
+  - `MARKETING_VERSION`을 1.0으로 올렸다. ASC의 첫 버전(1.0)과 같아야 빌드를 고를 수 있다.
+- 스크린샷과 영상: "App Store assets" 워크플로(`appstore-assets.yml`)
+  - capture(macOS): 6.9형 시뮬레이터에서 `AppStoreScreenshotTests`(01–09)와 `AppStorePreviewTests`(영상 2개)
+    - 보통 CI에서는 건너뛴다. 워크플로가 `TEST_RUNNER_DAYGRID_APPSTORE=1`로 켠다.
+    - 영상은 `scripts/appstore/record_previews.py`가 `simctl io recordVideo`로 녹화한다. 테스트와는 Mac의 폴더(`~/Library/Caches/daygrid-appstore`)에 파일을 만들어 신호를 주고받는다.
+  - compose(Linux): `compose_screenshots.py`가 문구와 기기 틀을 입혀 1320×2868(6.9형)과 1206×2622(6.3형)로 만든다. `encode_previews.py`가 영상을 886×1920, 30fps, 15–30초, 무음 스테레오로 맞춘다.
+  - 결과는 `app-store-assets` 아티팩트다. 문구는 `appstore/screenshots.json`에서 고친다.
+- iCloud 동작(사용자 질문): 앱 안 로그인 없이 기기의 Apple 계정 iCloud 개인 DB에 저장한다. `docs/ICLOUD.md` "동작 방식"
+  - 2026-11-01 CloudKit schema check(실행 #6): Production에 레코드 타입 7개와 필드가 모두 있다.
+- **완료 기준**
+  - "App Store assets" 워크플로가 스크린샷 9장(두 크기)과 영상 2개를 만든다.
+  - 앱 단위 테스트 `PrivacyManifestTests`, UI 테스트 `FeatureScreenshotTests.testSettingsSyncStatus`(설정의 링크)가 통과한다.
+  - 기기 체크리스트 19장으로 확인한다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -729,6 +753,15 @@ docs/ROADMAP.md, CLAUDE.md
   - UI: `FeatureScreenshotTests.testRecurringTasks`(스크린샷 23)
   - 기기: 체크리스트 18장
 
+- [ ] Phase 21 App Store 등록 준비: PR CI 확인
+  - 앱: `PrivacyManifestTests`(번들에 `PrivacyInfo.xcprivacy`가 들어갔는지)
+  - UI: `FeatureScreenshotTests.testSettingsSyncStatus`(설정의 지원·개인정보 처리방침 링크)
+  - "App Store assets" 워크플로
+    - `TEST_RUNNER_DAYGRID_APPSTORE`가 테스트 실행기에 넘어가는지(넘어가지 않으면 모두 건너뛰어 "App Store 화면이 하나도 없다"로 실패한다)
+    - 시뮬레이터 안의 테스트가 Mac 폴더에 신호 파일을 쓰고 읽는지(영상 녹화)
+    - 타임라인(03)은 시트를 크게 올린 화면인지
+  - 기기: 체크리스트 19장
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -754,3 +787,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 18: 일정 편집 화면 정리(날짜 토글 대신 "나중에 할일로 미루기", 카테고리 → 본문 → 알림, 알림 칩, "시간 지정", 새 일정은 시간 없이)
 - [ ] Phase 19: 하루 상세에서 꾹 눌러 옮길 때 시트 닫기, 맨 위 가운데 X로 취소, 움직임
 - [ ] Phase 20: 반복 탭 요약 기간(매일·매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해)
+- [ ] Phase 21: App Store 등록 준비(문구, 지원·개인정보 처리방침 페이지, 스크린샷·미리보기 워크플로, 개인정보 매니페스트, 버전 1.0)

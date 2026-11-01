@@ -2,6 +2,21 @@
 
 DayGrid는 iCloud(CloudKit) 개인 데이터베이스로 일정, 할일, 카테고리, 생일, 개인 휴일, 반복 할일을 동기화합니다. 같은 Apple ID를 쓰는 기기끼리 맞춰지고, 앱을 지웠다가 다시 설치해도 데이터가 돌아옵니다.
 
+## 동작 방식(사용자가 보는 것)
+- **앱 안에서 로그인하지 않는다.** iPhone **설정 → [이름]**에 로그인한 Apple 계정의 iCloud를 그대로 쓴다. 회원가입, Sign in with Apple, 앱 계정이 없다.
+- **저장 위치**: 그 Apple 계정의 iCloud **개인 데이터베이스**(CloudKit private DB, 컨테이너 `iCloud.io.github.swpark3179.DayGrid`).
+  - 그 사용자만 읽고 쓸 수 있다. 개발자도 CloudKit Console에서 내용을 볼 수 없다(스키마만 본다).
+  - 사용자의 iCloud 저장 공간을 쓴다. 글자 데이터라 아주 작다. 가득 차면 설정에 "iCloud 저장 공간이 부족합니다"가 보인다.
+- **저장 순서**: 앱은 SwiftData(`ModelConfiguration(cloudKitDatabase: .private(…))`)로 기기에 먼저 저장한다. 시스템(`NSPersistentCloudKitContainer`)이 뒤에서 iCloud로 올리고 받는다. 다른 기기의 변경은 조용한 푸시(`remote-notification`)로 알게 된다.
+- **iCloud에 로그인하지 않았거나, iCloud를 사용하는 앱 목록에서 DayGrid를 껐을 때**: 앱은 그대로 쓸 수 있고 기기에만 저장한다. 설정 → 동기화에 "iCloud에 로그인되어 있지 않습니다"가 보인다.
+  - 로그인하지 않은 채 적은 데이터가 나중에 로그인하면 함께 올라가는지는 아직 기기에서 확인하지 않았다(`docs/DEVICE_CHECKLIST.md` 19-5).
+- **로그아웃하거나 DayGrid의 iCloud를 끌 때**: iOS가 이 기기의 DayGrid 데이터를 지운다. Apple이 정한 동작이다(Apple 개발자 포럼 DTS 답변: "Turning off iCloud for an app is equivalent to signing out of the account").
+  - iCloud에 이미 올라간 데이터는 남아 있어서, 다시 로그인하거나 켜면 돌아온다.
+  - 아직 올라가지 않은 최근 변경은 사라질 수 있다.
+- **앱을 지울 때**: 기기의 데이터만 지워지고 iCloud에는 남는다. 다시 설치하면 돌아온다. 모두 지우려면 iPhone 설정 → [이름] → iCloud → 저장 공간 관리에서 DayGrid의 데이터를 지운다.
+- **TestFlight와 App Store 빌드**: 둘 다 Production 환경을 쓴다. 같은 Apple 계정이면 같은 데이터를 본다.
+- 다른 사람과 나누는 기능은 없다(개인 DB만 쓴다).
+
 TestFlight로 받은 앱은 CloudKit의 **Production** 환경을 씁니다.
 - Production에는 데이터 구조(스키마)가 자동으로 생기지 않습니다.
 - 그래서 아래 순서로 한 번 준비해야 동기화가 시작됩니다. 1–3번은 처음 한 번만 하면 됩니다.

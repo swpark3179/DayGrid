@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  개인정보 매니페스트(App Store 제출에 필요). project.yml이 앱 번들의 리소스로 넣는다.
+  - 추적하지 않고, 개발자가 모으는 데이터가 없다. 일정은 기기와 사용자 본인의 iCloud 개인 DB에만 있다.
+  - 이유가 필요한 API: UserDefaults(@AppStorage 설정, 공휴일 보정 자료 캐시)를 이 앱 안에서만 읽고 쓴다(CA92.1).
+  새로 파일 시각(modificationDate 등), 부팅 시각(systemUptime), 디스크 용량 API를 쓰면 여기에 이유를 더한다.
+  PrivacyManifestTests가 번들에 들어갔는지 확인한다.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
