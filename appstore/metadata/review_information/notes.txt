@@ -1,21 +1,38 @@
-DayGrid is a personal calendar and to-do app for Korean users. No account or sign-in is required, so no demo account is needed.
+DayGrid is a free personal calendar and to-do app for Korean-speaking iPhone users. The UI is Korean only; English for labels is given in parentheses.
 
-iCloud sync
-- Data is stored with SwiftData and synced through CloudKit to the user's own iCloud private database (container iCloud.io.github.swpark3179.DayGrid), using the Apple Account already signed in on the device.
-- If the device is not signed in to iCloud, the app works fully and keeps data on the device. Settings > 동기화 shows the sync status.
+1. Screen recording
+- Attached in App Review Information > Attachment. Recorded on [[iPhone model]] with iOS [[iOS version]], starting from launching the app on the Home Screen.
+- The app has no accounts (no registration, login or account deletion), no content shared with other users (notes are private to the user), and no paid content, in-app purchases, subscriptions or ads, so none of these appear in the recording.
 
-Gestures worth trying
-- Calendar: long-press a date and drag across days to create a multi-day event. A long-press without moving opens a new event for that day.
-- Day sheet (tap a date): long-press an item and drag it onto another date to move it. Dropping on the X at the top cancels.
-- 나중에 (Later) tab: type a task and press return. Long-press a task and drag it onto a date in the calendar overlay to schedule it.
-- 반복 (Recurring) tab: check off the current cycle of a recurring task.
+2. Purpose and target audience
+- For individuals in Korea who want events and to-dos on one monthly grid, together with Korean public holidays and birthdays.
+- Problem: typical calendar apps keep undated to-dos elsewhere and handle Korean substitute holidays, election days and Korean lunar birthdays poorly.
+- Value: events, tasks, holidays and solar/lunar birthdays on the month grid; undated tasks wait in a Later list and are dragged onto a date; recurring tasks are tracked. No account, no ads; data stays on the device and in the user's own iCloud.
 
-Permissions
-- Contacts: asked only when the user taps "연락처에서 가져오기" in Settings > 생일, to read birthdays. Nothing is uploaded to us.
-- Notifications: asked only when the user turns on a reminder (event reminders, birthday reminders, recurring task reminders). All notifications are local.
+3. How to use the main features
+No setup, login or sample files are needed. The app starts with an empty calendar.
+- Tabs: 달력 (Calendar), 나중에 (Later), 반복 (Recurring), 설정 (Settings).
+- Calendar: tap + to add an event. Long-press a date and drag across days to create a multi-day event; release without moving for a one-day event. Tap a date to open the day sheet.
+- Day sheet: long-press an item and drag it onto another date to move it (drop on the X at the top to cancel). Swipe a row to duplicate, move to Later or delete; 실행 취소 (Undo) reverts it.
+- Event editor: title, date and time, category, Markdown note (본문) with preview, reminders.
+- Later: type a task and press return. Long-press a task and drag it onto a date in the calendar overlay to schedule it.
+- Recurring: tap + to add a daily, weekly or monthly task, then check off the current cycle.
+- Settings > 생일 (Birthdays): add a solar or lunar birthday, or tap 연락처에서 가져오기 (Import from Contacts).
+- Settings > 동기화 (Sync) shows the iCloud sync status.
+- Lock Screen widget 남은 반복 할일 shows recurring tasks due today.
+- Permissions: Contacts is asked only when importing birthdays; Notifications only when a reminder is turned on. All notifications are local.
 
-Network
-- Besides iCloud, the app downloads one public JSON file of Korean election days and temporary public holidays from raw.githubusercontent.com, at most once a day. No analytics, advertising or tracking.
+4. External services
+- Apple iCloud (CloudKit private database, container iCloud.io.github.swpark3179.DayGrid): optional sync using the Apple Account signed in on the device. Without iCloud the app works fully and keeps data on the device.
+- GitHub (raw.githubusercontent.com): one public JSON file of Korean election days and temporary holidays, checked at most once a day. No user data is sent. A copy is bundled, so the app also works offline.
+- GitHub Pages: support and privacy policy pages, opened in Safari.
+- Open-source code bundled in the app and run on the device: markdown-it (MIT) and DOMPurify (Apache-2.0) for the note preview. The Korean lunar calendar table is built in (KASI data via the MIT-licensed korean_lunar_calendar package).
+- No authentication, payment, AI, analytics, advertising or tracking services, and no third-party SDKs.
 
-Lock Screen widget
-- "남은 반복 할일" shows recurring tasks that are due today but not done yet.
+5. Regional differences
+The app functions the same in all regions. The UI is Korean, and it always shows South Korean public holidays. No feature changes by region or storefront.
+
+6. Regulated industry or third-party material
+Not applicable. The app is not in a regulated industry and contains no protected third-party material. Holiday rules come from public Korean government regulations, and the open-source license files are bundled with the app.
+
+Tested on: [[iPhone model]], iOS [[iOS version]], with the TestFlight build of this version.

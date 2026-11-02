@@ -627,6 +627,10 @@ docs/ROADMAP.md, CLAUDE.md
   - 결과는 `app-store-assets` 아티팩트다. 문구는 `appstore/screenshots.json`에서 고친다.
 - iCloud 동작(사용자 질문): 앱 안 로그인 없이 기기의 Apple 계정 iCloud 개인 DB에 저장한다. `docs/ICLOUD.md` "동작 방식"
   - 2026-11-01 CloudKit schema check(실행 #6): Production에 레코드 타입 7개와 필드가 모두 있다.
+- 첫 심사(2026-11-02 사용자 전달): Guideline 2.1 Information Needed. 버그가 아니라 새 앱 정보 요청이다.
+  - 요청: 실기기 화면 녹화(최신 iOS, 앱 실행부터), 목적과 대상, 사용법, 외부 서비스, 지역 차이, 규제 서류
+  - 대응: `notes.txt`를 요청 6항목 순서로 다시 썼다. 녹화 순서와 다시 제출하는 법은 `docs/APP_STORE.md` 6번이다.
+  - ASC 메모 한도는 4000"바이트"다. `check_metadata.py`가 바이트로 세고, 채우지 않은 `[[...]]`를 경고한다.
 - **완료 기준**
   - "App Store assets" 워크플로가 스크린샷 9장(두 크기)과 영상 2개를 만든다.
   - 앱 단위 테스트 `PrivacyManifestTests`, UI 테스트 `FeatureScreenshotTests.testSettingsSyncStatus`(설정의 링크)가 통과한다.

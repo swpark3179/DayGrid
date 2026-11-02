@@ -15,7 +15,8 @@ App Store Connect(ASC)에 넣을 내용과 순서다. 문구는 `appstore/metada
 | 개인정보 처리방침 URL | https://swpark3179.github.io/DayGrid/privacy/ | `ko/privacy_url.txt` |
 | 저작권 | 2026 swpark3179(실명으로 바꿔도 된다) | `copyright.txt` |
 | 카테고리 | 기본 생산성, 보조 라이프스타일 | `primary_category.txt`, `secondary_category.txt` |
-| 심사 메모 | 영어 안내(로그인 없음, iCloud, 끌기 동작, 권한) | `review_information/notes.txt` |
+| 심사 메모(4000바이트) | 영어 안내(2.1 정보 요청 6항목: 녹화, 목적, 사용법, 외부 서비스, 지역, 규제) | `review_information/notes.txt` |
+| 심사 첨부 파일 | 실기기 화면 녹화(6번) | 저장소에 두지 않는다 |
 | 스크린샷 | 6.9형 1320×2868, 6.3형 1206×2622 각 9장 | 아티팩트 `screenshots/framed/` |
 | 앱 미리보기 | 886×1920, 15–30초, 2개 | 아티팩트 `previews/` |
 
@@ -72,7 +73,8 @@ ASC → 앱 → DayGrid.
 - **App Review에 관한 정보**
   - 로그인 필요: **끔**(계정이 없다)
   - 연락처(이름, 전화번호, 이메일): 직접 넣는다. 저장소에는 두지 않는다.
-  - 메모: `review_information/notes.txt`
+  - 메모: `review_information/notes.txt`. `[[iPhone model]]`, `[[iOS version]]`은 녹화한 기기의 값으로 바꿔 붙인다.
+  - 첨부 파일: 실기기 화면 녹화(6번)
 - 버전 출시: 승인 후 자동 또는 수동 중 고른다.
 
 수출 규정 질문은 나오지 않는다. `ITSAppUsesNonExemptEncryption = NO`가 빌드에 들어 있다.
@@ -112,3 +114,67 @@ python3 scripts/appstore/compose_screenshots.py --config appstore/screenshots.js
 - [ ] 앱 개인정보: 데이터 수집 안 함
 - [ ] 연령 등급 4+, 가격과 국가
 - [ ] App Review 연락처를 넣었다.
+- [ ] 실기기 화면 녹화를 첨부했고, 메모의 `[[...]]`를 모두 채웠다(6번).
+
+## 6. 심사 답변: Guideline 2.1 Information Needed
+2026-11-02 첫 제출에서 받았다. 버그 때문이 아니라 새 앱에 정보를 요청하는 것이다. 메모와 녹화를 넣고 같은 빌드로 다시 제출하면 된다.
+요청한 6가지와 넣을 곳은 아래와 같다.
+
+| 요청 | 넣을 곳 |
+|---|---|
+| 1. 실기기 화면 녹화(최신 iOS, 앱 실행부터) | App Review에 관한 정보의 첨부 파일. 안 되면 메모에 링크 |
+| 2. 목적과 대상 사용자 | 메모 2번 |
+| 3. 주요 기능 사용법(로그인, 샘플 파일) | 메모 3번. 계정이 없어 로그인 정보가 없다 |
+| 4. 외부 서비스 | 메모 4번 |
+| 5. 지역 차이 | 메모 5번 |
+| 6. 규제 산업 서류 | 메모 6번. 해당 없음 |
+
+메모에는 Apple 안내대로 테스트한 기기와 iOS 버전도 적는다(마지막 줄).
+
+### 녹화 준비
+- iPhone을 최신 iOS로 올린다(설정 → 일반 → 소프트웨어 업데이트). 기기 모델과 iOS 버전은 설정 → 일반 → 정보에서 보고 메모의 `[[...]]`에 넣는다.
+- 심사에 올린 빌드를 TestFlight에서 설치한다. 설정 → 정보의 버전이 ASC에서 고른 빌드와 같은지 본다.
+- 제어 센터에 "화면 기록"이 없으면 더한다(제어 센터 → 왼쪽 위 + → 컨트롤 추가 → 화면 기록).
+- 집중 모드(방해 금지)를 켠다. 다른 앱 알림이 녹화에 나오지 않게 한다.
+- 녹화에 보이는 일정은 심사와 상관없다. 보이기 싫은 일정이 있으면 녹화 전에 정리한다.
+- 연락처 가져오기는 실제 연락처 이름이 나오므로 녹화에서 뺀다. 생일은 직접 하나 더한다.
+- 앱이 떠 있으면 앱 전환기에서 위로 밀어 끈다. 녹화는 앱을 여는 순간부터 찍혀야 한다.
+
+### 녹화 순서(3–5분)
+천천히, 한 동작이 끝난 걸 보이고 다음으로 간다.
+1. 홈 화면에서 화면 기록을 켜고, DayGrid 아이콘을 눌러 연다.
+2. 달력: 좌우로 밀어 다음 달을 보고, 제목(연·월)을 눌러 달을 고른 뒤 오늘로 돌아온다.
+3. 달력 위쪽의 + → 제목, "시간 지정", 카테고리, 알림 칩 하나 → 알림 권한 창에서 허용 → 저장. 달력에 막대가 생긴다.
+4. 날짜를 꾹 눌러 사흘쯤 끌고 놓는다 → 제목을 적고 저장. 기간 일정이 생긴다.
+5. 날짜를 눌러 하루 상세를 연다.
+   - 일정을 꾹 눌러 다른 날 위에 놓는다.
+   - 옮긴 날을 열어 그 행을 밀어 삭제하고, "실행 취소"를 누른다.
+6. 일정을 열어 본문에 체크리스트 두 줄(`- [ ] 할일`)을 적고 미리보기에서 하나를 체크한다.
+7. 나중에 탭: 할일 두세 개를 적고 엔터. 하나를 꾹 눌러 덮개 달력의 날짜 위에 놓는다. 달력 탭에 그 날로 들어간 게 보인다.
+8. 반복 탭: + → 매일 반복 할일을 만들고 체크한다.
+9. 설정
+   - 생일 → + → 음력 생일을 하나 더한다. 목록에 D-day가 보인다.
+   - 동기화(iCloud 상태)를 보여 준다.
+   - 정보의 "개인정보 처리방침"을 눌러 Safari에서 열린 것을 보이고 돌아온다.
+10. (선택) 홈 화면으로 나가 잠금화면 위젯 "남은 반복 할일"을 보여 준다.
+11. 화면 기록을 끈다. 사진 앱에서 앞뒤의 군더더기만 자른다. 앱을 여는 장면은 남긴다.
+
+녹화에서 이상한 동작이나 멈춤이 보이면 올리지 말고 먼저 고친다. 심사자도 실기기에서 같은 동작을 해 본다.
+녹화 전에 `docs/DEVICE_CHECKLIST.md`의 7장(iCloud)과 19장을 이 빌드로 확인해 두면 좋다. 저장소에는 아직 체크되지 않았다.
+
+### ASC에 넣고 다시 제출
+1. 녹화 파일을 ASC를 여는 기기로 옮긴다. Mac이 없으면 iCloud 사진(icloud.com)에서 PC로 받거나, iPhone Safari에서 ASC를 열어 사진 보관함에서 바로 고른다.
+2. ASC → 앱 → DayGrid → iOS 앱 1.0 → **App Review에 관한 정보**
+   - 메모: `notes.txt`를 붙인다. `[[...]]`를 채운 뒤 4000바이트를 넘지 않는지 본다(`python3 scripts/appstore/check_metadata.py`).
+   - 첨부 파일: 녹화 파일을 올린다.
+   - 올라가지 않으면(크기, 형식) 로그인 없이 볼 수 있는 링크를 만든다(iCloud Drive "링크가 있는 모든 사람", Google Drive, YouTube 일부 공개). 메모 1번의 "Attached in App Review Information > Attachment."를 "Video: <링크>"로 바꾼다.
+3. 저장한 뒤 거절 메시지(App Review 메시지)에 짧게 답한다. 같은 내용을 메모에 넣었다고 알린다.
+
+```text
+Hello, thank you for the review.
+We added all requested information to the Notes field of App Review Information, and attached a screen recording captured on a physical iPhone running the latest iOS, starting from app launch.
+DayGrid has no accounts, no user-generated content shared with others, and no paid features or in-app purchases.
+Thank you.
+```
+
+4. 버전 페이지에서 다시 심사에 제출한다. 빌드는 바꾸지 않아도 된다. 앱을 고쳤다면 새 TestFlight 빌드를 올려 골라야 한다.
