@@ -115,6 +115,7 @@ python3 scripts/appstore/compose_screenshots.py --config appstore/screenshots.js
 - [ ] 연령 등급 4+, 가격과 국가
 - [ ] App Review 연락처를 넣었다.
 - [ ] 실기기 화면 녹화를 첨부했고, 메모의 `[[...]]`를 모두 채웠다(6번).
+- [ ] 고른 빌드가 "잘못된 바이너리"가 아니다. 그 빌드를 서명한 배포 인증서를 폐기하지 않았다(6번).
 
 ## 6. 심사 답변: Guideline 2.1 Information Needed
 2026-11-02 첫 제출에서 받았다. 버그 때문이 아니라 새 앱에 정보를 요청하는 것이다. 메모와 녹화를 넣고 같은 빌드로 다시 제출하면 된다.
@@ -177,4 +178,18 @@ DayGrid has no accounts, no user-generated content shared with others, and no pa
 Thank you.
 ```
 
-4. 버전 페이지에서 다시 심사에 제출한다. 빌드는 바꾸지 않아도 된다. 앱을 고쳤다면 새 TestFlight 빌드를 올려 골라야 한다.
+4. 버전 페이지에서 다시 심사에 제출한다. 빌드가 "잘못된 바이너리"가 아니면 바꾸지 않아도 된다. 앱을 고쳤다면 새 TestFlight 빌드를 올려 골라야 한다.
+
+### 1.0이 "잘못된 바이너리"가 됐을 때(2026-11-02)
+- 원인: 예전 TestFlight 워크플로가 업로드를 마친 뒤 배포 인증서를 폐기했다.
+  - Apple은 폐기한 인증서로 서명한 빌드를 Invalid Binary로 표시한다([Certificates overview](https://developer.apple.com/support/certificates/) "Expired or revoked certificates").
+  - TestFlight는 Apple이 다시 서명해 내보내므로 그대로 돈다. 그래서 TestFlight만 보면 문제가 없어 보인다.
+  - 이 빌드는 다시 쓸 수 없다. 앱을 고칠 것은 없고, 새로 서명한 빌드만 있으면 된다.
+- 제출이 "해결되지 않은 문제"로 남는 것도 같은 이유다. 쓸 수 있는 빌드로 다시 제출해야 넘어간다.
+- 할 일
+  1. 워크플로 수정(인증서를 Secrets에 두고 폐기하지 않는다)을 머지한다.
+  2. `docs/TESTFLIGHT.md` 5-1대로 `SECRETS_TOKEN`을 넣는다.
+  3. **Actions → TestFlight → Run workflow**(main). 빌드 번호는 실행 번호라 저절로 올라간다. 처리가 끝날 때까지 10–30분 기다린다.
+  4. ASC → 1.0 → **빌드**에서 예전 빌드를 빼고 새 빌드를 고른 뒤 저장한다.
+  5. 메모와 첨부가 그대로 있는지 보고, **심사에 추가** → **심사에 제출**한다. App Review 메시지에도 새 빌드로 다시 냈다고 짧게 답한다.
+- 심사가 끝날 때까지(그리고 그 뒤에도) developer.apple.com에서 Apple Distribution 인증서를 폐기하지 않는다.

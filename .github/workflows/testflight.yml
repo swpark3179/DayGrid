@@ -29,6 +29,8 @@ jobs:
       - name: Check secrets
         env:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          DIST_P12_BASE64: ${{ secrets.DIST_P12_BASE64 }}
+          SECRETS_TOKEN: ${{ secrets.SECRETS_TOKEN }}
         run: |
           missing=0
           for name in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY; do
@@ -37,6 +39,11 @@ jobs:
               missing=1
             fi
           done
+          # 배포 인증서(DIST_P12_BASE64)가 아직 없으면, 처음 한 번 만들어 Secrets에 넣을 토큰이 있어야 한다.
+          if [ -z "$DIST_P12_BASE64" ] && [ -z "$SECRETS_TOKEN" ]; then
+            echo "::error::배포 인증서 Secret(DIST_P12_BASE64)이 없다. docs/TESTFLIGHT.md 5-1대로 SECRETS_TOKEN을 넣고 다시 실행한다."
+            missing=1
+          fi
           exit $missing
 
       - name: Write App Store Connect API key
@@ -114,25 +121,32 @@ jobs:
 
       # Xcode 자동 서명(클라우드 서명)은 iCloud 컨테이너를 찾을 때 API 키로 인증하지 못한다
       # (`xcbuild/v1/cloudContainers` → 401, 실행 #3·#4). 그래서 App Store Connect 공개 API로
-      # 실행마다 배포 인증서와 App Store 프로파일을 만들고, 수동 서명으로 내보낸 뒤 마지막 단계에서 지운다.
+      # 배포 인증서와 App Store 프로파일을 준비하고, 수동 서명으로 내보낸다.
+      # - 배포 인증서는 Secrets(DIST_P12_BASE64, DIST_P12_PASSWORD)에 둔 것을 계속 쓰고, 폐기하지 않는다.
+      #   폐기한 인증서로 서명한 빌드는 App Store 심사에서 "잘못된 바이너리"가 된다(2026-11 첫 심사).
+      #   Secret이 없거나 인증서가 만료됐으면 SECRETS_TOKEN으로 새로 만들어 넣는다.
+      # - 프로파일("DayGrid CI <번들 ID>")은 지우지 않고 다시 쓴다.
       # 프로파일의 iCloud 컨테이너·App Group은 developer.apple.com의 App ID 설정을 따른다.
-      - name: Create signing certificate and profiles
+      - name: Prepare signing certificate and profiles
         env:
           UPLOAD: ${{ inputs.upload }}
+          DIST_P12_BASE64: ${{ secrets.DIST_P12_BASE64 }}
+          DIST_P12_PASSWORD: ${{ secrets.DIST_P12_PASSWORD }}
+          SECRETS_TOKEN: ${{ secrets.SECRETS_TOKEN }}
         run: |
           destination=upload
           if [ "$UPLOAD" = "false" ]; then
             destination=export
           fi
-          p12_password=$(uuidgen)
           keychain_password=$(uuidgen)
-          echo "::add-mask::$p12_password"
           echo "::add-mask::$keychain_password"
-          P12_PASSWORD="$p12_password" python3 scripts/ci/asc_signing.py prepare \
+          python3 scripts/ci/asc_signing.py prepare \
             --archive build/DayGrid.xcarchive \
             --out build/signing \
             --destination "$destination" \
             --export-options build/ExportOptions.plist
+          p12_password=$(cat build/signing/p12-password)
+          echo "::add-mask::$p12_password"
 
           keychain="$RUNNER_TEMP/signing.keychain-db"
           security create-keychain -p "$keychain_password" "$keychain"
@@ -204,14 +218,11 @@ jobs:
           path: build/*.log
           if-no-files-found: ignore
 
-      # 이 실행이 만든 프로파일과 인증서를 지운다(이미 올린 빌드에는 영향이 없다).
-      # 지우지 못하면 다음 실행의 prepare가 "DayGrid CI" 프로파일과 그 인증서를 먼저 지운다.
-      - name: Remove signing certificate and profiles
+      # 러너에 남은 키체인과 인증서 파일만 지운다. App Store Connect의 인증서와 프로파일은 그대로 둔다
+      # (인증서를 폐기하면 그 인증서로 서명한 빌드가 심사에서 잘못된 바이너리가 된다).
+      - name: Remove local signing files
         if: always()
         run: |
-          if [ -f build/signing/state.json ]; then
-            python3 scripts/ci/asc_signing.py cleanup --out build/signing
-          fi
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
           rm -rf build/signing
 
