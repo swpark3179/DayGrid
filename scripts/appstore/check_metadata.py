@@ -5,6 +5,7 @@
 - 글자 수 한도: 이름·부제 30, 프로모션 텍스트 170, 키워드 100, 설명 4000
 - 키워드: 쉼표로 나누고, 쉼표 앞뒤에 빈칸을 두지 않으며, 같은 낱말이나 이름·부제에 있는 낱말을 다시 넣지 않는다.
 - URL: https로 시작하고, 앱 안의 링크(`DayGrid/App/AppLinks.swift`)와 같아야 한다.
+- 심사 메모(`review_information/notes.txt`): 4000바이트 이하. 채우지 않은 `[[...]]` 자리는 경고만 한다.
 """
 import pathlib
 import re
@@ -72,9 +73,17 @@ def main(root):
             if key in app_links and app_links[key] != url:
                 errors.append(f"{path}: 앱 안의 링크(AppLinks.{key} = {app_links[key]})와 다르다")
 
+    # 심사 메모(App Review Information > Notes)의 한도는 글자가 아니라 4000바이트다. 한글은 한 글자에 3바이트다.
     notes = metadata / "review_information" / "notes.txt"
-    if notes.exists() and len(read(notes)) > 4000:
-        errors.append(f"{notes}: 4000자를 넘는다")
+    if notes.exists():
+        text = read(notes)
+        size = len(text.encode("utf-8"))
+        print(f"[review_information]\n  notes.txt: {size}/4000 bytes")
+        if size > 4000:
+            errors.append(f"{notes}: {size}바이트(한도 4000바이트)")
+        # [[기기 모델]]처럼 붙여 넣기 전에 사용자가 채울 자리. 오류로 막지는 않는다.
+        for placeholder in sorted(set(re.findall(r"\[\[[^\]]+\]\]", text))):
+            print(f"::warning::{notes}: ASC에 붙여 넣기 전에 {placeholder}를 채운다")
 
     for error in errors:
         print(f"::error::{error}")

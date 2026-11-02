@@ -20,6 +20,8 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
 - CloudKit 스키마: `.github/workflows/cloudkit-schema.yml`을 수동 실행한다(mode `check`: 보기만, `import`: Development에 넣기). 두 모드 모두 Production 스키마를 내려받아 `scripts/ci/compare_ckdb.py`로 비교한다(배포 여부 확인). 필요한 Secret은 `CLOUDKIT_MANAGEMENT_TOKEN`, `APPLE_TEAM_ID`다. Production 배포는 사용자가 CloudKit Console에서 한다.
 - App Store 자료(`docs/APP_STORE.md`)
   - 문구는 `appstore/metadata/ko/*.txt`, 심사 메모는 `appstore/metadata/review_information/notes.txt`다. 길이와 키워드 형식은 `python3 scripts/appstore/check_metadata.py`로 확인한다.
+    - 심사 메모는 영어로, Guideline 2.1 정보 요청의 6항목 순서(녹화, 목적, 사용법, 외부 서비스, 지역, 규제)를 따른다. 한도는 4000바이트다.
+    - 외부 서비스나 지역별 동작이 바뀌면 메모 4·5번도 고친다. `[[...]]`는 사용자가 ASC에 붙일 때 채운다.
   - 스크린샷과 미리보기 영상은 "App Store assets" 워크플로(`.github/workflows/appstore-assets.yml`)가 만든다. 결과는 `app-store-assets` 아티팩트다.
     - 관련 파일(`appstore/**`, `AppStoreTests.swift`, `scripts/appstore/**`)을 바꾼 PR에서 저절로 돈다. 수동 실행도 된다.
     - 스크린샷 문구는 `appstore/screenshots.json`이다. 글꼴은 Pretendard(OFL)를 워크플로가 받아 해시로 확인한다.
