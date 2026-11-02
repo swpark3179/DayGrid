@@ -631,6 +631,10 @@ docs/ROADMAP.md, CLAUDE.md
   - 요청: 실기기 화면 녹화(최신 iOS, 앱 실행부터), 목적과 대상, 사용법, 외부 서비스, 지역 차이, 규제 서류
   - 대응: `notes.txt`를 요청 6항목 순서로 다시 썼다. 녹화 순서와 다시 제출하는 법은 `docs/APP_STORE.md` 6번이다.
   - ASC 메모 한도는 4000"바이트"다. `check_metadata.py`가 바이트로 세고, 채우지 않은 `[[...]]`를 경고한다.
+- 다시 제출한 뒤 1.0이 "잘못된 바이너리"가 됐다(2026-11-02 사용자 전달, TestFlight는 정상).
+  - 원인: TestFlight 워크플로가 업로드 뒤 배포 인증서를 폐기했다. Apple은 폐기한 인증서로 서명한 빌드를 Invalid Binary로 표시한다.
+  - 고침: 인증서를 한 번 만들어 Secrets(`DIST_P12_BASE64`, `DIST_P12_PASSWORD`)에 두고 계속 쓴다. 프로파일도 다시 쓴다. 처음 한 번은 `SECRETS_TOKEN`이 필요하다(`docs/TESTFLIGHT.md` 5-1).
+  - 새 빌드를 올려 1.0에 고르고 다시 제출한다(`docs/APP_STORE.md` 6번 "잘못된 바이너리").
 - **완료 기준**
   - "App Store assets" 워크플로가 스크린샷 9장(두 크기)과 영상 2개를 만든다.
   - 앱 단위 테스트 `PrivacyManifestTests`, UI 테스트 `FeatureScreenshotTests.testSettingsSyncStatus`(설정의 링크)가 통과한다.
@@ -772,6 +776,7 @@ docs/ROADMAP.md, CLAUDE.md
       - 고침: 녹화 중에는 연·월 고르기(누르기만)로 다른 달을 보여 준다. 길이를 줄이려고 하루 상세 부분은 뺐다.
     - 실행 #3: 성공. 화면 9장(1320×2868, 1206×2622)과 영상 2개(886×1920, 29.5초, H.264 High@4.0, AAC 스테레오)가 `app-store-assets`에 있다.
   - 기기: 체크리스트 19장
+  - TestFlight 인증서 보관(2026-11-02): 첫 실행에서 "Secret 저장" 두 줄이 나오는지, 다음 실행에서 "저장한 배포 인증서를 쓴다"와 "프로파일 다시 씀"이 나오는지
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.

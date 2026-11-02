@@ -2,9 +2,13 @@
 
 Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 올립니다.
 
-- 서명은 App Store Connect API 키로 합니다. 워크플로가 실행할 때마다 배포 인증서와 프로파일을 만들고, 끝나면 지웁니다. 인증서 파일(.p12)을 직접 만들 필요가 없습니다.
-  - 그래서 developer.apple.com의 Certificates와 Profiles 목록에 "DayGrid CI …" 항목이 실행 중에만 잠깐 생깁니다.
-  - 인증서를 폐기해도 이미 올린 TestFlight 빌드에는 영향이 없습니다.
+- 서명은 App Store Connect API 키로 합니다. 인증서 파일(.p12)을 직접 만들 필요가 없습니다.
+  - 배포 인증서는 처음 실행할 때 워크플로가 한 번 만들어 GitHub Secrets(`DIST_P12_BASE64`, `DIST_P12_PASSWORD`)에 넣고, 그다음부터 계속 씁니다(5-1).
+  - developer.apple.com의 Certificates에 Apple Distribution 인증서 하나, Profiles에 "DayGrid CI <번들 ID>" 프로파일 두 개(앱, 위젯)가 남습니다. 지우지 마세요.
+- **배포 인증서를 폐기(Revoke)하지 마세요.**
+  - 폐기한 인증서로 서명한 빌드는 TestFlight에서는 그대로 돌지만, App Store 심사에서는 "잘못된 바이너리(Invalid Binary)"가 됩니다([Apple 안내](https://developer.apple.com/support/certificates/)).
+  - 예전 워크플로는 실행마다 인증서를 만들고 끝에 폐기했습니다. 그래서 2026-11 첫 심사의 1.0 빌드가 잘못된 바이너리가 됐습니다.
+  - 인증서는 1년마다 만료됩니다. 만료는 이미 낸 앱에 영향이 없고, 워크플로가 알려 줍니다. 그때 5-1을 다시 합니다.
 - 아래 1~5번은 처음 한 번만 하면 됩니다. 모두 웹 브라우저에서 할 수 있습니다.
 
 ## 1. 번들 ID 등록
@@ -49,6 +53,23 @@ Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 
 
 이 값들은 저장소 코드나 채팅에 붙여넣지 마세요. GitHub Secrets에만 넣습니다.
 
+### 5-1. 배포 인증서를 처음 만들 때만: `SECRETS_TOKEN`
+워크플로가 만든 배포 인증서를 Secrets(`DIST_P12_BASE64`, `DIST_P12_PASSWORD`)에 넣으려면, Secrets를 쓸 수 있는 토큰이 한 번 필요합니다.
+`DIST_P12_BASE64`가 없으면 워크플로가 첫 단계에서 이 안내와 함께 멈춥니다.
+
+1. GitHub 오른쪽 위 프로필 → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
+2. 다음과 같이 고르고 만듭니다.
+   - **Token name:** `DayGrid secrets`
+   - **Expiration:** 7 days(한 번만 쓰면 됩니다)
+   - **Repository access:** Only select repositories → `swpark3179/DayGrid`
+   - **Permissions → Repository permissions → Secrets:** Read and write(Metadata: Read-only는 저절로 켜집니다)
+3. 만든 토큰을 복사해, 5번과 같은 곳에 `SECRETS_TOKEN`이라는 이름으로 넣습니다.
+4. 6번대로 TestFlight를 실행합니다. "Prepare signing certificate and profiles" 단계에 "Secret 저장: DIST_P12_BASE64", "Secret 저장: DIST_P12_PASSWORD"가 보이면 됩니다.
+5. 성공했으면 `SECRETS_TOKEN` Secret과 토큰을 지워도 됩니다. 다음 실행부터는 저장된 인증서를 씁니다.
+
+- `DIST_P12_BASE64`, `DIST_P12_PASSWORD`는 워크플로가 만든 값입니다. 직접 고치지 마세요.
+- 인증서가 만료되거나 폐기되면 워크플로가 "App Store Connect에 없다"고 알립니다. 이 5-1을 다시 하면 새로 만들어 덮어씁니다.
+
 ## 6. 빌드 올리기
 - 저장소 → **Actions** → **TestFlight** → **Run workflow**를 누르고 브랜치는 `main`을 고릅니다.
   - Claude에게 "TestFlight에 올려줘"라고 해도 됩니다.
@@ -64,8 +85,12 @@ Mac 없이 GitHub Actions에서 앱을 빌드하고, 서명해서 TestFlight에 
 
 ## 문제가 생기면
 - **"GitHub Secret … is not set"**: 5번의 Secret 이름 철자를 확인합니다.
-- **"Create signing certificate and profiles" 단계에서 403 같은 권한 오류**: 3번 키의 액세스가 **관리(Admin)**인지 확인합니다.
+- **"Prepare signing certificate and profiles" 단계에서 403 같은 권한 오류**: 3번 키의 액세스가 **관리(Admin)**인지 확인합니다.
+- **"배포 인증서 Secret(DIST_P12_BASE64)이 없다"**, **"쓸 수 있는 배포 인증서가 없다"**: 5-1을 합니다.
+- **"새 배포 인증서를 Secrets에 저장하지 못해 폐기했다"**: 5-1의 토큰에 이 저장소와 Secrets(Read and write) 권한이 있는지 확인합니다.
+- **"DIST_P12_BASE64를 DIST_P12_PASSWORD로 열 수 없다"**: 두 Secret을 지우고 5-1을 다시 합니다.
 - **"배포 인증서를 더 만들 수 없다(한도)"**: developer.apple.com → Certificates에서 쓰지 않는 Apple Distribution 인증서를 폐기(Revoke)합니다.
+  - 폐기한 인증서로 서명한 빌드는 심사에서 잘못된 바이너리가 됩니다. 심사를 기다리거나 심사 중인 빌드가 없을 때만 폐기합니다.
 - **"App ID … 에 iCloud(또는 App Groups)가 꺼져 있다"**, **"프로파일에 없는 entitlement"**: `docs/ICLOUD.md` 2번, `docs/WIDGET.md` 2–3번대로 App ID를 설정합니다.
 - **"No suitable application records were found"**: 2번의 앱 레코드와 번들 ID가 `io.github.swpark3179.DayGrid`로 일치하는지 확인합니다.
 - 실패한 실행의 `testflight-logs` 아티팩트에 아카이브·내보내기 로그가 들어 있습니다.

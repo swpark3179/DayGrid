@@ -1,22 +1,27 @@
-"""TestFlight 내보내기용 서명 자산을 App Store Connect API로 만들고 지운다.
+"""TestFlight 내보내기용 서명 자산(배포 인증서, App Store 프로파일)을 App Store Connect API로 준비한다.
 
 Xcode 자동 서명(클라우드 서명)은 iCloud 컨테이너를 찾을 때 API 키로 인증하지 못한다
 (`appstoreconnect.apple.com/xcbuild/v1/cloudContainers` → 401 "Authentication failed", TestFlight 실행 #3·#4).
-그래서 공개 API로 실행마다 배포 인증서와 App Store 프로파일을 만들고, 수동 서명으로 내보낸 뒤 지운다.
+그래서 공개 API로 인증서와 프로파일을 준비하고, 수동 서명으로 내보낸다.
 프로파일의 entitlements(iCloud 컨테이너, App Group, 푸시)는 developer.apple.com의 App ID 설정을 그대로 따른다.
+
+- 배포 인증서는 한 번 만들어 GitHub Secrets에 두고 계속 쓴다. 이 스크립트는 인증서를 폐기하지 않는다.
+  폐기한 인증서로 서명한 빌드는 App Store 심사에서 "잘못된 바이너리"가 된다(TestFlight는 그대로 돈다).
+- 프로파일은 번들마다 "DayGrid CI <번들 ID>" 하나를 두고 다시 쓴다.
 
 사용법(TestFlight 워크플로):
     python3 scripts/ci/asc_signing.py prepare --archive build/DayGrid.xcarchive --out build/signing \
         --destination upload --export-options build/ExportOptions.plist
-    python3 scripts/ci/asc_signing.py cleanup --out build/signing
+  → build/signing/distribution.p12와 그 암호(build/signing/p12-password)를 남긴다. 워크플로가 키체인에 넣고 지운다.
 
 환경 변수
 - ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH: App Store Connect API 키(Admin)
 - APPLE_TEAM_ID: 팀 ID
-- P12_PASSWORD: prepare가 만드는 build/signing/distribution.p12의 암호(워크플로가 실행마다 만든다)
-- GITHUB_RUN_ID: 프로파일 이름에 붙인다
+- DIST_P12_BASE64, DIST_P12_PASSWORD: Secrets에 둔 배포 인증서(.p12의 base64)와 그 암호. 처음에는 없다.
+- SECRETS_TOKEN: 위 두 Secret을 처음 만들 때(또는 인증서가 만료됐을 때)만 쓰는 토큰(저장소 Secrets 쓰기 권한)
+- GITHUB_REPOSITORY: Secret을 넣을 저장소(Actions가 넣어 준다)
 
-표준 라이브러리와 macOS의 openssl, codesign, security만 쓴다.
+표준 라이브러리와 macOS의 openssl, codesign, security, gh만 쓴다.
 """
 import argparse
 import base64
@@ -24,6 +29,8 @@ import hashlib
 import json
 import os
 import plistlib
+import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -182,31 +189,7 @@ def missing_profile_entitlements(required, granted):
     return missing
 
 
-# MARK: - prepare / cleanup
-
-def load_state(out):
-    path = Path(out) / "state.json"
-    return json.loads(path.read_text()) if path.exists() else {"certificate": None, "profiles": []}
-
-
-def save_state(out, state):
-    (Path(out) / "state.json").write_text(json.dumps(state, indent=2))
-
-
-def remove_stale(client):
-    """이전 실행이 정리하지 못한 "DayGrid CI" 프로파일과 그 인증서를 지운다(이 스크립트가 만든 것만)."""
-    response = client.request("GET", "/profiles", params={"filter[profileType]": "IOS_APP_STORE", "limit": 200})
-    for profile in response.get("data", []):
-        name = profile["attributes"].get("name", "")
-        if not name.startswith(PROFILE_PREFIX):
-            continue
-        certificates = client.request("GET", f"/profiles/{profile['id']}/certificates") or {"data": []}
-        client.request("DELETE", f"/profiles/{profile['id']}", allow_missing=True)
-        print(f"이전 프로파일 삭제: {name}")
-        for certificate in certificates.get("data", []):
-            client.request("DELETE", f"/certificates/{certificate['id']}", allow_missing=True)
-            print(f"이전 인증서 폐기: {certificate['id']}")
-
+# MARK: - App ID
 
 def find_bundle_id(client, identifier):
     """App ID의 리소스 id. 없으면 `None`."""
@@ -228,7 +211,42 @@ def capability_problems(client, bundle_resource_id, identifier, entitlements):
     ]
 
 
-def make_certificate(client, out, state):
+# MARK: - 배포 인증서
+# 배포 인증서는 한 번 만들어 GitHub Secrets(DIST_P12_BASE64, DIST_P12_PASSWORD)에 두고 계속 쓴다. 폐기하지 않는다.
+# 폐기한 인증서로 서명한 빌드는 TestFlight에서는 그대로 돌지만, App Store 심사에서는 "잘못된 바이너리(Invalid Binary)"가 된다
+# (https://developer.apple.com/support/certificates/ "Expired or revoked certificates"). 2026-11 첫 심사에서 이 일이 있었다.
+
+def p12_certificate(p12, password):
+    """.p12 안의 인증서(DER). 암호가 틀리거나 파일이 깨졌으면 `None`."""
+    env = dict(os.environ, DAYGRID_P12_IN=password)
+    result = subprocess.run([OPENSSL, "pkcs12", "-in", str(p12), "-clcerts", "-nokeys", "-passin", "env:DAYGRID_P12_IN"],
+                            capture_output=True, env=env)
+    if result.returncode != 0:
+        return None
+    der = subprocess.run([OPENSSL, "x509", "-outform", "DER"], input=result.stdout, capture_output=True)
+    return der.stdout if der.returncode == 0 and der.stdout else None
+
+
+def find_certificate(client, der, today=None):
+    """App Store Connect에 살아 있는 배포 인증서 중 `der`와 같은 것의 id. 폐기됐거나 만료됐으면 `None`."""
+    today = today or time.strftime("%Y-%m-%d", time.gmtime())
+    digest = hashlib.sha1(der).digest()
+    response = client.request("GET", "/certificates", params={"filter[certificateType]": "DISTRIBUTION", "limit": 200})
+    for item in response.get("data", []):
+        attributes = item.get("attributes", {})
+        content = attributes.get("certificateContent")
+        if not content or hashlib.sha1(base64.b64decode(content)).digest() != digest:
+            continue
+        expiration = attributes.get("expirationDate") or ""
+        if expiration and expiration[:10] <= today:
+            print(f"::warning::저장한 배포 인증서가 만료됐다({expiration[:10]}).")
+            return None
+        return item["id"]
+    return None
+
+
+def create_certificate(client, out, password):
+    """새 배포 인증서를 만들고 `out/distribution.p12`(암호 `password`)로 묶는다. (인증서 id, DER)"""
     key = Path(out) / "distribution.key"
     csr = Path(out) / "distribution.csr"
     subprocess.run([OPENSSL, "genrsa", "-out", str(key), "2048"], check=True, capture_output=True)
@@ -243,26 +261,147 @@ def make_certificate(client, out, state):
     except ApiError as error:
         if error.status == 409:
             fail(f"배포 인증서를 더 만들 수 없다(한도). developer.apple.com → Certificates에서 쓰지 않는 "
-                 f"Apple Distribution 인증서를 폐기(Revoke)한 뒤 다시 실행한다. ({error})")
+                 f"Apple Distribution 인증서를 폐기(Revoke)한 뒤 다시 실행한다. 폐기한 인증서로 서명한 빌드는 "
+                 f"심사에서 잘못된 바이너리가 되므로, 심사를 기다리는 빌드가 없을 때만 폐기한다. ({error})")
         raise
     certificate = response["data"]
-    state["certificate"] = certificate["id"]
-    save_state(out, state)
-
     der = base64.b64decode(certificate["attributes"]["certificateContent"])
-    (Path(out) / "distribution.cer").write_bytes(der)
+    cer = Path(out) / "distribution.cer"
     pem = Path(out) / "distribution.pem"
-    subprocess.run([OPENSSL, "x509", "-inform", "DER", "-in", str(Path(out) / "distribution.cer"), "-out", str(pem)],
-                   check=True, capture_output=True)
+    cer.write_bytes(der)
+    subprocess.run([OPENSSL, "x509", "-inform", "DER", "-in", str(cer), "-out", str(pem)], check=True, capture_output=True)
+    env = dict(os.environ, DAYGRID_P12_OUT=password)
     subprocess.run([OPENSSL, "pkcs12", "-export", "-inkey", str(key), "-in", str(pem),
-                    "-out", str(Path(out) / "distribution.p12"), "-passout", "env:P12_PASSWORD"],
-                   check=True, capture_output=True)
+                    "-out", str(Path(out) / "distribution.p12"), "-passout", "env:DAYGRID_P12_OUT"],
+                   check=True, capture_output=True, env=env)
+    key.unlink()
     print(f"배포 인증서 생성: {certificate['attributes'].get('name', '')} ({certificate['id']})")
-    return certificate["id"], hashlib.sha1(der).hexdigest().upper()
+    return certificate["id"], der
 
 
-def make_profile(client, out, state, identifier, bundle_resource_id, certificate_id):
-    name = f"{PROFILE_PREFIX}{os.environ.get('GITHUB_RUN_ID', int(time.time()))} {identifier}"
+def store_certificate_secrets(p12, password):
+    """만든 인증서를 저장소 Secrets에 넣는다. SECRETS_TOKEN(Secrets 쓰기 권한의 토큰)과 gh CLI를 쓴다."""
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    if not repository or not shutil.which("gh"):
+        raise RuntimeError("GITHUB_REPOSITORY 환경 변수나 gh CLI가 없다")
+    env = dict(os.environ, GH_TOKEN=os.environ["SECRETS_TOKEN"])
+    values = {
+        "DIST_P12_BASE64": base64.b64encode(Path(p12).read_bytes()).decode(),
+        "DIST_P12_PASSWORD": password,
+    }
+    for name, value in values.items():
+        # 값은 명령 인자 대신 표준 입력으로 넘긴다(프로세스 목록과 로그에 남지 않게).
+        result = subprocess.run(["gh", "secret", "set", name, "--repo", repository],
+                                input=value.encode(), capture_output=True, env=env)
+        if result.returncode != 0:
+            raise RuntimeError(f"gh secret set {name}: {result.stderr.decode(errors='replace').strip()[:300]}")
+        print(f"Secret 저장: {name}")
+
+
+def ensure_certificate(client, out):
+    """쓸 배포 인증서를 정한다. `out/distribution.p12`와 `out/p12-password`를 남기고 (인증서 id, SHA-1)을 돌려준다.
+
+    1. Secrets의 인증서가 App Store Connect에 살아 있으면 그대로 쓴다.
+    2. 없으면(처음이거나 만료) SECRETS_TOKEN이 있을 때만 새로 만들어 Secrets에 넣는다.
+    """
+    p12 = Path(out) / "distribution.p12"
+    saved = os.environ.get("DIST_P12_BASE64", "").strip()
+    saved_password = os.environ.get("DIST_P12_PASSWORD", "")
+    if saved:
+        try:
+            p12.write_bytes(base64.b64decode(saved))
+        except ValueError:
+            fail("Secret DIST_P12_BASE64가 base64가 아니다. 지우고 SECRETS_TOKEN으로 다시 만든다(docs/TESTFLIGHT.md 5-1).")
+        der = p12_certificate(p12, saved_password)
+        if der is None:
+            fail("Secret DIST_P12_BASE64를 DIST_P12_PASSWORD로 열 수 없다. 두 Secret을 지우고 SECRETS_TOKEN으로 다시 만든다"
+                 "(docs/TESTFLIGHT.md 5-1).")
+        certificate_id = find_certificate(client, der)
+        if certificate_id:
+            (Path(out) / "p12-password").write_text(saved_password)
+            print(f"저장한 배포 인증서를 쓴다({certificate_id})")
+            return certificate_id, hashlib.sha1(der).hexdigest().upper()
+        print("::warning::Secrets의 배포 인증서가 App Store Connect에 없다(폐기 또는 만료). 새로 만든다.")
+
+    if not os.environ.get("SECRETS_TOKEN"):
+        fail("쓸 수 있는 배포 인증서가 없다. docs/TESTFLIGHT.md 5-1대로 Secret SECRETS_TOKEN을 넣고 다시 실행하면 "
+             "인증서를 한 번 만들어 DIST_P12_BASE64, DIST_P12_PASSWORD에 저장한다.")
+    password = secrets.token_urlsafe(32)
+    print(f"::add-mask::{password}")
+    certificate_id, der = create_certificate(client, out, password)
+    try:
+        store_certificate_secrets(p12, password)
+    except RuntimeError as error:
+        # 아직 이 인증서로 서명한 빌드가 없으니 폐기해도 된다. 남겨 두면 한도만 찬다.
+        client.request("DELETE", f"/certificates/{certificate_id}", allow_missing=True)
+        fail(f"새 배포 인증서를 Secrets에 저장하지 못해 폐기했다. SECRETS_TOKEN의 권한(Secrets: Read and write)을 확인한다. ({error})")
+    (Path(out) / "p12-password").write_text(password)
+    return certificate_id, hashlib.sha1(der).hexdigest().upper()
+
+
+# MARK: - 프로파일
+# 번들마다 이름이 정해진 프로파일("DayGrid CI <번들 ID>") 하나를 두고, 쓸 수 있으면 다시 쓴다.
+# 실행마다 지우지 않는다. 인증서가 바뀌었거나 entitlements가 모자랄 때만 지우고 새로 만든다.
+
+def profile_name(identifier):
+    return f"{PROFILE_PREFIX}{identifier}"
+
+
+def ci_profiles(client):
+    """이 스크립트가 만든 App Store 프로파일("DayGrid CI …")."""
+    response = client.request("GET", "/profiles", params={"filter[profileType]": "IOS_APP_STORE", "limit": 200})
+    return [p for p in response.get("data", []) if p["attributes"].get("name", "").startswith(PROFILE_PREFIX)]
+
+
+def remove_old_profiles(client, profiles, keep_names):
+    """예전 방식(실행마다 이름이 다른 프로파일)으로 남은 것을 지운다. 인증서는 건드리지 않는다."""
+    for profile in profiles:
+        name = profile["attributes"]["name"]
+        if name not in keep_names:
+            client.request("DELETE", f"/profiles/{profile['id']}", allow_missing=True)
+            print(f"예전 프로파일 삭제: {name}")
+
+
+def profile_content(client, profile):
+    content = profile["attributes"].get("profileContent")
+    if not content:
+        content = client.request("GET", f"/profiles/{profile['id']}")["data"]["attributes"]["profileContent"]
+    return base64.b64decode(content)
+
+
+def install_profile(out, identifier, uuid, content):
+    for directory in PROFILE_DIRS:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{uuid}.mobileprovision").write_bytes(content)
+    path = Path(out) / f"{identifier}.mobileprovision"
+    path.write_bytes(content)
+    return path
+
+
+def reusable_profile(client, out, profile, identifier, certificate_id, entitlements):
+    """다시 쓸 수 있으면 설치한 파일 경로, 아니면 `None`."""
+    if profile["attributes"].get("profileState") != "ACTIVE":
+        return None
+    certificates = client.request("GET", f"/profiles/{profile['id']}/certificates") or {"data": []}
+    if certificate_id not in {item["id"] for item in certificates.get("data", [])}:
+        return None
+    path = install_profile(out, identifier, profile["attributes"]["uuid"], profile_content(client, profile))
+    return None if missing_profile_entitlements(entitlements, profile_entitlements(path)) else path
+
+
+def ensure_profile(client, out, existing, identifier, bundle_resource_id, certificate_id, entitlements):
+    """(uuid, 설치한 파일 경로)"""
+    name = profile_name(identifier)
+    same_name = [p for p in existing if p["attributes"]["name"] == name]
+    for profile in same_name:
+        path = reusable_profile(client, out, profile, identifier, certificate_id, entitlements)
+        if path:
+            print(f"프로파일 다시 씀: {name} ({profile['attributes']['uuid']})")
+            return profile["attributes"]["uuid"], path
+    for profile in same_name:
+        client.request("DELETE", f"/profiles/{profile['id']}", allow_missing=True)
+        print(f"프로파일 삭제(인증서나 entitlements가 맞지 않음): {name}")
+
     body = {"data": {
         "type": "profiles",
         "attributes": {"name": name, "profileType": "IOS_APP_STORE"},
@@ -272,16 +411,8 @@ def make_profile(client, out, state, identifier, bundle_resource_id, certificate
         },
     }}
     profile = client.request("POST", "/profiles", body=body)["data"]
-    state["profiles"].append(profile["id"])
-    save_state(out, state)
-
     uuid = profile["attributes"]["uuid"]
-    content = base64.b64decode(profile["attributes"]["profileContent"])
-    for directory in PROFILE_DIRS:
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / f"{uuid}.mobileprovision").write_bytes(content)
-    path = Path(out) / f"{identifier}.mobileprovision"
-    path.write_bytes(content)
+    path = install_profile(out, identifier, uuid, base64.b64decode(profile["attributes"]["profileContent"]))
     print(f"프로파일 생성: {name} ({uuid})")
     return uuid, path
 
@@ -313,16 +444,17 @@ def client_from_environment():
     return Client(make_token(os.environ["ASC_KEY_ID"], os.environ["ASC_ISSUER_ID"], os.environ["ASC_KEY_PATH"]))
 
 
+# MARK: - prepare
+
 def prepare(args):
-    if not os.environ.get("P12_PASSWORD") or not os.environ.get("APPLE_TEAM_ID"):
-        fail("환경 변수 P12_PASSWORD, APPLE_TEAM_ID가 필요하다")
+    if not os.environ.get("APPLE_TEAM_ID"):
+        fail("환경 변수 APPLE_TEAM_ID가 필요하다")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    state = load_state(out)
     client = client_from_environment()
 
     bundles = [(bundle, bundle_identifier(bundle), signed_entitlements(bundle)) for bundle in archive_bundles(args.archive)]
-    # 인증서를 만들기 전에 모든 App ID를 확인하고, 문제는 한꺼번에 알린다.
+    # 인증서를 정하기 전에 모든 App ID를 확인하고, 문제는 한꺼번에 알린다.
     resources = {}
     problems = []
     for _, identifier, entitlements in bundles:
@@ -336,13 +468,14 @@ def prepare(args):
     if problems:
         fail_all(problems)
 
-    remove_stale(client)
-    certificate_id, certificate_sha1 = make_certificate(client, out, state)
+    certificate_id, certificate_sha1 = ensure_certificate(client, out)
 
-    # 프로파일도 모두 만들어 본 뒤 한꺼번에 알린다. 만든 것은 정리 단계(cleanup)가 지운다.
+    existing = ci_profiles(client)
+    remove_old_profiles(client, existing, {profile_name(identifier) for _, identifier, _ in bundles})
+    # 프로파일도 모두 확인한 뒤 한꺼번에 알린다.
     profiles = {}
     for _, identifier, entitlements in bundles:
-        uuid, path = make_profile(client, out, state, identifier, resources[identifier], certificate_id)
+        uuid, path = ensure_profile(client, out, existing, identifier, resources[identifier], certificate_id, entitlements)
         granted = profile_entitlements(path)
         missing = missing_profile_entitlements(entitlements, granted)
         if missing:
@@ -360,31 +493,6 @@ def prepare(args):
     print(f"ExportOptions: {args.export_options} (수동 서명, {len(profiles)}개 프로파일)")
 
 
-def cleanup(args):
-    state = load_state(args.out)
-    if not state["profiles"] and not state["certificate"]:
-        print("지울 서명 자산이 없다")
-        return
-    client = client_from_environment()
-    errors = []
-    for profile_id in state["profiles"]:
-        try:
-            client.request("DELETE", f"/profiles/{profile_id}", allow_missing=True)
-            print(f"프로파일 삭제: {profile_id}")
-        except ApiError as error:
-            errors.append(str(error))
-    if state["certificate"]:
-        try:
-            client.request("DELETE", f"/certificates/{state['certificate']}", allow_missing=True)
-            print(f"인증서 폐기: {state['certificate']}")
-        except ApiError as error:
-            errors.append(str(error))
-    save_state(args.out, {"certificate": None, "profiles": []})
-    for error in errors:
-        # 다음 실행의 prepare가 "DayGrid CI" 프로파일과 그 인증서를 다시 지운다.
-        print(f"::warning::{error}")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -393,11 +501,9 @@ def main():
     prepare_parser.add_argument("--out", required=True)
     prepare_parser.add_argument("--destination", choices=["upload", "export"], default="upload")
     prepare_parser.add_argument("--export-options", required=True)
-    cleanup_parser = commands.add_parser("cleanup")
-    cleanup_parser.add_argument("--out", required=True)
     args = parser.parse_args()
     try:
-        prepare(args) if args.command == "prepare" else cleanup(args)
+        prepare(args)
     except ApiError as error:
         fail(str(error))
 

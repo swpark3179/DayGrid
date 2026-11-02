@@ -26,7 +26,11 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 관련 파일(`appstore/**`, `AppStoreTests.swift`, `scripts/appstore/**`)을 바꾼 PR에서 저절로 돈다. 수동 실행도 된다.
     - 스크린샷 문구는 `appstore/screenshots.json`이다. 글꼴은 Pretendard(OFL)를 워크플로가 받아 해시로 확인한다.
   - 안내 페이지(소개, 지원, 개인정보 처리방침)는 `site/`다. main에 머지하면 Pages 워크플로가 `https://swpark3179.github.io/DayGrid/`에 올린다.
-- TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, ad-hoc 서명으로 entitlements를 넣는다. 그다음 `scripts/ci/asc_signing.py`가 App Store Connect API로 배포 인증서와 프로파일을 만들고, 수동 서명으로 내보내면서 업로드한다. 끝나면 인증서와 프로파일을 지운다. Xcode 클라우드 서명은 iCloud 컨테이너 조회에서 401이 나서 쓰지 않는다. 입력 `upload`를 끄면 서명까지만 확인한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
+- TestFlight: `.github/workflows/testflight.yml`을 수동 실행한다(`main` 브랜치). 서명 없이 아카이브하고, ad-hoc 서명으로 entitlements를 넣는다. 그다음 `scripts/ci/asc_signing.py`가 App Store Connect API로 배포 인증서와 프로파일을 준비하고, 수동 서명으로 내보내면서 업로드한다. Xcode 클라우드 서명은 iCloud 컨테이너 조회에서 401이 나서 쓰지 않는다. 입력 `upload`를 끄면 서명까지만 확인한다. 필요한 GitHub Secrets와 사용자 준비는 `docs/TESTFLIGHT.md`에 있다. API 키 값은 저장소나 채팅에 남기지 않는다.
+  - 배포 인증서는 Secrets(`DIST_P12_BASE64`, `DIST_P12_PASSWORD`)에 둔 것을 계속 쓴다. 워크플로에서 인증서를 폐기하지 않는다.
+    - 폐기한 인증서로 서명한 빌드는 TestFlight에서는 돌지만 App Store 심사에서 잘못된 바이너리가 된다(2026-11 첫 심사).
+    - Secret이 없거나 인증서가 만료됐으면 `SECRETS_TOKEN`(Secrets 쓰기 토큰)이 있을 때만 새로 만들어 넣는다.
+  - 프로파일은 번들마다 "DayGrid CI <번들 ID>" 하나를 두고 다시 쓴다. 인증서나 entitlements가 맞지 않을 때만 새로 만든다.
 
 ## 규칙
 - 종일/기간 일정, 휴일, 생일은 `LocalDate`(yyyymmdd)로 다룬다. 시간 일정만 `Date`를 쓴다.

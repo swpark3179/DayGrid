@@ -33,7 +33,7 @@ App Store Connect에 앱을 새로 만들 필요는 없습니다. 위젯은 DayG
 - `docs/DEVICE_CHECKLIST.md` 10장을 따라 확인합니다.
 
 ## 문제가 생기면
-- **TestFlight "Create signing certificate and profiles" 단계 오류**
+- **TestFlight "Prepare signing certificate and profiles" 단계 오류**
   - 워크플로가 서명 전에 App ID를 모두 확인합니다. 고칠 것을 한꺼번에 보여 줍니다.
   - "App ID io.github.swpark3179.DayGrid.Widgets가 developer.apple.com에 없다" → 3번을 합니다.
   - "App ID …에 App Groups가 꺼져 있다" → 앱이면 2번, 위젯이면 3번을 합니다.

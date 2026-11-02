@@ -64,7 +64,7 @@ TestFlight로 받은 앱은 CloudKit의 **Production** 환경을 씁니다.
 - 앱의 **설정 → 동기화 → iCloud**에서 상태를 볼 수 있습니다.
 
 ## 문제가 생기면
-- **TestFlight "Create signing certificate and profiles" 단계에서 "프로파일에 없는 entitlement: com.apple.developer.icloud-container-identifiers"**
+- **TestFlight "Prepare signing certificate and profiles" 단계에서 "프로파일에 없는 entitlement: com.apple.developer.icloud-container-identifiers"**
   - App ID에 iCloud는 켜져 있지만 컨테이너가 체크되지 않은 상태입니다. 로그에 `'com.apple.developer.icloud-container-identifiers': []`처럼 빈 목록이 보입니다.
   - 2번의 **iCloud → Configure(또는 Edit)**에서 `iCloud.io.github.swpark3179.DayGrid`를 체크하고 **Save**까지 누릅니다.
   - 컨테이너 연결은 API로 할 수 없어서 이 화면에서만 할 수 있습니다.
