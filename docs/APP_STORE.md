@@ -10,6 +10,7 @@ App Store Connect(ASC)에 넣을 내용과 순서다. 문구는 `appstore/metada
 | 프로모션 텍스트(170자) | 앱을 열면 바로 한 달이 보여요… | `ko/promotional_text.txt` |
 | 설명(4000자) | ■ 한 달이 한눈에 보이는 달력… | `ko/description.txt` |
 | 키워드(100자) | 캘린더,스케줄,일정관리,… | `ko/keywords.txt` |
+| 이 버전의 새로운 기능(4000자, 1.1부터) | ■ 앱 아이콘 배지… | `ko/release_notes.txt` |
 | 지원 URL | https://swpark3179.github.io/DayGrid/support/ | `ko/support_url.txt` |
 | 마케팅 URL(선택) | https://swpark3179.github.io/DayGrid/ | `ko/marketing_url.txt` |
 | 개인정보 처리방침 URL | https://swpark3179.github.io/DayGrid/privacy/ | `ko/privacy_url.txt` |
@@ -193,3 +194,26 @@ Thank you.
   4. ASC → 1.0 → **빌드**에서 예전 빌드를 빼고 새 빌드를 고른 뒤 저장한다.
   5. 메모와 첨부가 그대로 있는지 보고, **심사에 추가** → **심사에 제출**한다. App Review 메시지에도 새 빌드로 다시 냈다고 짧게 답한다.
 - 심사가 끝날 때까지(그리고 그 뒤에도) developer.apple.com에서 Apple Distribution 인증서를 폐기하지 않는다.
+
+## 7. 새 버전 내기(1.1부터)
+승인된 버전에는 빌드를 더 올릴 수 없다. 1.0이 승인된 뒤로는 버전 번호를 올려야 TestFlight에 올라가고, 그 버전으로 다시 심사를 받는다.
+
+1. 버전 번호를 정한다. 승인된 버전보다 높아야 한다.
+   - 고침만 있으면 끝자리(1.1 → 1.1.1), 기능이 더해지면 가운데(1.1 → 1.2)를 올린다.
+2. `project.yml`의 `MARKETING_VERSION`을 바꾼다. 앱과 위젯이 같은 값을 쓴다.
+3. `appstore/metadata/ko/release_notes.txt`에 이번 버전의 새로운 기능을 쓴다. 지난 버전 문구는 지운다.
+4. main에 머지하고 **Actions → TestFlight → Run workflow**(main)를 실행한다.
+   - "Check app version" 단계가 아카이브 전에 App Store Connect의 버전과 비교한다. 승인된 버전보다 높지 않으면 여기서 멈춘다.
+   - ASC에 그 버전이 아직 없으면 알림만 남기고 그대로 올린다. TestFlight는 버전을 먼저 만들지 않아도 된다.
+5. ASC → 앱 → DayGrid → 왼쪽 **iOS 앱** 옆 **+** → 2번의 버전 번호(예: 1.1)를 넣어 새 버전을 만든다.
+   - 스크린샷, 설명, 키워드, 심사 정보는 지난 버전에서 이어진다. 바뀐 것만 고친다. 메모와 첨부가 그대로 있는지 본다.
+   - **이 버전의 새로운 기능**: `release_notes.txt`를 붙인다. 업데이트에서는 꼭 넣어야 한다.
+   - **빌드**: 4번에서 올린 빌드를 고른다(처리에 10–30분).
+6. **심사에 추가** → **심사에 제출**한다. 배포 인증서는 이번에도 폐기하지 않는다.
+
+### 업로드가 "train … is closed"로 실패했을 때(2026-11-10, 빌드 19)
+- 오류
+  - 90186 `Invalid Pre-Release Train. The train version '1.0' is closed for new build submissions`
+  - 90062 `CFBundleShortVersionString [1.0] … must contain a higher version than that of the previously approved version [1.0]`
+- 원인: 1.0이 승인된 뒤에도 `MARKETING_VERSION`이 1.0이었다. 아카이브와 서명은 되고 업로드 끝에서야 거절된다.
+- 고침: `MARKETING_VERSION`을 1.1로 올렸다(Phase 22의 배지·위젯이 들어간 버전). TestFlight 워크플로에 "Check app version"을 더해 다음부터는 아카이브 전에 멈춘다.

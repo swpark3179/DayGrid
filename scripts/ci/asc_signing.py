@@ -10,6 +10,8 @@ Xcode 자동 서명(클라우드 서명)은 iCloud 컨테이너를 찾을 때 AP
 - 프로파일은 번들마다 "DayGrid CI <번들 ID>" 하나를 두고 다시 쓴다.
 
 사용법(TestFlight 워크플로):
+    python3 scripts/ci/asc_signing.py check-version --project project.yml --bundle-id io.github.swpark3179.DayGrid
+  → 아카이브 전에, 올릴 버전(MARKETING_VERSION)이 이미 승인된 버전보다 높은지 확인한다.
     python3 scripts/ci/asc_signing.py prepare --archive build/DayGrid.xcarchive --out build/signing \
         --destination upload --export-options build/ExportOptions.plist
   → build/signing/distribution.p12와 그 암호(build/signing/p12-password)를 남긴다. 워크플로가 키체인에 넣고 지운다.
@@ -29,6 +31,7 @@ import hashlib
 import json
 import os
 import plistlib
+import re
 import secrets
 import shutil
 import subprocess
@@ -444,6 +447,101 @@ def client_from_environment():
     return Client(make_token(os.environ["ASC_KEY_ID"], os.environ["ASC_ISSUER_ID"], os.environ["ASC_KEY_PATH"]))
 
 
+# MARK: - 버전 확인
+# 승인된 버전에는 빌드를 더 올릴 수 없다. 아카이브와 서명을 다 마친 업로드 끝에서야
+# "Invalid Pre-Release Train … closed"(90186), "must contain a higher version"(90062)로 실패한다
+# (2026-11-10 TestFlight 빌드 19: 1.0 승인 뒤 다시 1.0). 그래서 아카이브 전에 App Store Connect의 버전과 비교한다.
+
+# 심사를 통과한 뒤의 상태. appVersionState(새 필드)와 appStoreState(예전 필드)를 함께 본다.
+APPROVED_STATES = {
+    "ACCEPTED",
+    "PENDING_APPLE_RELEASE",
+    "PENDING_DEVELOPER_RELEASE",
+    "PROCESSING_FOR_DISTRIBUTION",
+    "READY_FOR_DISTRIBUTION",
+    "PROCESSING_FOR_APP_STORE",
+    "READY_FOR_SALE",
+    "PREORDER_READY_FOR_SALE",
+    "REPLACED_WITH_NEW_VERSION",
+    "REMOVED_FROM_SALE",
+    "DEVELOPER_REMOVED_FROM_SALE",
+}
+
+
+def version_key(text):
+    """"1.0"과 "1.0.0"이 같게 비교되는 키. 숫자와 점으로 된 버전이 아니면 `None`."""
+    try:
+        parts = [int(part) for part in text.strip().split(".")]
+    except (AttributeError, ValueError):
+        return None
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts)
+
+
+def marketing_version(project_file):
+    """project.yml의 MARKETING_VERSION. 없으면 `None`."""
+    for line in Path(project_file).read_text(encoding="utf-8").splitlines():
+        match = re.match(r'\s*MARKETING_VERSION:\s*"?([0-9][0-9.]*)"?\s*(#.*)?$', line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def store_versions(data):
+    """App Store 버전 목록(API 응답의 data) → iOS 버전마다 (버전 문자열, 상태, 승인 여부)"""
+    result = []
+    for item in data:
+        attributes = item.get("attributes", {})
+        text = attributes.get("versionString")
+        if attributes.get("platform", "IOS") != "IOS" or version_key(text) is None:
+            continue
+        states = {attributes.get("appVersionState"), attributes.get("appStoreState")}
+        state = attributes.get("appVersionState") or attributes.get("appStoreState") or "?"
+        result.append((text, state, bool(states & APPROVED_STATES)))
+    return result
+
+
+def version_problem(version, versions):
+    """올릴 버전이 승인된 버전보다 높지 않으면 사람이 읽을 문구, 괜찮으면 `None`. `versions`는 `store_versions`의 결과."""
+    highest = max((text for text, _, approved in versions if approved), key=version_key, default=None)
+    if highest is None or version_key(version) > version_key(highest):
+        return None
+    return (f"올릴 버전 {version}이 이미 승인된 버전 {highest}보다 높지 않다. 승인된 버전에는 빌드를 더 올릴 수 없다"
+            f"(90186, 90062). project.yml의 MARKETING_VERSION을 {highest}보다 높게 올리고 main에 머지한 뒤 다시 실행한다"
+            "(docs/APP_STORE.md 7번).")
+
+
+def check_version(args):
+    version = marketing_version(args.project)
+    if not version or version_key(version) is None:
+        fail(f"{args.project}에서 MARKETING_VERSION(숫자와 점)을 찾지 못했다")
+    print(f"올릴 버전: {version}")
+
+    # API가 실패하면 알리기만 하고 넘어간다. 버전이 정말 틀렸으면 업로드에서 다시 걸린다.
+    try:
+        client = client_from_environment()
+        apps = client.request("GET", "/apps", params={"filter[bundleId]": args.bundle_id, "limit": 200})
+        app = next((item for item in apps.get("data", []) if item["attributes"].get("bundleId") == args.bundle_id), None)
+        if app is None:
+            print(f"::warning::App Store Connect에 {args.bundle_id} 앱이 없어 버전을 확인하지 못했다(docs/TESTFLIGHT.md 2번).")
+            return
+        response = client.request("GET", f"/apps/{app['id']}/appStoreVersions", params={"limit": 200})
+    except (ApiError, OSError, KeyError) as error:
+        print(f"::warning::App Store Connect 버전을 확인하지 못했다. 그대로 진행한다. ({error})")
+        return
+
+    versions = store_versions(response.get("data", []))
+    for text, state, _ in versions:
+        print(f"App Store 버전 {text}: {state}")
+    problem = version_problem(version, versions)
+    if problem:
+        fail(problem)
+    if all(version_key(text) != version_key(version) for text, _, _ in versions):
+        print(f"::notice::App Store Connect에 버전 {version}이 아직 없다. TestFlight에는 그대로 올라간다. "
+              f"심사에 내려면 ASC에서 {version} 버전을 만들고 이 빌드를 고른다(docs/APP_STORE.md 7번).")
+
+
 # MARK: - prepare
 
 def prepare(args):
@@ -501,9 +599,15 @@ def main():
     prepare_parser.add_argument("--out", required=True)
     prepare_parser.add_argument("--destination", choices=["upload", "export"], default="upload")
     prepare_parser.add_argument("--export-options", required=True)
+    version_parser = commands.add_parser("check-version")
+    version_parser.add_argument("--project", default="project.yml")
+    version_parser.add_argument("--bundle-id", required=True)
     args = parser.parse_args()
     try:
-        prepare(args)
+        if args.command == "check-version":
+            check_version(args)
+        else:
+            prepare(args)
     except ApiError as error:
         fail(str(error))
 
