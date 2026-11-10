@@ -10,8 +10,11 @@ struct SettingsTab: View {
     @AppStorage(AppSettings.dayDetailStyleKey) private var dayDetailStyle = DayDetailStyle.list
     @AppStorage(AppSettings.workdayStartMinuteKey) private var workdayStart = AppSettings.defaultWorkdayStartMinute
     @AppStorage(AppSettings.workdayEndMinuteKey) private var workdayEnd = AppSettings.defaultWorkdayEndMinute
+    @Environment(\.scenePhase) private var scenePhase
     /// 동기화 오류 내용을 복사한 뒤 버튼 문구를 바꾼다.
     @State private var copiedSyncReport: String?
+    /// 앱 아이콘 배지 권한 상태. 처음 그릴 때와 iOS 설정에서 돌아올 때 다시 읽는다.
+    @State private var badgeStatus: NotificationScheduler.BadgeStatus?
 
     var body: some View {
         NavigationStack {
@@ -47,6 +50,7 @@ struct SettingsTab: View {
                     }
                 }
                 Section {
+                    badgeRow
                     Picker("생일 알림", selection: $birthdayReminder) {
                         Text("끔").tag(-1)
                         Text("당일").tag(0)
@@ -62,7 +66,7 @@ struct SettingsTab: View {
                 } header: {
                     Text("알림")
                 } footer: {
-                    Text("생일 알림은 오전 9시에 옵니다. 일정 알림은 일정 편집 화면에서, 반복 할일 알림은 반복 할일 편집 화면에서 정합니다.")
+                    Text("앱 아이콘 배지는 오늘까지 해야 하는데 끝내지 않은 할일 수입니다. 반복 할일은 잠금화면 위젯으로 확인합니다.\n생일 알림은 오전 9시에 옵니다. 일정 알림은 일정 편집 화면에서, 반복 할일 알림은 반복 할일 편집 화면에서 정합니다.")
                 }
                 .onChange(of: birthdayReminder) { _, value in
                     if value >= 0 {
@@ -81,6 +85,40 @@ struct SettingsTab: View {
                 }
             }
             .navigationTitle("설정")
+            .task {
+                badgeStatus = await NotificationScheduler.shared.badgeStatus()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    Task { badgeStatus = await NotificationScheduler.shared.badgeStatus() }
+                }
+            }
+        }
+    }
+
+    /// 앱 아이콘 배지. 알림 권한을 아직 묻지 않았을 때만 "켜기" 버튼을 보인다(사용자가 켤 때만 묻는다).
+    /// 끄기는 iOS 설정(알림 → DayGrid → 배지)에서 한다. 바로 아래의 "시스템 알림 설정 열기"로 간다.
+    @ViewBuilder
+    private var badgeRow: some View {
+        if badgeStatus == .notDetermined {
+            Button("앱 아이콘 배지 켜기") {
+                Task {
+                    await NotificationScheduler.shared.requestAuthorization()
+                    badgeStatus = await NotificationScheduler.shared.badgeStatus()
+                }
+            }
+            .accessibilityIdentifier("settings.badge")
+        } else {
+            LabeledContent("앱 아이콘 배지", value: badgeStatusText)
+                .accessibilityIdentifier("settings.badge")
+        }
+    }
+
+    private var badgeStatusText: String {
+        switch badgeStatus ?? .notDetermined {
+        case .on: "켜짐"
+        case .off: "iOS 설정에서 꺼짐"
+        case .notDetermined: ""
         }
     }
 

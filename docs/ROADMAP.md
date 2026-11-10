@@ -640,6 +640,48 @@ docs/ROADMAP.md, CLAUDE.md
   - 앱 단위 테스트 `PrivacyManifestTests`, UI 테스트 `FeatureScreenshotTests.testSettingsSyncStatus`(설정의 링크)가 통과한다.
   - 기기 체크리스트 19장으로 확인한다.
 
+### Phase 22 — 앱 아이콘 배지, 잠금화면 원형 위젯 (사용자 요청 2026-11-10)
+- 날짜가 오늘이거나 이전인데 끝내지 않은 할일 수를 앱 아이콘 배지로 보인다.
+  - 예: 어제·오늘·내일 할일이 하나씩 있으면 2다. 어제나 오늘 것 하나를 끝내면 1, 둘 다 끝내면 배지가 없다. 내일 할일은 세지 않는다.
+- 반복 할일도 남았다는 표시가 필요하다(사용자 요청). 배지에 숫자 말고 다른 표시가 있는지 검토했다.
+  - iOS 앱 아이콘 배지는 숫자만 된다(`setBadgeCount`, 0이면 숨김). 점, 기호, 색은 없다.
+  - 다른 아이콘으로 바꾸기(`setAlternateIconName`)는 바꿀 때마다 시스템 창이 뜨고, 앱이 떠 있을 때만 된다.
+  - 반복 할일을 배지 숫자에 더하면 뜻이 섞인다.
+  - 그래서 반복 할일은 잠금화면 1×1(원형) 위젯으로 보인다. 남으면 눈에 띄게, 없으면 조용하게.
+- 사용자 결정(2026-11-10)
+  - 배지 권한: 설정 → 알림의 "앱 아이콘 배지 켜기"로 묻는다. 권한을 묻기 전에만 보인다. 끄기는 iOS 설정(알림 → DayGrid → 배지)에 맡긴다.
+  - 원형 위젯이 0개일 때: 배경 없이 아주 흐린 작은 ✓
+- 모델과 CloudKit 스키마는 바뀌지 않는다.
+- **완료 기준**
+  - Core 테스트 `TaskBadgeTests`, `ReminderPlannerTests`(배지)가 통과한다.
+  - 앱 테스트 `AppBadgeTests`, UI 테스트 `FeatureScreenshotTests.testSettingsSyncStatus`(설정의 배지 줄)가 통과한다.
+  - 기기 체크리스트 20장으로 확인한다.
+- **구현 메모**
+  - Core `TaskBadge`
+    - `count(on:undoneTaskDays:)`: 시작일이 그날 이하인 미완료 할일 수. 기간 할일은 시작일로 한 번만 센다.
+    - `changes(after:through:undoneTaskDays:)`: 할일이 새로 시작되어 수가 늘어나는 날과 그날의 수
+  - Core `ReminderPlanner.plan(…, badgeTaskDays:)`
+    - 모든 알림에 울리는 날의 배지 수(`PlannedReminder.badge`)를 싣는다.
+    - 수가 늘어나는 날 00:00에 배지 전용 알림(`Kind.badge`, `daygrid.badge.yyyymmdd`, 제목·내용·소리 없음)을 더한다.
+    - 30일 범위와 60개 제한을 다른 알림과 함께 쓴다.
+    - 인자가 nil이면 예전과 같다.
+  - 앱 `NotificationScheduler`
+    - `badgeTaskDays(in:)`: 날짜 있는 미완료 할일의 시작일. 시간 할일은 `calendarEntry(in:)`로 실제 날짜를 구한다.
+    - `sync()`: `setBadgeCount`로 지금 수를 넣는다. 대기 알림은 배지 수까지 비교해서, 바뀌면 다시 만든다.
+    - 동기화 시점을 더했다.
+      - 알림의 "완료" 뒤(`AppDelegate`가 `sync()`를 기다린다. 앱이 백그라운드여도 배지가 바로 준다)
+      - 앱을 쓰는 중의 자정(`NSCalendarDayChanged`)
+    - 앱이 떠 있을 때 배지 전용 알림은 `willPresent`가 `[.badge]`만 돌려준다.
+  - 설정: "앱 아이콘 배지" 줄(`settings.badge`). 상태는 `NotificationScheduler.badgeStatus()`로 읽는다.
+    - 묻기 전이면 "앱 아이콘 배지 켜기" 버튼
+    - 켜짐이면 "켜짐", 거부했거나 배지를 껐으면 "iOS 설정에서 꺼짐"
+  - 위젯 `RecurringDueWidget`의 원형만 다시 그렸다. 목록형과 한 줄형은 그대로다.
+    - 남았을 때: 꽉 찬 원에 반복 기호와 개수를 뚫어 그린다(`destinationOut`). 잠금화면(vibrant)에서 가장 밝다. `fullColor`면 주황 원에 흰 글자다.
+    - 없을 때: 배경 없이 흐린(0.3) 작은 ✓
+  - 위험: 제목 없이 배지만 있는 알림이 조용히 배지만 바꾸는지는 기기에서만 볼 수 있다(체크리스트 20-4).
+    - 빈 알림이 보이면 `ReminderPlanner`의 배지 전용 알림만 뺀다.
+    - 그래도 다른 알림에 실은 배지 수와 백그라운드 새로 고침으로 맞춘다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -778,6 +820,16 @@ docs/ROADMAP.md, CLAUDE.md
   - 기기: 체크리스트 19장
   - TestFlight 인증서 보관(2026-11-02): 첫 실행에서 "Secret 저장" 두 줄이 나오는지, 다음 실행에서 "저장한 배포 인증서를 쓴다"와 "프로파일 다시 씀"이 나오는지
 
+- [ ] Phase 22 앱 아이콘 배지, 잠금화면 원형 위젯: PR CI 확인
+  - Core
+    - `TaskBadgeTests`(사용자 예시, 밀린 할일, 기간 할일, 자정 변화, 범위)
+    - `ReminderPlannerTests`(`noBadgeWithoutTaskDays`, `remindersCarryTheBadgeOfTheDayTheyFire`, `badgeOnlyRemindersAtMidnight`, `badgeRemindersShareTheLimit`)
+  - 앱: `AppBadgeTests`(어제·오늘·내일, 완료·"나중에"·일정 제외, 기간 할일, 시간 할일의 실제 날짜, 샘플 데이터)
+  - UI: `FeatureScreenshotTests.testSettingsSyncStatus`에서 `settings.badge`를 찾는다. 시뮬레이터는 권한을 묻기 전이라 "앱 아이콘 배지 켜기" 버튼이다.
+    - 이 줄 때문에 동기화 줄을 찾는 스크롤이 달라질 수 있다. 스크린샷 25가 그대로인지 본다.
+  - 위젯 모양은 CI에서 볼 수 없다. 빌드만 확인하고, 모양은 기기 체크리스트 20장으로 본다.
+  - 기기: 체크리스트 20장
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -804,3 +856,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 19: 하루 상세에서 꾹 눌러 옮길 때 시트 닫기, 맨 위 가운데 X로 취소, 움직임
 - [ ] Phase 20: 반복 탭 요약 기간(매일·매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해)
 - [ ] Phase 21: App Store 등록 준비(문구, 지원·개인정보 처리방침 페이지, 스크린샷·미리보기 워크플로, 개인정보 매니페스트, 버전 1.0)
+- [ ] Phase 22: 앱 아이콘 배지(오늘까지 남은 할일), 잠금화면 원형 위젯(남으면 꽉 찬 원, 없으면 흐린 ✓)

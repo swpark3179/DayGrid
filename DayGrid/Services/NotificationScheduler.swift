@@ -8,8 +8,13 @@ import UserNotifications
 /// 로컬 알림 예약. Core `ReminderPlanner`가 고른 알림(앞으로 30일, 가까운 60개)과
 /// 대기 중인 알림을 비교해 바뀐 것만 지우고 더한다.
 ///
-/// 동기화 시점: 앱 실행, 포그라운드 진입, 데이터 저장(1초 모아서), 하루 한 번 백그라운드 새로 고침.
-/// 알림 권한은 사용자가 처음 알림을 켤 때만 묻는다. 권한이 없으면 동기화하지 않는다.
+/// 앱 아이콘 배지(오늘까지 남은 할일 수, Core `TaskBadge`)도 여기서만 맞춘다.
+/// - 동기화할 때 `setBadgeCount`로 지금 수를 넣는다.
+/// - 알림마다 울리는 날의 수를 싣는다.
+/// - 할일이 새로 시작되는 날의 자정에 배지 전용 알림을 둔다. 앱을 열지 않아도 자정에 늘어난다.
+///
+/// 동기화 시점: 앱 실행, 포그라운드 진입, 데이터 저장(1초 모아서), 자정, 알림의 "완료" 뒤, 하루 한 번 백그라운드 새로 고침.
+/// 알림 권한은 사용자가 처음 알림이나 배지를 켤 때만 묻는다. 권한이 없으면 동기화하지 않는다.
 @MainActor
 final class NotificationScheduler {
     static let shared = NotificationScheduler()
@@ -61,12 +66,39 @@ final class NotificationScheduler {
         }
     }
 
+    /// 설정의 "앱 아이콘 배지" 줄에 보일 상태.
+    enum BadgeStatus {
+        /// 배지를 보인다.
+        case on
+        /// 아직 알림 권한을 묻지 않았다. "켜기"를 누르면 묻는다.
+        case notDetermined
+        /// 알림 권한을 거부했거나 iOS 설정에서 배지를 껐다.
+        case off
+    }
+
+    func badgeStatus() async -> BadgeStatus {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            return .notDetermined
+        case .denied:
+            return .off
+        default:
+            return settings.badgeSetting == .enabled ? .on : .off
+        }
+    }
+
     func sync(now: Date = Date()) async {
         guard let container else { return }
         let status = await center.notificationSettings().authorizationStatus
         guard status == .authorized || status == .provisional || status == .ephemeral else { return }
 
-        let planned = plan(context: container.mainContext, now: now)
+        let context = container.mainContext
+        let badgeTaskDays = Self.badgeTaskDays(in: context)
+        // 0이면 배지를 숨긴다. iOS 설정에서 배지를 껐으면 iOS가 그리지 않는다.
+        try? await center.setBadgeCount(TaskBadge.count(on: LocalDate(now), undoneTaskDays: badgeTaskDays))
+
+        let planned = plan(context: context, now: now, badgeTaskDays: badgeTaskDays)
         let wanted = Dictionary(planned.map { ($0.identifier, $0) }, uniquingKeysWith: { first, _ in first })
         let pending = await center.pendingNotificationRequests()
             .filter { $0.identifier.hasPrefix(ReminderPlanner.identifierPrefix) }
@@ -121,7 +153,17 @@ final class NotificationScheduler {
 
     // MARK: - 계획
 
-    private func plan(context: ModelContext, now: Date) -> [PlannedReminder] {
+    /// 앱 아이콘 배지에 들어갈 할일의 시작일. 날짜가 있고 끝내지 않은 할일만 넣는다(`TaskBadge`).
+    /// 시간 할일의 날짜는 저장한 색인이 아니라 실제 시각으로 다시 구한다(`calendarEntry(in:)`).
+    static func badgeTaskDays(in context: ModelContext, timeZone: TimeZone = .current) -> [LocalDate] {
+        let descriptor = FetchDescriptor<Item>(predicate: #Predicate<Item> { item in
+            item.isTask == true && item.completedAt == nil && item.startDayKey > 0
+        })
+        let tasks = (try? context.fetch(descriptor)) ?? []
+        return tasks.compactMap { $0.calendarEntry(in: timeZone)?.startDay }
+    }
+
+    private func plan(context: ModelContext, now: Date, badgeTaskDays: [LocalDate]) -> [PlannedReminder] {
         let items = (try? context.fetch(FetchDescriptor<Item>(predicate: #Predicate { $0.reminderMask > 0 && $0.startDayKey > 0 }))) ?? []
         let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
         let tasks = (try? context.fetch(FetchDescriptor<RecurringTask>(predicate: RecurringTask.activePredicate))) ?? []
@@ -155,15 +197,20 @@ final class NotificationScheduler {
                     completedCycleStarts: Set(task.completionDays.keys)
                 )
             },
+            badgeTaskDays: badgeTaskDays,
             now: now
         )
     }
 
     private static func request(for reminder: PlannedReminder) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = reminder.title
-        content.body = reminder.body
-        content.sound = .default
+        // 배지 전용 알림은 제목·내용·소리 없이 배지만 바꾼다.
+        if reminder.kind != .badge {
+            content.title = reminder.title
+            content.body = reminder.body
+            content.sound = .default
+        }
+        content.badge = reminder.badge.map { NSNumber(value: $0) }
         var info: [String: Any] = [
             UserInfoKey.fireDate: reminder.fireDate.timeIntervalSince1970,
             UserInfoKey.day: reminder.day.iso8601,
@@ -174,7 +221,7 @@ final class NotificationScheduler {
             if isTask {
                 content.categoryIdentifier = taskCategory
             }
-        case .birthday:
+        case .birthday, .badge:
             break
         case .recurring(let taskID, let cycleStart):
             info[UserInfoKey.taskID] = taskID.uuidString
@@ -188,11 +235,13 @@ final class NotificationScheduler {
         return UNNotificationRequest(identifier: reminder.identifier, content: content, trigger: trigger)
     }
 
-    /// 대기 중인 알림이 계획과 같으면(시각, 제목, 내용) 다시 만들지 않는다.
+    /// 대기 중인 알림이 계획과 같으면(시각, 제목, 내용, 배지 수) 다시 만들지 않는다.
+    /// 할일을 체크해서 배지 수가 바뀌면 그 뒤의 알림을 새 수로 다시 만든다.
     private static func matches(_ request: UNNotificationRequest, _ reminder: PlannedReminder) -> Bool {
         request.content.title == reminder.title
             && request.content.body == reminder.body
             && (request.content.userInfo[UserInfoKey.fireDate] as? Double) == reminder.fireDate.timeIntervalSince1970
+            && request.content.badge?.intValue == reminder.badge
     }
 
     enum UserInfoKey {

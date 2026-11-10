@@ -40,6 +40,17 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 반복 할일 알림을 누르면 반복 탭을 연다(`NotificationRouter.open(day:recurringTaskID:)` → `routeToOpen`). 다른 알림은 그 날의 하루 상세를 연다.
   - 반복 탭의 요약은 Core `Recurrence.summary(on:firstWeekday:completedCycleStarts:)`다. 기간은 `RecurrenceRule.summaryPeriod`가 정한다: 매일·요일 여럿인 매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해(사용자 결정 2026-10-27). 분모는 그 기간의 주기 전체(남은 것 포함)다.
 - 알림은 Core `ReminderPlanner`로 계획하고 `NotificationScheduler.sync()`로만 예약한다. 알림 권한은 사용자가 알림을 켤 때만 묻는다(`requestAuthorization()`). 화면 코드에서 `UNUserNotificationCenter`를 직접 부르지 않는다.
+- 앱 아이콘 배지(Phase 22)
+  - 수는 날짜가 오늘이거나 이전인 미완료 할일이다. Core `TaskBadge`로 센다(사용자 요청 2026-11-10).
+    - 넣는 날짜는 `NotificationScheduler.badgeTaskDays(in:)`가 `calendarEntry(in:)`로 구한다. 기간 할일은 시작일로 한 번만 센다.
+    - "나중에"(날짜 없음), 일정(할일 아님), 반복 할일은 넣지 않는다.
+  - 배지는 `NotificationScheduler.sync()`만 맞춘다. 세 가지다.
+    - `setBadgeCount`로 지금 수를 넣는다.
+    - 알림마다 울리는 날의 수(`PlannedReminder.badge`)를 싣는다.
+    - 할일이 새로 시작되는 날 00:00에 배지 전용 알림(`daygrid.badge.yyyymmdd`, 제목 없음)을 둔다.
+  - 할일 완료가 바뀌는 곳(저장, 알림의 "완료", 자정)에서는 `sync()`가 돌아야 한다.
+  - 권한은 설정의 "앱 아이콘 배지 켜기"(`settings.badge`, 권한을 묻기 전에만 보임)를 누를 때만 묻는다. 끄기는 iOS 설정에 맡긴다.
+  - 반복 할일의 "남음" 표시는 배지가 아니라 잠금화면 원형 위젯이다. iOS 배지는 숫자만 되기 때문이다.
 - 공휴일은 Core `KoreanHolidays`가 계산하고, 앱에서는 `HolidayService`(보정 자료, 연도별 캐시)를 거쳐 쓴다. 날짜 칸 표시는 Core `DayMarks`로 모은다.
   - 공휴일(`DayMark.holidayNames`)과 개인 휴일(`personalHolidayNames`)은 따로 담는다.
   - 색은 `DayStyle`의 규칙을 따른다: 공휴일과 일요일은 빨강, 개인 휴일은 주황, 토요일은 파랑이다. 화면 코드에 색을 따로 쓰지 않는다.
@@ -122,7 +133,7 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 화면 코드에서 `preferredColorScheme`을 쓰지 않는다. 시스템(nil)으로 되돌릴 때 바로 돌아오지 않는 경우가 있다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`, `settings.support`, `settings.privacy`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`, `settings.support`, `settings.privacy`, `settings.badge`
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
   - 실행 인자 `-dayDetailStyle timeline`은 하루 상세를 타임라인으로 연다(UserDefaults 인자 도메인).
   - 실행 인자 `-appearance dark`는 테마를 다크로 연다(같은 인자 도메인).
@@ -159,4 +170,6 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 위젯은 SwiftData를 열지 않는다. 앱이 `WidgetSnapshotWriter`로 App Group 폴더에 쓴 Core `RecurringSnapshot`(JSON)만 읽는다. 위젯에 넘길 데이터가 바뀌면 이 요약을 고친다.
   - App Group은 `group.io.github.swpark3179.DayGrid`(`RecurringSnapshot.appGroupID`)다. 앱과 위젯의 entitlements에 둘 다 있다. 사용자 준비는 `docs/WIDGET.md`에 있다.
   - 위젯을 누르면 `daygrid://recurring`(`RecurringSnapshot.openURL`)을 연다. 앱은 `AppRoute`로 받는다.
+  - 원형(1×1)은 남은 것이 있으면 꽉 찬 원에 개수를 뚫어 그리고, 없으면 배경 없이 흐린 ✓만 둔다(사용자 결정 2026-11-10).
+    - 잠금화면은 단색(vibrant)으로 그리므로 색 대신 밝기로 나눈다. `fullColor`에서만 주황이다.
   - TestFlight의 ad-hoc 서명 단계는 위젯 확장을 먼저, 앱을 나중에 한다(바깥 서명이 안쪽을 덮는다). 배포 프로파일은 `asc_signing.py`가 아카이브 안의 앱과 확장마다 만든다.

@@ -89,8 +89,10 @@ struct RootView: View {
             selectedTab = .calendar
             dayToOpen = day
         }
+        // 앱을 쓰는 중에 자정이 지나면, 그날 시작하는 할일을 앱 아이콘 배지에 더한다.
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: DispatchQueue.main)) { _ in
             clock.refresh()
+            NotificationScheduler.shared.scheduleSync(after: .zero)
         }
         .onChange(of: QuickActionCenter.shared.pending, initial: true) { _, action in
             guard let action else { return }

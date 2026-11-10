@@ -24,11 +24,12 @@ private func plan(
     birthdays: [ReminderPlanner.BirthdayInput] = [],
     birthdaySettings: ReminderPlanner.BirthdaySettings = .off,
     recurring: [ReminderPlanner.RecurringInput] = [],
+    badgeTaskDays: [LocalDate]? = nil,
     limit: Int = ReminderPlanner.defaultLimit
 ) -> [PlannedReminder] {
     ReminderPlanner.plan(
         items: items, birthdays: birthdays, birthdaySettings: birthdaySettings, recurring: recurring,
-        now: now, timeZone: seoul, limit: limit
+        badgeTaskDays: badgeTaskDays, now: now, timeZone: seoul, limit: limit
     )
 }
 
@@ -130,6 +131,48 @@ struct ReminderPlannerTests {
         let second = plan(recurring: [dailyTask(20)]).map { $0.identifier }
         #expect(first == second)
         #expect(first.first == "daygrid.recurring.00000000-0000-0000-0000-000000000020.20261019")
+    }
+
+    @Test func noBadgeWithoutTaskDays() {
+        let result = plan(recurring: [dailyTask(30)])
+        #expect(result.allSatisfy { $0.badge == nil }, "배지를 주지 않으면 알림이 배지를 건드리지 않는다")
+        #expect(!result.contains { $0.kind == .badge })
+    }
+
+    @Test func remindersCarryTheBadgeOfTheDayTheyFire() {
+        // 밀린 할일(10/18) 하나와 내일(10/20) 할일 하나. 내일 할일은 전날과 당일 오전 9시에 알린다.
+        let tomorrowTask = ReminderPlanner.ItemInput(
+            id: uuid(31), title: "서류 내기", isTask: true, isCompleted: false, isAllDay: true,
+            startDay: day(2026, 10, 20), startDate: nil, options: [.previousDayMorning, .sameDayMorning]
+        )
+        let result = plan(items: [tomorrowTask], badgeTaskDays: [day(2026, 10, 18), day(2026, 10, 20)])
+        #expect(result.map(\.fireDate) == [at(day(2026, 10, 19), 9), at(day(2026, 10, 20), 0), at(day(2026, 10, 20), 9)])
+        #expect(result.map(\.badge) == [1, 2, 2], "전날 알림에는 다음 날 할일이 들어가지 않는다")
+        #expect(result.map(\.kind) == [.item(id: uuid(31), isTask: true), .badge, .item(id: uuid(31), isTask: true)])
+    }
+
+    @Test func badgeOnlyRemindersAtMidnight() throws {
+        let result = plan(badgeTaskDays: [day(2026, 10, 19), day(2026, 10, 21), day(2026, 10, 21), day(2026, 12, 1)])
+        // 오늘 것은 앱이 바로 배지에 넣는다. 30일 범위 밖(12/1)은 다음 동기화에서 잡는다.
+        #expect(result.count == 1)
+        let badge = try #require(result.first)
+        #expect(badge.identifier == "daygrid.badge.20261021")
+        #expect(badge.identifier.hasPrefix(ReminderPlanner.badgeIdentifierPrefix))
+        #expect(badge.fireDate == at(day(2026, 10, 21), 0))
+        #expect(badge.title.isEmpty && badge.body.isEmpty, "배지 전용 알림은 배너를 띄우지 않는다")
+        #expect(badge.kind == .badge)
+        #expect(badge.day == day(2026, 10, 21))
+        #expect(badge.badge == 3)
+    }
+
+    @Test func badgeRemindersShareTheLimit() {
+        let tasks = (40..<44).map { dailyTask($0) }
+        let all = plan(recurring: tasks, badgeTaskDays: [day(2026, 10, 20)], limit: 1000)
+        #expect(all.count == 4 * 30 + 1)
+        let result = plan(recurring: tasks, badgeTaskDays: [day(2026, 10, 20)])
+        #expect(result.count == 60, "배지 알림도 64개 제한 안에서 함께 센다")
+        #expect(result.contains { $0.identifier == "daygrid.badge.20261020" }, "가까운 배지 알림은 남는다")
+        #expect(result == Array(all.prefix(60)))
     }
 
     @Test func optionMasks() {

@@ -75,6 +75,7 @@ struct RecurringDueWidgetView: View {
     let entry: RecurringDueEntry
 
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         switch family {
@@ -120,20 +121,56 @@ struct RecurringDueWidgetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// 1×1 모양(사용자 요청 2026-11-10). 남은 것이 있으면 눈에 띄게, 없으면 최대한 조용하게.
+    /// iPhone 잠금화면은 위젯을 단색(vibrant)으로 그리므로 색 대신 밝기로 나눈다.
     private var circular: some View {
-        ZStack {
-            AccessoryWidgetBackground()
-            VStack(spacing: 0) {
-                Image(systemName: count == 0 ? "checkmark" : "repeat")
-                    .font(.caption)
-                if count > 0 {
-                    Text(verbatim: "\(count)")
-                        .font(.title2.bold())
-                        .widgetAccentable()
-                }
+        Group {
+            if count == 0 {
+                quietCircular
+            } else {
+                loudCircular
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: count == 0 ? "남은 반복 할일 없음" : "남은 반복 할일 \(count)개"))
+    }
+
+    /// 다 했을 때: 배경 없이 작고 흐린 ✓만 둔다. 위젯 자리는 알 수 있지만 눈에 띄지 않는다.
+    private var quietCircular: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: 13, weight: .light))
+            .opacity(0.3)
+    }
+
+    /// 남았을 때: 꽉 찬 원에 반복 기호와 개수를 뚫어 그린다. 잠금화면에서 가장 밝게 보인다.
+    /// 색을 그대로 쓰는 곳(`fullColor`)에서는 주황 원에 흰 글자다.
+    @ViewBuilder
+    private var loudCircular: some View {
+        let mark = VStack(spacing: -1) {
+            Image(systemName: "repeat")
+                .font(.system(size: 11, weight: .bold))
+            Text(verbatim: count > 99 ? "99+" : "\(count)")
+                .font(.system(size: count > 9 ? 24 : 30, weight: .heavy, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+        }
+        .padding(8)
+        if renderingMode == .fullColor {
+            ZStack {
+                Circle().fill(Color.orange)
+                mark.foregroundStyle(.white)
+            }
+        } else {
+            ZStack {
+                Circle().fill(.white)
+                mark
+                    .foregroundStyle(.black)
+                    .blendMode(.destinationOut)
+            }
+            .compositingGroup()
+            .widgetAccentable()
+        }
     }
 
     private var inline: some View {
