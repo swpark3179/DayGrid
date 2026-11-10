@@ -123,7 +123,9 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 개인정보 매니페스트는 `DayGrid/PrivacyInfo.xcprivacy`다(`PrivacyManifestTests`).
     - 이유가 필요한 API(파일 시각, 부팅 시각, 디스크 용량 등)를 새로 쓰면 이유를 더한다.
     - 개발자나 제3자에게 보내는 데이터가 생기면 매니페스트, `site/privacy/`, ASC의 앱 개인정보를 함께 바꾼다. 지금은 "수집 안 함"이다.
-  - App Store에 새 버전을 낼 때는 `project.yml`의 `MARKETING_VERSION`을 올린다. ASC의 버전과 같아야 한다.
+  - App Store에 새 버전을 낼 때는 `project.yml`의 `MARKETING_VERSION`을 올린다. ASC의 버전과 같아야 한다(`docs/APP_STORE.md` 7번).
+    - 승인된 버전보다 높아야 올라간다(90186, 90062). TestFlight 워크플로의 "Check app version"(`asc_signing.py check-version`)이 아카이브 전에 확인한다.
+    - 새로운 기능 문구는 `appstore/metadata/ko/release_notes.txt`다.
   - App Store 화면 테스트(`DayGridUITests/AppStoreTests.swift`)는 `TEST_RUNNER_DAYGRID_APPSTORE=1`일 때만 돈다. 보통 CI에서는 건너뛴다.
     - 스크린샷 이름은 `appstore/screenshots.json`의 `raw`와 같다(01–09). CI 스크린샷 번호와 따로 센다.
     - 영상 녹화는 시뮬레이터 밖의 `scripts/appstore/record_previews.py`가 한다. 테스트는 `PreviewRecorder.start/stop`으로 신호만 보낸다.

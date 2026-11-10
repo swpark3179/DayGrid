@@ -681,6 +681,13 @@ docs/ROADMAP.md, CLAUDE.md
   - 위험: 제목 없이 배지만 있는 알림이 조용히 배지만 바꾸는지는 기기에서만 볼 수 있다(체크리스트 20-4).
     - 빈 알림이 보이면 `ReminderPlanner`의 배지 전용 알림만 뺀다.
     - 그래도 다른 알림에 실은 배지 수와 백그라운드 새로 고침으로 맞춘다.
+- 버전 1.1(2026-11-10)
+  - 1.0이 승인된 뒤 TestFlight 빌드 19가 업로드 끝에서 실패했다(90186 "train '1.0' is closed", 90062 "higher version than … approved [1.0]").
+  - `MARKETING_VERSION`을 1.1로 올렸다. 새로운 기능 문구는 `appstore/metadata/ko/release_notes.txt`다.
+  - TestFlight 워크플로의 "Check app version"(`asc_signing.py check-version`)이 아카이브 전에 ASC의 App Store 버전과 비교한다.
+    - 승인된 버전(`appVersionState`/`appStoreState`가 ACCEPTED, READY_FOR_DISTRIBUTION, READY_FOR_SALE 등)보다 높지 않으면 멈춘다.
+    - API를 읽지 못하면 경고만 하고 넘어간다. 업로드가 다시 막아 준다.
+  - 새 버전을 내는 순서는 `docs/APP_STORE.md` 7번이다.
 
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
@@ -829,6 +836,8 @@ docs/ROADMAP.md, CLAUDE.md
     - 이 줄 때문에 동기화 줄을 찾는 스크롤이 달라질 수 있다. 스크린샷 25가 그대로인지 본다.
   - 위젯 모양은 CI에서 볼 수 없다. 빌드만 확인하고, 모양은 기기 체크리스트 20장으로 본다.
   - 기기: 체크리스트 20장
+  - TestFlight(버전 1.1): "Check app version" 단계에 "App Store 버전 1.0: …"(승인 상태)과 "1.1이 아직 없다" 알림이 나오고, 업로드까지 되는지
+    - 상태 이름이 `APPROVED_STATES`에 없어서 1.0을 승인으로 보지 못해도 실패하지는 않는다. 그때는 출력된 상태를 `APPROVED_STATES`에 더한다.
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.

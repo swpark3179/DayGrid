@@ -56,6 +56,12 @@ jobs:
           chmod 600 "$key_dir/AuthKey_${ASC_KEY_ID}.p8"
           echo "ASC_KEY_PATH=$key_dir/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
 
+      # 승인된 버전에는 빌드를 더 올릴 수 없다(90186 "train … closed", 90062 "must contain a higher version").
+      # 업로드 끝에서야 실패하므로(빌드 19), 아카이브 전에 MARKETING_VERSION을 App Store Connect의 버전과 비교한다.
+      # API를 읽지 못하면 경고만 하고 넘어간다.
+      - name: Check app version
+        run: python3 scripts/ci/asc_signing.py check-version --project project.yml --bundle-id io.github.swpark3179.DayGrid
+
       - name: Show toolchain
         run: xcodebuild -version
 
