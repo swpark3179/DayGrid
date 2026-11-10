@@ -67,7 +67,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        // 배지 전용 알림(자정)은 제목이 없으므로 배지만 바꾼다. 빈 배너를 띄우지 않는다.
+        if notification.request.identifier.hasPrefix(ReminderPlanner.badgeIdentifierPrefix) {
+            return [.badge]
+        }
+        return [.banner, .list, .sound, .badge]
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
@@ -79,12 +83,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let taskID = (info[NotificationScheduler.UserInfoKey.taskID] as? String).flatMap { UUID(uuidString: $0) }
         let cycleStart = (info[NotificationScheduler.UserInfoKey.cycleStart] as? String).flatMap { LocalDate(iso8601: $0) }
 
-        await MainActor.run {
+        let completed = await MainActor.run { () -> Bool in
             if action == NotificationScheduler.completeAction {
                 NotificationScheduler.shared.complete(itemID: itemID, taskID: taskID, cycleStart: cycleStart)
+                return true
             } else if action == UNNotificationDefaultActionIdentifier {
                 NotificationRouter.shared.open(day: day, recurringTaskID: taskID)
             }
+            return false
+        }
+        // 앱이 백그라운드에서 깨어난 동안 앱 아이콘 배지와 남은 알림의 배지 수를 바로 맞춘다.
+        if completed {
+            await Task { @MainActor in
+                await NotificationScheduler.shared.sync()
+            }.value
         }
     }
 }

@@ -51,6 +51,8 @@ public struct PlannedReminder: Hashable, Sendable {
         case birthday(personID: UUID)
         /// 반복 할일의 한 주기. "완료" 동작을 붙인다.
         case recurring(taskID: UUID, cycleStart: LocalDate)
+        /// 앱 아이콘 배지만 바꾸는 알림(제목·내용·소리 없음). 그날 시작하는 할일이 배지에 더해지는 자정에 울린다.
+        case badge
     }
 
     public let identifier: String
@@ -60,6 +62,8 @@ public struct PlannedReminder: Hashable, Sendable {
     public let kind: Kind
     /// 알림을 누르면 열 날짜
     public let day: LocalDate
+    /// 울릴 때 앱 아이콘에 넣을 배지 수(`TaskBadge`). `nil`이면 배지를 건드리지 않는다.
+    public var badge: Int?
 }
 
 /// 앞으로 `horizonDays`일 안에 울릴 알림을 계산한다. iOS는 앱당 대기 알림을 64개까지만 두므로 가까운 순으로 `limit`개(기본 60)만 고른다.
@@ -67,6 +71,8 @@ public enum ReminderPlanner {
     public static let defaultLimit = 60
     public static let defaultHorizonDays = 30
     public static let identifierPrefix = "daygrid."
+    /// 배지 전용 알림(`Kind.badge`)의 식별자 앞부분. 뒤에 yyyymmdd가 붙는다.
+    public static let badgeIdentifierPrefix = "\(identifierPrefix)badge."
 
     public struct ItemInput: Sendable {
         public let id: UUID
@@ -132,11 +138,14 @@ public enum ReminderPlanner {
         }
     }
 
+    /// `badgeTaskDays`는 미완료 할일의 시작일이다(`TaskBadge`). 주면 모든 알림에 울리는 날의 배지 수를 싣고,
+    /// 배지 수가 늘어나는 날의 자정에 배지 전용 알림을 더한다. `nil`이면 배지를 다루지 않는다.
     public static func plan(
         items: [ItemInput],
         birthdays: [BirthdayInput],
         birthdaySettings: BirthdaySettings,
         recurring: [RecurringInput],
+        badgeTaskDays: [LocalDate]? = nil,
         now: Date,
         timeZone: TimeZone = .current,
         horizonDays: Int = defaultHorizonDays,
@@ -151,6 +160,14 @@ public enum ReminderPlanner {
         reminders += items.flatMap { itemReminders($0, timeZone: timeZone) }
         reminders += birthdays.flatMap { birthdayReminders($0, settings: birthdaySettings, today: today, horizonEnd: horizonEnd, timeZone: timeZone) }
         reminders += recurring.flatMap { recurringReminders($0, today: today, horizonEnd: horizonEnd, timeZone: timeZone) }
+        if let badgeTaskDays {
+            reminders = reminders.map { planned in
+                var reminder = planned
+                reminder.badge = TaskBadge.count(on: LocalDate(reminder.fireDate, in: timeZone), undoneTaskDays: badgeTaskDays)
+                return reminder
+            }
+            reminders += badgeReminders(badgeTaskDays, today: today, horizonEnd: horizonEnd, timeZone: timeZone)
+        }
 
         return reminders
             .filter { $0.fireDate > now && $0.fireDate < horizon }
@@ -246,6 +263,27 @@ public enum ReminderPlanner {
                     day: start
                 )
             }
+    }
+
+    /// 배지 수가 늘어나는 날(그날 시작하는 미완료 할일이 있는 날)의 자정에 배지만 바꾼다.
+    /// 앱을 열지 않아도 내일 할일이 자정에 배지에 더해진다.
+    private static func badgeReminders(
+        _ taskDays: [LocalDate],
+        today: LocalDate,
+        horizonEnd: LocalDate,
+        timeZone: TimeZone
+    ) -> [PlannedReminder] {
+        TaskBadge.changes(after: today, through: horizonEnd, undoneTaskDays: taskDays).map { change in
+            PlannedReminder(
+                identifier: "\(badgeIdentifierPrefix)\(change.day.yyyymmdd)",
+                fireDate: change.day.date(in: timeZone),
+                title: "",
+                body: "",
+                kind: .badge,
+                day: change.day,
+                badge: change.count
+            )
+        }
     }
 
     private static func timeText(_ date: Date, timeZone: TimeZone) -> String {

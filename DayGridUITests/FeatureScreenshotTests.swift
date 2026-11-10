@@ -206,6 +206,8 @@ final class FeatureScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["2026년 10월"].waitForExistence(timeout: 15))
         tabButton("설정", in: app).tap()
         XCTAssertTrue(app.navigationBars["설정"].waitForExistence(timeout: 5))
+        // 알림 구역의 앱 아이콘 배지 줄. 누르면 알림 권한 창이 뜨므로 있는지만 본다.
+        scrollUntilVisible(element("settings.badge", in: app).firstMatch, in: app)
         let sync = element("settings.sync", in: app)
         scrollUntilVisible(sync, in: app)
         // UI 테스트는 메모리 저장소를 쓰므로 iCloud에 연결하지 않는다
