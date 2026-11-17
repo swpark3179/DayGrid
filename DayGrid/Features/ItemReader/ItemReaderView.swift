@@ -5,7 +5,7 @@ import SwiftUI
 /// 하루 상세에서 본문 버튼을 누르면 열리는 읽기 화면. 제목, 시간, 카테고리, 본문만 보여준다.
 ///
 /// 고치지는 않지만 체크는 할 수 있다.
-/// - 할일이면 제목 옆 체크박스로 완료를 켜고 끈다.
+/// - 할일이면 제목 옆 체크박스로 완료를 켜고 끈다. 취소선을 그은 할일은 ⊘를 눌러 취소선을 지운다.
 /// - 본문의 체크리스트(`- [ ]`)를 누르면 `MarkdownTaskList`로 본문 원문을 고쳐 저장한다.
 struct ItemReaderView: View {
     let item: Item
@@ -40,21 +40,24 @@ struct ItemReaderView: View {
             if item.isTask {
                 Button {
                     withAnimation(.snappy) {
-                        item.toggleCompletion()
+                        if item.isCancelled {
+                            item.toggleCancellation()
+                        } else {
+                            item.toggleCompletion()
+                        }
                     }
                     try? modelContext.save()
                 } label: {
-                    CompletionCheckmark(isDone: item.isCompleted, font: .title2)
+                    CompletionCheckmark(isDone: item.isCompleted, isCancelled: item.isCancelled, font: .title2)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel(item.isCompleted ? "완료 취소" : "완료로 표시")
+                .accessibilityLabel(CompletionCheckmark.actionLabel(isDone: item.isCompleted, isCancelled: item.isCancelled))
                 .accessibilityIdentifier("reader.complete")
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.title3.bold())
-                    .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
+                    .itemTitleStyle(item)
                     .accessibilityIdentifier("reader.title")
                 if !timeText.isEmpty {
                     Label(timeText, systemImage: "clock")

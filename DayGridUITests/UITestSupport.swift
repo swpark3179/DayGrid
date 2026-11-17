@@ -50,6 +50,24 @@ extension XCTestCase {
         parent.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
+    /// SwiftUI 토글을 켜거나 끈다. 줄 가운데를 누르면 라벨이 눌려 바뀌지 않을 수 있어서, 안쪽 스위치(없으면 오른쪽 끝)를 누른다.
+    @MainActor
+    func setSwitch(_ toggle: XCUIElement, on: Bool) {
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "\(toggle) 를 찾을 수 있어야 한다")
+        let wanted = on ? "1" : "0"
+        guard toggle.value as? String != wanted else { return }
+        let inner = toggle.switches.firstMatch
+        if inner.exists {
+            inner.tap()
+        } else {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        if toggle.value as? String != wanted {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(toggle.value as? String, wanted, "\(toggle) 가 바뀌어야 한다")
+    }
+
     /// 폼 아래쪽 행은 화면 밖이면 접근성 트리에 없으므로, 보일 때까지 위로 민다.
     @MainActor
     func scrollUntilVisible(_ target: XCUIElement, in app: XCUIApplication, attempts: Int = 3) {

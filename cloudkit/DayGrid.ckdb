@@ -11,6 +11,7 @@ DEFINE SCHEMA
         "___recordID" REFERENCE QUERYABLE,
         CD_body STRING,
         CD_body_ckAsset ASSET,
+        CD_cancelledAt TIMESTAMP,
         CD_category STRING,
         CD_completedAt TIMESTAMP,
         CD_createdAt TIMESTAMP,

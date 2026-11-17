@@ -261,6 +261,32 @@ struct MonthLayoutOverflowTests {
         #expect(week.hiddenCount(on: quiet) == 0)
     }
 
+    @Test func cancelledEntriesGiveTheirLanesToTheOthers() {
+        // 10/19(월): 취소선을 그은 종일 일정 둘(하나는 10/18–10/20) + 시간 할일 둘, 보이는 줄 3개.
+        // 취소선이 없으면 먼저 시작하고 긴 종일 일정이 위 줄을 차지해 할일이 "+N"으로 숨는다.
+        let date = day(2026, 10, 19)
+        let entries = [
+            CalendarEntry.allDay(id: uuid(1), from: day(2026, 10, 18), through: day(2026, 10, 20), isCancelled: true),
+            CalendarEntry.allDay(id: uuid(2), from: date, through: date, isCancelled: true),
+            chip(3, date, minute: 9 * 60),
+            chip(4, date, minute: 15 * 60),
+        ]
+        let week = MonthLayout.make(month: date, entries: entries, maxVisibleLanes: 3).week(containing: date)
+        #expect(week.segment(3)?.lane == 0)
+        #expect(week.segment(4)?.lane == 1)
+        #expect(Set(week.segments.map(\.entryID)) == Set([uuid(3), uuid(4)]), "남은 줄이 모자라면 취소한 일정이 먼저 숨는다")
+        #expect(week.hiddenCount(on: day(2026, 10, 18)) == 1)
+        #expect(week.hiddenCount(on: date) == 2)
+        #expect(week.hiddenCount(on: day(2026, 10, 20)) == 1)
+
+        // 줄이 넉넉하면 취소한 일정도 그대로 보인다(기록).
+        let roomy = MonthLayout.make(month: date, entries: entries, maxVisibleLanes: 5).week(containing: date)
+        #expect(roomy.segments.count == 4)
+        #expect(roomy.segment(1)?.lane == 2)
+        #expect(roomy.segment(2)?.lane == 3)
+        #expect(roomy.hiddenCount(on: date) == 0)
+    }
+
     @Test func nonPositiveLaneLimitActsLikeOne() {
         let date = day(2026, 10, 19)
         let entries = [chip(1, date, minute: 600)]

@@ -12,13 +12,20 @@ private func uuid(_ number: Int) -> UUID {
     return UUID(uuidString: "00000000-0000-0000-0000-\(suffix)")!
 }
 
-private func allDay(_ id: Int, _ title: String, _ start: LocalDate, _ end: LocalDate? = nil, task: Bool = false, done: Bool = false) -> DayAgenda.Input {
-    DayAgenda.Input(entry: .allDay(id: uuid(id), from: start, through: end ?? start), title: title, isTask: task, isCompleted: done)
+private func allDay(
+    _ id: Int, _ title: String, _ start: LocalDate, _ end: LocalDate? = nil, task: Bool = false, done: Bool = false, cancelled: Bool = false
+) -> DayAgenda.Input {
+    DayAgenda.Input(
+        entry: .allDay(id: uuid(id), from: start, through: end ?? start, isCancelled: cancelled),
+        title: title, isTask: task, isCompleted: done, isCancelled: cancelled
+    )
 }
 
-private func timed(_ id: Int, _ title: String, _ date: LocalDate, minute: Int, endDay: LocalDate? = nil, task: Bool = false, done: Bool = false) -> DayAgenda.Input {
-    let entry = CalendarEntry(id: uuid(id), startDay: date, endDay: endDay ?? date, isAllDay: false, startMinute: minute)
-    return DayAgenda.Input(entry: entry, title: title, isTask: task, isCompleted: done)
+private func timed(
+    _ id: Int, _ title: String, _ date: LocalDate, minute: Int, endDay: LocalDate? = nil, task: Bool = false, done: Bool = false, cancelled: Bool = false
+) -> DayAgenda.Input {
+    let entry = CalendarEntry(id: uuid(id), startDay: date, endDay: endDay ?? date, isAllDay: false, startMinute: minute, isCancelled: cancelled)
+    return DayAgenda.Input(entry: entry, title: title, isTask: task, isCompleted: done, isCancelled: cancelled)
 }
 
 @Suite("DayAgenda")
@@ -47,6 +54,24 @@ struct DayAgendaTests {
         #expect(agenda.timed.map(\.id) == [uuid(3), uuid(4), uuid(5)])
         #expect(agenda.tasks.map(\.id) == [uuid(7), uuid(8), uuid(6)])
         #expect(!agenda.isEmpty)
+    }
+
+    @Test func cancelledTasksGoDownWithTheDoneOnesAndEventsKeepTheirTime() {
+        // 취소선을 그은 할일은 남은 할일이 아니므로 끝낸 할일과 함께 아래로 간다(사용자 요청 2026-11-17).
+        let tasks = [
+            allDay(21, "가나 보류", date, task: true, cancelled: true),
+            allDay(22, "다라 끝", date, task: true, done: true),
+            allDay(23, "마바 남음", date, task: true),
+        ]
+        #expect(DayAgenda.make(on: date, inputs: tasks).tasks.map(\.id) == [uuid(23), uuid(21), uuid(22)])
+        #expect(tasks[0].isSettled && tasks[1].isSettled && !tasks[2].isSettled)
+
+        // 일정은 취소선을 그어도 목록에 남고, 시각 순서도 그대로다.
+        let events = [
+            timed(24, "취소된 회의", date, minute: 9 * 60, cancelled: true),
+            timed(25, "점심", date, minute: 12 * 60),
+        ]
+        #expect(DayAgenda.make(on: date, inputs: events).timed.map(\.id) == [uuid(24), uuid(25)])
     }
 
     @Test func orderDoesNotDependOnInput() {

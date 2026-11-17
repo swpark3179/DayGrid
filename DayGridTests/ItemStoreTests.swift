@@ -204,6 +204,68 @@ struct ItemStoreTests {
         #expect(restored.category?.name == "업무")
     }
 
+    @Test func aStruckThroughItemKeepsItsRecord() throws {
+        // 사용자 요청(2026-11-17): 보류·취소한 일정은 지우지 않고 취소선을 긋는다.
+        let task = Item(title: "보고서", isTask: true)
+        task.scheduleAllDay(from: day(2026, 10, 30), through: day(2026, 10, 31))
+        context.insert(task)
+        task.toggleCompletion()
+        #expect(task.isCompleted)
+
+        task.toggleCancellation(now: Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(task.isCancelled)
+        #expect(task.cancelledAt == Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(!task.isCompleted, "취소선을 그으면 완료 표시는 지운다")
+        #expect(task.isStruckThrough)
+        #expect(task.startDay == day(2026, 10, 30), "날짜는 그대로 남는다")
+        #expect(task.calendarEntry()?.isCancelled == true, "달력 배치도 취소선을 안다")
+        try context.save()
+        #expect(try context.fetchCount(FetchDescriptor<Item>(predicate: Item.predicate(overlapping: day(2026, 10, 30)...day(2026, 10, 30)))) == 1,
+                "취소선을 그어도 그 날의 일정으로 남는다")
+
+        task.setCancelled(true, now: Date(timeIntervalSince1970: 1_900_000_000))
+        #expect(task.cancelledAt == Date(timeIntervalSince1970: 1_800_000_000), "이미 그었으면 그은 시각을 바꾸지 않는다")
+
+        task.toggleCompletion()
+        #expect(task.isCompleted)
+        #expect(!task.isCancelled, "완료하면 취소선은 지운다")
+
+        task.toggleCancellation()
+        task.toggleCancellation()
+        #expect(!task.isCancelled && !task.isCompleted, "취소선을 지우면 남은 할일로 돌아간다")
+        #expect(!task.isStruckThrough)
+
+        // 일정(할일 아님)에도 긋는다.
+        let event = Item(title: "회식")
+        event.scheduleTimed(start: day(2026, 10, 30).date(hour: 19, in: seoul), end: day(2026, 10, 30).date(hour: 21, in: seoul), timeZone: seoul)
+        context.insert(event)
+        event.toggleCancellation()
+        #expect(event.isCancelled)
+        #expect(event.calendarEntry(in: seoul)?.isCancelled == true)
+        #expect(event.calendarEntry(in: seoul)?.style == .bar, "취소선을 그어도 모양은 그대로다")
+    }
+
+    @Test func snapshotsAndCopiesHandleTheStrikethrough() throws {
+        let item = Item(title: "캠핑")
+        item.scheduleAllDay(from: day(2026, 10, 24), through: day(2026, 10, 25))
+        context.insert(item)
+        item.toggleCancellation(now: Date(timeIntervalSince1970: 1_800_000_000))
+        try context.save()
+
+        let snapshot = ItemSnapshot(item)
+        context.delete(item)
+        try context.save()
+        let restored = snapshot.makeItem()
+        context.insert(restored)
+        try context.save()
+        #expect(restored.cancelledAt == Date(timeIntervalSince1970: 1_800_000_000), "되살리면 취소선도 돌아온다")
+
+        let copy = restored.duplicate()
+        context.insert(copy)
+        #expect(!copy.isCancelled, "복제는 취소선 없이 새로 시작한다")
+        #expect(copy.startDayKey == restored.startDayKey)
+    }
+
     @Test func undoingMoveToInboxPutsTheScheduleBack() throws {
         let item = Item(title: "독서 모임")
         let start = day(2026, 10, 22).date(hour: 20, in: seoul)

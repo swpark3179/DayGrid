@@ -55,6 +55,13 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 공휴일(`DayMark.holidayNames`)과 개인 휴일(`personalHolidayNames`)은 따로 담는다.
   - 색은 `DayStyle`의 규칙을 따른다: 공휴일과 일요일은 빨강, 개인 휴일은 주황, 토요일은 파랑이다. 화면 코드에 색을 따로 쓰지 않는다.
 - `Item`의 `startDayKey`/`endDayKey`는 yyyymmdd 정수이고 0이면 날짜 없음("나중에 할일")이다. 시간 일정에서는 조회용 색인일 뿐이므로, 표시할 날짜는 `calendarEntry(in:)`로 다시 계산한다.
+- 취소선(보류·취소, Phase 23): 지우지 않고 `Item.cancelledAt`에 그은 시각을 둔다. 바꾸기는 `toggleCancellation()`/`setCancelled(_:)`로만 한다.
+  - 완료와 함께 두지 않는다. 그으면 완료가 지워지고, 완료하면(`toggleCompletion`) 취소선이 지워진다.
+  - 그은 할일은 남은 할일이 아니다. 배지(`badgeTaskDays`의 `cancelledAt == nil`), 알림(`ReminderPlanner.ItemInput.isCancelled`)에서 뺀다.
+  - 달력과 목록에는 흐리게 남는다. 줄은 `isStruckThrough`(완료 또는 취소선)로 긋고, 목록 제목은 `itemTitleStyle(_:)`를 쓴다.
+  - 달력에서는 `CalendarEntry.isCancelled`로 다른 일정 뒤에 놓는다(`MonthLayout`). 칸이 모자라면 먼저 "+N"으로 숨는다.
+  - 긋는 버튼은 `CancellationButton`이다. 하루 상세의 오른쪽 밀기는 "나중에"를 첫 번째(전체 밀기)로 둔 채 두 번째에 둔다.
+  - 복제는 완료처럼 취소선 없이 새로 시작한다.
 - "나중에"로 보낼 때는 `unschedule()`이 아니라 `moveToInbox(order: Item.topInboxOrder(in:))`를 쓴다. 직전 일정의 모양(`ScheduleHint`)이 남아, 다시 날짜를 정할 때 기본값이 된다. 목록 순서는 `inboxOrder` 오름차순이다.
 - "나중에" 입력창 밖을 누르면 키보드가 내려간다(`KeyboardDismissOnTap`이 창에 UIKit 탭을 단다). 목록에 SwiftUI `onTapGesture`를 달지 않는다. 입력창과 행 버튼까지 가로챈다.
 - 달력 배치 규칙(주 조각, 레인, "+N")은 `DayGridCore/MonthLayout.swift`에 있다. 화면 코드에서 배치를 다시 계산하지 않는다.
@@ -135,7 +142,8 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
   - 화면 코드에서 `preferredColorScheme`을 쓰지 않는다. 시스템(nil)으로 되돌릴 때 바로 돌아오지 않는 경우가 있다.
 - UI 테스트는 실행 인자(`-UITestFixedToday`, `-UITestSeedData`)로 날짜와 데이터를 고정해서, 항상 같은 스크린샷이 나오게 한다.
 - UI 테스트에서 찾는 요소에는 `accessibilityIdentifier`를 붙인다. 화면 뒤의 달력에도 같은 제목이 보이므로, 시트 안의 텍스트는 목록 식별자 아래에서 찾는다.
-  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`, `settings.support`, `settings.privacy`, `settings.badge`
+  - 지금 쓰는 식별자: `calendar.day.yyyy-MM-dd`, `calendar.add`, `dayDetail.list`, `dayDetail.add`, `editor.title`, `editor.delete`, `inbox.input`, `inbox.list`, `assign.today`/`assign.tomorrow`/`assign.weekend`, `assign.save`, `editor.body`, `body.mode`, `body.editor`, `body.preview`, `calendar.birthdays`, `birthdays.add`, `person.name`, `recurring.list`, `recurring.add`, `recurring.title`, `birthdays.list`, `holidays.list`, `settings.sync`, `calendar.monthTitle`, `monthPicker.year`/`monthPicker.previousYear`/`monthPicker.nextYear`/`monthPicker.month.N`, `dayDetail.body`, `reader.title`, `reader.category`, `reader.complete`, `dayDetail.timeline`, `settings.dayDetailStyle`, `settings.workdayStart`, `settings.workdayEnd`, `settings.appearance`, `toast`, `toast.undo`, `category.<카테고리 이름>`(없음은 `category.없음`), `reminder.<알림 이름>`(예: `reminder.10분 전`), `editor.moveToInbox`, `settings.support`, `settings.privacy`, `settings.badge`, `editor.cancelled`
+  - 취소선을 그은 일정의 제목(목록, 달력 막대·칩)은 접근성 값이 "취소선"이다. UI 테스트는 `value`로 확인한다.
   - 실행 인자 `-UITestQuickAction addTask`는 홈 화면 퀵 액션으로 연 것처럼 시작한다.
   - 실행 인자 `-dayDetailStyle timeline`은 하루 상세를 타임라인으로 연다(UserDefaults 인자 도메인).
   - 실행 인자 `-appearance dark`는 테마를 다크로 연다(같은 인자 도메인).
@@ -143,8 +151,8 @@ iOS 전용 개인 일정 앱이다(SwiftUI + SwiftData, iOS 18+). 전체 계획�
     - 설정의 Picker를 눌러 바꾸지 않는다. 값이 시뮬레이터에 남아 다른 테스트의 스크린샷이 바뀐다.
 - 시트를 닫은 뒤에는 `waitForNonExistence`로 닫힌 것을 확인하고 다음 조작을 한다. 닫히는 중인 시트 위로 탭이 들어가면 엉뚱한 버튼이 눌린다.
 - UI 테스트 도우미(`launchApp`, `drag`, `tabButton`, `attachScreenshot`, `element(_:in:)`)는 `DayGridUITests/UITestSupport.swift`에 있다. 새 테스트 파일도 이것을 쓴다.
-  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29, 33, 40, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39. 새 화면은 41부터 붙인다. App Store 화면(`AppStoreScreenshotTests`)은 따로 01–09다.
-  - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`도 `UITestSupport.swift`에 있다.
+  - 스크린샷 번호: `ScreenshotTests` 01–15와 34, `FeatureScreenshotTests` 16–25, `CalendarExtrasTests` 26–27, `DragTests` 28–29, 33, 40, `TimelineTests` 30–32, `MotionTests` 35–37, `EditorTests` 38–39, `StrikethroughTests` 41–42. 새 화면은 43부터 붙인다. App Store 화면(`AppStoreScreenshotTests`)은 따로 01–09다.
+  - 도우미 `labelContaining(_:in:)`, `scrollUntilVisible(_:in:)`, `setSwitch(_:on:)`(토글 켜고 끄기)도 `UITestSupport.swift`에 있다.
   - 버튼 행(생일, 개인 휴일 목록)은 안의 글자가 라벨 하나로 합쳐질 수 있다. 정확한 글자 대신 `label CONTAINS`로 찾는다.
   - iOS 26 탭 막대의 배지 숫자는 접근성 트리에 나오지 않는다. 배지는 UI 테스트로 검사하지 않고, 개수는 단위 테스트로 확인한다.
   - UI 테스트에서 알림 칩을 누르지 않는다. 알림 권한 창이 떠서 화면을 가린다.

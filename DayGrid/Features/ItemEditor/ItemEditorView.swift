@@ -9,6 +9,8 @@ import SwiftUI
 ///   날짜 토글은 "나중에" 항목을 고칠 때만 보인다(날짜를 정해 달력에 넣는 길).
 /// - "시간 지정"을 켜면 시각까지, 끄면 날짜만 고른다(종일).
 /// - 알림은 칩(`ReminderChips`)으로 여러 개를 켜고 끈다.
+/// - 있던 일정을 고칠 때는 알림 아래에 "취소선" 토글이 있다. 보류하거나 취소한 일정을 지우지 않고 줄을 그어 남긴다
+///   (사용자 요청 2026-11-17). 그은 할일은 남은 할일(앱 아이콘 배지)에서 빠지고, 그은 일정·할일은 알리지 않는다.
 struct ItemEditorView: View {
     enum Mode: Identifiable {
         /// 시간을 정하지 않은 그 날 하루 새 일정(사용자 요청 2026-10-22).
@@ -109,6 +111,19 @@ struct ItemEditorView: View {
                             mask: reminderMaskBinding
                         )
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
+                }
+
+                if editingItem != nil {
+                    Section {
+                        Toggle("취소선", isOn: $draft.isCancelled.animation(.snappy))
+                            .accessibilityIdentifier("editor.cancelled")
+                    } footer: {
+                        if draft.isTask {
+                            Text("보류하거나 취소한 할일을 지우지 않고 줄을 그어 남깁니다. 남은 할일과 알림에서 빠집니다.")
+                        } else {
+                            Text("보류하거나 취소한 일정을 지우지 않고 줄을 그어 남깁니다. 알림은 울리지 않습니다.")
+                        }
                     }
                 }
 
@@ -218,11 +233,14 @@ struct ItemEditorView: View {
         dismiss()
     }
 
+    /// 고친 내용으로 새 일정을 만든다. 완료처럼 취소선도 새로 시작한다(`Item.duplicate()`와 같다).
     private func saveCopy() {
         let copy = Item(title: draft.trimmedTitle)
         copy.inboxOrder = Item.topInboxOrder(in: modelContext)
         modelContext.insert(copy)
-        draft.apply(to: copy, categories: categories)
+        var fresh = draft
+        fresh.isCancelled = false
+        fresh.apply(to: copy, categories: categories)
         try? modelContext.save()
         dismiss()
     }

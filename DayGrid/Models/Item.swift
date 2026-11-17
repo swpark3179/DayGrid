@@ -8,6 +8,10 @@ import SwiftData
 /// - 시간 일정: `isAllDay == false`, 실제 시각은 `startDate`/`endDate`.
 ///   이때 `startDayKey`/`endDayKey`는 저장할 때의 시간대 기준으로 채운 **조회용 색인**일 뿐이고,
 ///   표시할 날짜는 `calendarEntry(in:)`가 실제 시각으로 다시 계산한다.
+///
+/// 보류하거나 취소한 일정·할일은 지우지 않고 취소선을 긋는다(`cancelledAt`, 사용자 요청 2026-11-17).
+/// 기록으로 남아 달력과 목록에 흐리게 보이지만, 남은 할일(앱 아이콘 배지)과 알림에서는 빠진다.
+/// 완료와 취소선은 함께 두지 않는다. 하나를 켜면 다른 하나는 꺼진다.
 @Model
 final class Item {
     var id: UUID = UUID()
@@ -24,6 +28,8 @@ final class Item {
     var startDate: Date?
     var endDate: Date?
     var completedAt: Date?
+    /// 취소선을 그은 시각. 있으면 보류·취소한 일정이다. 완료(`completedAt`)와 함께 두지 않는다.
+    var cancelledAt: Date?
     /// "나중에" 목록에서의 순서. 작을수록 위에 있다.
     var inboxOrder: Double = 0
     /// 미루기 전 일정의 모양(`ScheduleHint`). 일수가 0이면 남긴 모양이 없다.
@@ -72,7 +78,7 @@ extension Item {
         updatedAt = Date()
     }
 
-    /// 같은 내용의 새 항목. 완료 표시와 만든 시각은 새로 시작한다.
+    /// 같은 내용의 새 항목. 완료·취소선 표시와 만든 시각은 새로 시작한다.
     func duplicate() -> Item {
         let copy = Item(title: title, isTask: isTask, category: category)
         copy.body = body
@@ -89,13 +95,38 @@ extension Item {
         return copy
     }
 
-    /// 할일의 완료 표시를 바꾼다.
+    /// 할일의 완료 표시를 바꾼다. 취소선을 그은 할일을 완료하면 취소선은 지운다.
     func toggleCompletion(now: Date = Date()) {
-        completedAt = completedAt == nil ? now : nil
+        if completedAt == nil {
+            completedAt = now
+            cancelledAt = nil
+        } else {
+            completedAt = nil
+        }
         updatedAt = now
     }
 
     var isCompleted: Bool { completedAt != nil }
+
+    /// 취소선(보류·취소) 표시를 바꾼다. 그을 때는 완료 표시를 지운다. 날짜와 모양은 그대로 둔다.
+    func toggleCancellation(now: Date = Date()) {
+        setCancelled(cancelledAt == nil, now: now)
+    }
+
+    /// 취소선을 긋거나 지운다. 이미 그 상태면 그은 시각을 바꾸지 않는다.
+    func setCancelled(_ cancelled: Bool, now: Date = Date()) {
+        guard cancelled != isCancelled else { return }
+        cancelledAt = cancelled ? now : nil
+        if cancelled {
+            completedAt = nil
+        }
+        updatedAt = now
+    }
+
+    var isCancelled: Bool { cancelledAt != nil }
+
+    /// 제목에 취소선을 긋는지(끝낸 할일이나 보류·취소한 일정).
+    var isStruckThrough: Bool { isCompleted || isCancelled }
 
     /// 날짜를 비워 "나중에 할일"로 돌린다.
     func unschedule() {
@@ -156,10 +187,10 @@ extension Item {
     func calendarEntry(in timeZone: TimeZone = .current) -> CalendarEntry? {
         if isAllDay {
             guard let start = startDay else { return nil }
-            return .allDay(id: id, from: start, through: endDay ?? start, isTask: isTask)
+            return .allDay(id: id, from: start, through: endDay ?? start, isTask: isTask, isCancelled: isCancelled)
         }
         guard isScheduled, let startDate else { return nil }
-        return .timed(id: id, start: startDate, end: endDate ?? startDate, timeZone: timeZone, isTask: isTask)
+        return .timed(id: id, start: startDate, end: endDate ?? startDate, timeZone: timeZone, isTask: isTask, isCancelled: isCancelled)
     }
 
     /// 일정을 `days`일 앞(음수면 뒤)으로 옮긴다. 모양(종일 일수, 시작 시각과 길이)과 완료 표시는 그대로다.

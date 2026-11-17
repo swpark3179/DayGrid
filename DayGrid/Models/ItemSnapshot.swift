@@ -3,7 +3,7 @@ import SwiftData
 
 /// 되돌리기(`UndoToastState`)를 위해 남겨 두는 `Item`의 값 전부.
 ///
-/// - 지운 일정은 `makeItem()`으로 같은 `id`와 만든 시각, 완료 표시까지 그대로 되살린다.
+/// - 지운 일정은 `makeItem()`으로 같은 `id`와 만든 시각, 완료·취소선 표시까지 그대로 되살린다.
 /// - 날짜를 바꾼 일정("나중에"로 보내기)은 `apply(to:)`로 그때의 값으로 돌린다.
 struct ItemSnapshot {
     let id: UUID
@@ -16,6 +16,7 @@ struct ItemSnapshot {
     let startDate: Date?
     let endDate: Date?
     let completedAt: Date?
+    let cancelledAt: Date?
     let inboxOrder: Double
     let hintDayCount: Int
     let hintStartMinute: Int
@@ -36,6 +37,7 @@ struct ItemSnapshot {
         startDate = item.startDate
         endDate = item.endDate
         completedAt = item.completedAt
+        cancelledAt = item.cancelledAt
         inboxOrder = item.inboxOrder
         hintDayCount = item.hintDayCount
         hintStartMinute = item.hintStartMinute
@@ -58,6 +60,7 @@ struct ItemSnapshot {
         item.startDate = startDate
         item.endDate = endDate
         item.completedAt = completedAt
+        item.cancelledAt = cancelledAt
         item.inboxOrder = inboxOrder
         item.hintDayCount = hintDayCount
         item.hintStartMinute = hintStartMinute

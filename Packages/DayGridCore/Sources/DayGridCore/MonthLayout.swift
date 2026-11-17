@@ -99,6 +99,8 @@ public enum MonthLayout {
     ///
     /// - 일정은 주 단위 조각으로 잘린다.
     /// - 조각은 시작 열 → 긴 것 → 막대 → 시작 시각 → id 순으로, 걸친 열이 모두 빈 가장 낮은 레인에 놓인다.
+    ///   취소선을 그은 일정(`CalendarEntry.isCancelled`)은 다른 일정을 모두 놓은 뒤에 놓는다.
+    ///   남은 줄에만 들어가므로, 칸이 모자라면 취소한 일정이 먼저 "+N"으로 숨는다.
     /// - 보이는 줄이 `maxVisibleLanes`(L)개일 때, 레인 L 이상 조각이 걸친 날은 "넘친 날"이다.
     ///   레인 L-1 미만 조각은 항상 보이고, 레인 L-1 조각은 걸친 날 중 넘친 날이 없을 때만 보인다.
     ///   나머지는 숨기고 날짜별 `hiddenCount`로 센다.
@@ -203,6 +205,7 @@ public enum MonthLayout {
         let continuesToNextWeek: Bool
 
         static func placementOrder(_ a: Piece, _ b: Piece) -> Bool {
+            if a.entry.isCancelled != b.entry.isCancelled { return !a.entry.isCancelled }
             if a.startColumn != b.startColumn { return a.startColumn < b.startColumn }
             if a.length != b.length { return a.length > b.length }
             let aIsBar = a.entry.style == .bar

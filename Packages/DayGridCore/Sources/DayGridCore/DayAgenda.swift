@@ -4,7 +4,9 @@ import Foundation
 ///
 /// - `spanning`: 종일 일정과 여러 날에 걸친 일정. 먼저 시작한 것 → 긴 것 → 제목 순.
 /// - `timed`: 그 날 안에 끝나는 시간 일정. 시작 시각 → 제목 순.
-/// - `tasks`: 할일. 안 끝난 것 → 종일 → 시작 시각 → 제목 순.
+/// - `tasks`: 할일. 남은 것 → 종일 → 시작 시각 → 제목 순. 끝낸 할일과 취소선을 그은 할일은 남은 것이 아니므로 아래로 간다.
+///
+/// 취소선을 그은 일정(`Input.isCancelled`)도 목록에 남는다(기록). 일정 묶음에서는 시각 순서를 그대로 둔다.
 ///
 /// 타임라인 보기(`separatingTimed`)에서는 시간이 있는 것을 모두 `timed`에 넣는다.
 /// 시간을 정한 할일과 여러 날에 걸친 시간 일정도 포함하고, `spanning`과 `tasks`에는 종일인 것만 남는다.
@@ -14,13 +16,19 @@ public struct DayAgenda: Sendable, Equatable {
         public let title: String
         public let isTask: Bool
         public let isCompleted: Bool
+        /// 취소선을 그었는지(보류·취소)
+        public let isCancelled: Bool
 
-        public init(entry: CalendarEntry, title: String, isTask: Bool = false, isCompleted: Bool = false) {
+        public init(entry: CalendarEntry, title: String, isTask: Bool = false, isCompleted: Bool = false, isCancelled: Bool = false) {
             self.entry = entry
             self.title = title
             self.isTask = isTask
             self.isCompleted = isCompleted
+            self.isCancelled = isCancelled
         }
+
+        /// 끝냈거나 취소선을 그어서 더 할 것이 없는지
+        public var isSettled: Bool { isCompleted || isCancelled }
     }
 
     public struct Row: Sendable, Equatable, Identifiable {
@@ -74,7 +82,7 @@ public struct DayAgenda: Sendable, Equatable {
         let tasks = covering
             .filter { $0.isTask && !isTimed($0) }
             .sorted { a, b in
-                if a.isCompleted != b.isCompleted { return !a.isCompleted }
+                if a.isSettled != b.isSettled { return !a.isSettled }
                 if a.entry.isAllDay != b.entry.isAllDay { return a.entry.isAllDay }
                 let aMinute = a.entry.startMinute ?? 0
                 let bMinute = b.entry.startMinute ?? 0

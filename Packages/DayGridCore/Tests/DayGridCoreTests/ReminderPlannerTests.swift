@@ -81,6 +81,24 @@ struct ReminderPlannerTests {
         #expect(plan(items: [done, someday]).isEmpty)
     }
 
+    @Test func cancelledItemsHaveNoReminders() {
+        // 취소선을 그은 것은 할일이든 일정이든 알리지 않는다(사용자 요청 2026-11-17).
+        let cancelledEvent = ReminderPlanner.ItemInput(
+            id: uuid(41), title: "취소된 회의", isTask: false, isCompleted: false, isCancelled: true, isAllDay: false,
+            startDay: day(2026, 10, 20), startDate: at(day(2026, 10, 20), 10), options: [.atStart, .oneHourBefore]
+        )
+        let heldTask = ReminderPlanner.ItemInput(
+            id: uuid(42), title: "보류한 할일", isTask: true, isCompleted: false, isCancelled: true, isAllDay: true,
+            startDay: day(2026, 10, 21), startDate: nil, options: [.sameDayMorning, .previousDayMorning]
+        )
+        let active = ReminderPlanner.ItemInput(
+            id: uuid(43), title: "남은 일정", isTask: false, isCompleted: false, isAllDay: true,
+            startDay: day(2026, 10, 21), startDate: nil, options: [.sameDayMorning]
+        )
+        #expect(plan(items: [cancelledEvent, heldTask]).isEmpty)
+        #expect(plan(items: [cancelledEvent, heldTask, active]).map(\.kind) == [.item(id: uuid(43), isTask: false)])
+    }
+
     @Test func birthdayDaysBefore() {
         let friend = ReminderPlanner.BirthdayInput(id: uuid(5), name: "김민수", birthday: Birthday(month: 10, day: 22))
         let result = plan(birthdays: [friend], birthdaySettings: .init(daysBefore: [0, 3]))
