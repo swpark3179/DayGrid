@@ -725,6 +725,10 @@ docs/ROADMAP.md, CLAUDE.md
   - 배지: `NotificationScheduler.badgeTaskDays(in:)`의 조건에 `cancelledAt == nil`을 더했다. 저장하면 `sync()`가 돈다.
   - 되돌리기용 `ItemSnapshot`도 `cancelledAt`을 담는다.
   - 밀기 버튼과 메뉴는 `CancellationButton` 하나를 같이 쓴다.
+- 버전 1.2(2026-11-17)
+  - 1.1이 승인된 뒤 TestFlight 빌드 22가 "Check app version"에서 멈췄다(`올릴 버전 1.1이 이미 승인된 버전 1.1보다 높지 않다`). 확인 단계가 아카이브 전에 막은 것이다.
+  - `MARKETING_VERSION`을 1.2로 올렸다. 새로운 기능 문구(`release_notes.txt`)는 취소선이다.
+  - 순서: CloudKit schema(import) → Production 배포 → TestFlight(main) → ASC에서 1.2 버전을 만들고 빌드를 골라 제출(`docs/APP_STORE.md` 7번)
 
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
@@ -885,6 +889,7 @@ docs/ROADMAP.md, CLAUDE.md
     - 편집 화면에 토글 묶음이 더해져 `EditorTests`의 미루기 버튼 스크롤(`scrollUntilVisible`)과 스크린샷 38이 그대로인지 본다.
   - 밀기 버튼은 끝까지 밀면 "나중에"가 실행되어 UI 테스트로 누르지 않는다. 기기 체크리스트 21-1, 21-8로 확인한다.
   - 기기: 체크리스트 21장. 먼저 CloudKit 스키마를 Production에 배포한다.
+  - TestFlight(버전 1.2): "Check app version"에 "App Store 버전 1.1: READY_FOR_DISTRIBUTION"과 "1.2가 아직 없다" 알림이 나오고, 업로드까지 되는지
 
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.

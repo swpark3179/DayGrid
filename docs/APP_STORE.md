@@ -217,3 +217,9 @@ Thank you.
   - 90062 `CFBundleShortVersionString [1.0] … must contain a higher version than that of the previously approved version [1.0]`
 - 원인: 1.0이 승인된 뒤에도 `MARKETING_VERSION`이 1.0이었다. 아카이브와 서명은 되고 업로드 끝에서야 거절된다.
 - 고침: `MARKETING_VERSION`을 1.1로 올렸다(Phase 22의 배지·위젯이 들어간 버전). TestFlight 워크플로에 "Check app version"을 더해 다음부터는 아카이브 전에 멈춘다.
+
+### "Check app version"에서 멈췄을 때(2026-11-17, 빌드 22)
+- 출력: `App Store 버전 1.1: READY_FOR_DISTRIBUTION` → `올릴 버전 1.1이 이미 승인된 버전 1.1보다 높지 않다`
+- 원인: 1.1이 승인됐는데 `MARKETING_VERSION`이 1.1 그대로였다. 확인 단계가 아카이브 전에 제대로 막았다.
+- 고침: 1.2로 올렸다(Phase 23 취소선이 들어간 버전). `release_notes.txt`도 1.2 문구로 바꿨다.
+- 1.2에는 CloudKit 필드 `CD_cancelledAt`이 새로 있다. TestFlight를 올리기 전에 "CloudKit schema" 워크플로(import)를 실행하고 Production에 배포한다(`docs/ICLOUD.md`).
