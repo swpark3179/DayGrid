@@ -107,6 +107,7 @@ private enum TimelineMetrics {
 
 /// 타임라인의 일정 한 칸. 카테고리 색을 옅게 깔고 왼쪽에 색 막대를 둔다.
 /// 할일이면 체크박스, 본문이 있으면 오른쪽 위에 본문 버튼이 있다.
+/// 취소선을 그은(보류·취소한) 일정은 색을 더 옅게 깔고 제목에 줄을 긋는다.
 private struct TimelineBlockView: View {
     let item: Item
     let timeText: String
@@ -115,6 +116,7 @@ private struct TimelineBlockView: View {
 
     var body: some View {
         let color = Color(hex: item.category?.colorHex ?? CategoryPalette.uncategorizedHex)
+            .opacity(item.isCancelled ? 0.4 : 1)
         HStack(alignment: .top, spacing: 4) {
             if item.isTask {
                 ItemMarker(item: item, compact: true)
@@ -122,9 +124,8 @@ private struct TimelineBlockView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(item.title)
                     .font(.caption.weight(.semibold))
-                    .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
                     .lineLimit(height >= 48 ? 2 : 1)
+                    .itemTitleStyle(item)
                 if height >= 36 {
                     Text(timeText)
                         .font(.caption2)

@@ -154,10 +154,11 @@ final class NotificationScheduler {
     // MARK: - 계획
 
     /// 앱 아이콘 배지에 들어갈 할일의 시작일. 날짜가 있고 끝내지 않은 할일만 넣는다(`TaskBadge`).
+    /// 취소선을 그은(보류·취소한) 할일은 끝내지 않았어도 넣지 않는다(사용자 요청 2026-11-17).
     /// 시간 할일의 날짜는 저장한 색인이 아니라 실제 시각으로 다시 구한다(`calendarEntry(in:)`).
     static func badgeTaskDays(in context: ModelContext, timeZone: TimeZone = .current) -> [LocalDate] {
         let descriptor = FetchDescriptor<Item>(predicate: #Predicate<Item> { item in
-            item.isTask == true && item.completedAt == nil && item.startDayKey > 0
+            item.isTask == true && item.completedAt == nil && item.cancelledAt == nil && item.startDayKey > 0
         })
         let tasks = (try? context.fetch(descriptor)) ?? []
         return tasks.compactMap { $0.calendarEntry(in: timeZone)?.startDay }
@@ -179,6 +180,7 @@ final class NotificationScheduler {
                     title: item.title,
                     isTask: item.isTask,
                     isCompleted: item.isCompleted,
+                    isCancelled: item.isCancelled,
                     isAllDay: item.isAllDay,
                     startDay: startDay,
                     startDate: item.startDate,

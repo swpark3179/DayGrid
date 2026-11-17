@@ -18,14 +18,25 @@ public struct CalendarEntry: Hashable, Sendable, Identifiable {
     public let startMinute: Int?
     /// 할일(체크박스)인지. 달력에서 하루 안의 시간 할일만 칩으로 그린다.
     public let isTask: Bool
+    /// 취소선을 그은(보류·취소한) 일정인지. 달력에는 흐리게 남고, 칸의 줄은 다른 일정에 먼저 내준다(`MonthLayout`).
+    public let isCancelled: Bool
 
-    public init(id: UUID, startDay: LocalDate, endDay: LocalDate, isAllDay: Bool, startMinute: Int? = nil, isTask: Bool = false) {
+    public init(
+        id: UUID,
+        startDay: LocalDate,
+        endDay: LocalDate,
+        isAllDay: Bool,
+        startMinute: Int? = nil,
+        isTask: Bool = false,
+        isCancelled: Bool = false
+    ) {
         self.id = id
         self.startDay = startDay
         self.endDay = max(startDay, endDay)
         self.isAllDay = isAllDay
         self.startMinute = startMinute
         self.isTask = isTask
+        self.isCancelled = isCancelled
     }
 
     /// 하루 안에 끝나는 시간 일정·할일(하루 상세의 "시간" 묶음).
@@ -38,16 +49,37 @@ public struct CalendarEntry: Hashable, Sendable, Identifiable {
         isTask && isTimedWithinOneDay ? .chip : .bar
     }
 
-    public static func allDay(id: UUID, from startDay: LocalDate, through endDay: LocalDate, isTask: Bool = false) -> CalendarEntry {
-        CalendarEntry(id: id, startDay: startDay, endDay: endDay, isAllDay: true, isTask: isTask)
+    public static func allDay(
+        id: UUID,
+        from startDay: LocalDate,
+        through endDay: LocalDate,
+        isTask: Bool = false,
+        isCancelled: Bool = false
+    ) -> CalendarEntry {
+        CalendarEntry(id: id, startDay: startDay, endDay: endDay, isAllDay: true, isTask: isTask, isCancelled: isCancelled)
     }
 
     /// `start..<end` 시간 일정을 `timeZone` 기준 날짜로 바꾼다.
     /// 끝이 자정 정각이면 그 전날까지로 본다(22:00–24:00은 하루짜리). 끝이 시작보다 앞서면 시작일 하루로 본다.
-    public static func timed(id: UUID, start: Date, end: Date, timeZone: TimeZone = .current, isTask: Bool = false) -> CalendarEntry {
+    public static func timed(
+        id: UUID,
+        start: Date,
+        end: Date,
+        timeZone: TimeZone = .current,
+        isTask: Bool = false,
+        isCancelled: Bool = false
+    ) -> CalendarEntry {
         let startDay = LocalDate(start, in: timeZone)
         let endDay = end > start ? LocalDate(end.addingTimeInterval(-1), in: timeZone) : startDay
         let startMinute = LocalDate.minuteOfDay(start, in: timeZone)
-        return CalendarEntry(id: id, startDay: startDay, endDay: endDay, isAllDay: false, startMinute: startMinute, isTask: isTask)
+        return CalendarEntry(
+            id: id,
+            startDay: startDay,
+            endDay: endDay,
+            isAllDay: false,
+            startMinute: startMinute,
+            isTask: isTask,
+            isCancelled: isCancelled
+        )
     }
 }

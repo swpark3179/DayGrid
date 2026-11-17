@@ -42,7 +42,7 @@ docs/ROADMAP.md, CLAUDE.md
 | 모델 | 주요 필드 | 비고 |
 |---|---|---|
 | `ItemCategory` | name, colorHex, sortOrder | 기본 카테고리를 고정 UUID로 시드한다. 나중에 iCloud 병합 시 중복을 막기 위해서다. |
-| `Item` (일정 + 할일 통합) | title, body(markdown?), isTask(체크박스 여부), isAllDay, startDayKey/endDayKey(yyyymmdd, 0 = 날짜 없음), startDate/endDate(Date?), completedAt, category, reminderOffsets, inboxOrder, hintDayCount/hintStartMinute/hintDurationMinutes | **날짜가 없으면 "나중에 할일"**이다. 날짜를 배정하면 날짜 필드만 채우고, 보류하면 비운다. 보류할 때는 직전 일정의 모양(종일 일수, 시작 시각과 길이)을 hint 필드에 보관한다(Core `ScheduleHint`). |
+| `Item` (일정 + 할일 통합) | title, body(markdown?), isTask(체크박스 여부), isAllDay, startDayKey/endDayKey(yyyymmdd, 0 = 날짜 없음), startDate/endDate(Date?), completedAt, cancelledAt(취소선, Phase 23), category, reminderOffsets, inboxOrder, hintDayCount/hintStartMinute/hintDurationMinutes | **날짜가 없으면 "나중에 할일"**이다. 날짜를 배정하면 날짜 필드만 채우고, 보류하면 비운다. 보류할 때는 직전 일정의 모양(종일 일수, 시작 시각과 길이)을 hint 필드에 보관한다(Core `ScheduleHint`). |
 | `PersonalHoliday` | name, startDay, endDay | 회사 휴가 같은 개인 휴일. 달력에서 공휴일처럼 표시한다. Phase 6에서 추가한다. |
 | `Person` | name, month, day, year?, isLunar, isLeapMonth, contactIdentifier?, notifyDaysBefore | 연락처에서 가져온 사람과 직접 입력한 사람을 같은 모델로 다룬다. |
 | `RecurringTask` | title, body?, category, rule(daily/weekly/monthly), weekdays[], dayOfMonth, startDay, endDay?, notifyMinutes(기본 09:00), isActive | |
@@ -689,6 +689,43 @@ docs/ROADMAP.md, CLAUDE.md
     - API를 읽지 못하면 경고만 하고 넘어간다. 업로드가 다시 막아 준다.
   - 새 버전을 내는 순서는 `docs/APP_STORE.md` 7번이다.
 
+### Phase 23 — 취소선(보류·취소) (사용자 요청 2026-11-17)
+- 일정이 취소됐거나 보류했지만 기록에서는 지우고 싶지 않을 때, 지우지 않고 취소선을 긋는다.
+  - 할일이든 일정이든 긋는다. "나중에" 항목에도 긋는다.
+  - 취소선을 그은 할일은 끝내지 않았어도 남은 할일로 세지 않는다(앱 아이콘 배지, 자정의 배지 알림).
+- 정한 것
+  - 완료와 취소선은 함께 두지 않는다. 그으면 완료가 지워지고, 완료하면 취소선이 지워진다.
+  - 취소선을 그은 일정·할일은 알리지 않는다(`ReminderPlanner`).
+  - 날짜와 모양은 그대로 둔다. 달력과 하루 상세에 흐리게 남는다.
+  - 되돌리기 토스트는 띄우지 않는다. 행이 그 자리에 남아 바뀐 것이 보이고, 같은 버튼으로 바로 지울 수 있다.
+  - 복제(밀기의 복제, 편집의 "복제해서 새 일정 만들기")는 취소선 없이 새로 시작한다. 완료와 같다.
+- 모델: `Item.cancelledAt: Date?`(CloudKit 필드 `CD_cancelledAt TIMESTAMP`). 필드를 더하기만 했다.
+  - 머지한 뒤 "CloudKit schema" 워크플로(import)를 실행하고, 사용자가 Production에 배포한 다음 TestFlight를 올린다.
+- 긋는 곳
+  - 하루 상세: 오른쪽으로 밀기의 두 번째 버튼(첫 번째 "나중에"는 그대로 전체 밀기). 타임라인 블록의 꾹 누르기 메뉴.
+  - "나중에" 목록: 오른쪽으로 밀기(할일이면 "완료" 다음). 그은 항목은 맨 아래 "보류 · 취소" 묶음에 있다.
+  - 편집 화면: 있던 일정을 고칠 때 알림 아래의 "취소선" 토글(`editor.cancelled`)
+  - 체크박스: 그은 할일은 ⊘이고, 누르면 취소선을 지운다. 읽기 화면도 같다.
+- 모양
+  - 목록 제목: `itemTitleStyle(_:)`(줄, 회색, 접근성 값 "취소선"). 끝낸 할일과 같은 줄이다.
+  - 할일 체크박스 ⊘(`CompletionCheckmark(isCancelled:)`), 일정의 색 막대는 흐리게
+  - 달력 막대는 옅은 색(0.25)에 회색 글자와 줄, 칩은 흐린 점. 끝낸 할일 막대(진한 색, 흰 글자에 줄)와 구별된다.
+  - 타임라인 블록은 색을 더 옅게 깐다.
+- **완료 기준**
+  - Core 테스트 `MonthLayoutOverflowTests.cancelledEntriesGiveTheirLanesToTheOthers`, `DayAgendaTests.cancelledTasksGoDownWithTheDoneOnesAndEventsKeepTheirTime`, `ReminderPlannerTests.cancelledItemsHaveNoReminders`가 통과한다.
+  - 앱 테스트 `AppBadgeTests.struckThroughTasksAreNotLeftEvenIfUndone`, `ItemStoreTests.aStruckThroughItemKeepsItsRecord`, `snapshotsAndCopiesHandleTheStrikethrough`, `ItemDraftTests.draftCarriesTheStrikethrough`, `CloudKitSchemaTests`가 통과한다.
+  - UI 테스트 `StrikethroughTests.testStrikethroughKeepsTheRecord`(스크린샷 41, 42)가 통과한다.
+  - 기기 체크리스트 21장으로 확인한다.
+- **구현 메모**
+  - `Item`: `toggleCancellation()`, `setCancelled(_:)`(이미 그 상태면 그은 시각을 두고), `isCancelled`, `isStruckThrough`(완료 또는 취소선)
+  - Core
+    - `CalendarEntry.isCancelled`: `MonthLayout`이 다른 일정을 모두 놓은 뒤에 놓는다. 칸이 모자라면 취소선을 그은 일정이 먼저 "+N"으로 숨는다.
+    - `DayAgenda.Input.isCancelled`(`isSettled`): 할일 묶음에서 끝낸 할일과 함께 아래로 간다. 일정 묶음은 시각 순서 그대로다.
+    - `ReminderPlanner.ItemInput.isCancelled`: 알림을 만들지 않는다.
+  - 배지: `NotificationScheduler.badgeTaskDays(in:)`의 조건에 `cancelledAt == nil`을 더했다. 저장하면 `sync()`가 돈다.
+  - 되돌리기용 `ItemSnapshot`도 `cancelledAt`을 담는다.
+  - 밀기 버튼과 메뉴는 `CancellationButton` 하나를 같이 쓴다.
+
 ### 이후 확장 (선택)
 - 오늘/월간 위젯, App Intents(Siri, 단축어)로 빠른 할일 추가
 - 검색, JSON 내보내기·가져오기(백업), 앱 아이콘 다듬기
@@ -839,6 +876,16 @@ docs/ROADMAP.md, CLAUDE.md
   - TestFlight(버전 1.1): "Check app version" 단계에 "App Store 버전 1.0: …"(승인 상태)과 "1.1이 아직 없다" 알림이 나오고, 업로드까지 되는지
     - 상태 이름이 `APPROVED_STATES`에 없어서 1.0을 승인으로 보지 못해도 실패하지는 않는다. 그때는 출력된 상태를 `APPROVED_STATES`에 더한다.
 
+- [ ] Phase 23 취소선(보류·취소): PR CI 확인
+  - Core: `MonthLayoutOverflowTests.cancelledEntriesGiveTheirLanesToTheOthers`, `DayAgendaTests.cancelledTasksGoDownWithTheDoneOnesAndEventsKeepTheirTime`, `ReminderPlannerTests.cancelledItemsHaveNoReminders`
+  - 앱: `AppBadgeTests.struckThroughTasksAreNotLeftEvenIfUndone`, `ItemStoreTests`(취소선 두 개), `ItemDraftTests.draftCarriesTheStrikethrough`, `CloudKitSchemaTests`(`CD_cancelledAt`)
+  - UI: `StrikethroughTests.testStrikethroughKeepsTheRecord`(스크린샷 41, 42)
+    - 토글을 켜지 못하면 `setSwitch`가 안쪽 스위치를 찾는지(iOS 26의 SwiftUI 토글 구조)부터 본다.
+    - 41에서 "은행 업무"가 흐리고 줄이 그어졌는지, 42에서 10/19 막대가 옅은 색인지 본다.
+    - 편집 화면에 토글 묶음이 더해져 `EditorTests`의 미루기 버튼 스크롤(`scrollUntilVisible`)과 스크린샷 38이 그대로인지 본다.
+  - 밀기 버튼은 끝까지 밀면 "나중에"가 실행되어 UI 테스트로 누르지 않는다. 기기 체크리스트 21-1, 21-8로 확인한다.
+  - 기기: 체크리스트 21장. 먼저 CloudKit 스키마를 Production에 배포한다.
+
 ## 진행 방식과 현황
 - 단계마다 브랜치 1개, PR 1개로 진행한다. CI green과 스크린샷 확인을 마친 뒤 머지한다.
 - 단계를 시작할 때 이 문서의 해당 Phase를 다시 읽고, 끝나면 아래 체크박스를 갱신한다.
@@ -866,3 +913,4 @@ docs/ROADMAP.md, CLAUDE.md
 - [ ] Phase 20: 반복 탭 요약 기간(매일·매주는 이번 주, 요일 하나인 매주는 이번 달, 매월은 올해)
 - [ ] Phase 21: App Store 등록 준비(문구, 지원·개인정보 처리방침 페이지, 스크린샷·미리보기 워크플로, 개인정보 매니페스트, 버전 1.0)
 - [ ] Phase 22: 앱 아이콘 배지(오늘까지 남은 할일), 잠금화면 원형 위젯(남으면 꽉 찬 원, 없으면 흐린 ✓)
+- [ ] Phase 23: 취소선(보류·취소한 일정을 지우지 않고 줄을 그음, 남은 할일·알림에서 뺌)

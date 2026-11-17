@@ -7,7 +7,8 @@ import UIKit
 /// 날짜를 정하지 않은 할일과 일정("나중에" 목록).
 ///
 /// - 위쪽 입력창에 적고 엔터를 치면 바로 할일로 들어가고, 입력창에 이어서 쓸 수 있다. 입력창 밖을 누르면 키보드가 내려간다.
-/// - 편집에서 끌어서 순서를 바꾼다. 왼쪽으로 밀면 삭제·날짜, 오른쪽으로 밀면 완료가 나온다.
+/// - 편집에서 끌어서 순서를 바꾼다. 왼쪽으로 밀면 삭제·날짜, 오른쪽으로 밀면 완료와 "취소선 긋기"가 나온다.
+///   취소선을 그은(보류·취소한) 항목은 지우지 않고 맨 아래 "보류 · 취소"에 남는다(사용자 요청 2026-11-17).
 /// - 항목을 꾹 누르면 목록 위에 달력이 덮인다(`InboxCalendarOverlay`). 손을 떼지 않고 날짜 위에서 떼면 그 날로 들어가고,
 ///   달력 탭에서 그 달이 열린다. 달력 밖에서 떼거나 거의 움직이지 않고 떼면 그대로 둔다.
 ///   행의 탭(편집)과 꾹 누르기는 하루 상세와 같은 `WindowPressGesture` 하나가 받는다.
@@ -52,8 +53,9 @@ struct InboxTab: View {
     }
 
     var body: some View {
-        let pending = items.filter { !$0.isCompleted }
+        let pending = items.filter { !$0.isStruckThrough }
         let completed = items.filter(\.isCompleted)
+        let cancelled = items.filter(\.isCancelled)
 
         NavigationStack {
             List {
@@ -97,6 +99,13 @@ struct InboxTab: View {
                 if !completed.isEmpty {
                     Section("완료") {
                         ForEach(completed) { item in
+                            row(item)
+                        }
+                    }
+                }
+                if !cancelled.isEmpty {
+                    Section("보류 · 취소") {
+                        ForEach(cancelled) { item in
                             row(item)
                         }
                     }
@@ -158,7 +167,7 @@ struct InboxTab: View {
         InboxRowView(item: item)
             .contentShape(Rectangle())
             .modifier(InboxRowPress(
-                canMove: !editMode.isEditing && !item.isCompleted,
+                canMove: !editMode.isEditing && !item.isStruckThrough,
                 onTap: {
                     isInputFocused = false
                     editorMode = .edit(item)
@@ -178,12 +187,16 @@ struct InboxTab: View {
                 .tint(.blue)
             }
             .swipeActions(edge: .leading) {
-                if item.isTask {
+                // 끝까지 밀면 첫 번째가 바로 실행된다. 취소선을 그은 할일은 완료 대신 취소선 지우기가 앞에 온다.
+                if item.isTask, !item.isCancelled {
                     Button(item.isCompleted ? "완료 취소" : "완료") {
                         item.toggleCompletion()
                         try? modelContext.save()
                     }
                     .tint(.green)
+                }
+                CancellationButton(item: item, showsIcon: false) {
+                    try? modelContext.save()
                 }
             }
     }
@@ -279,7 +292,7 @@ struct InboxTab: View {
 }
 
 /// 행 누르기. 달력에 넣을 수 있는 행은 `WindowPressGesture` 하나가 탭(편집)과 꾹 누르기(달력에 넣기)를 받는다.
-/// 완료한 항목과 순서를 바꾸는 편집 중에는 탭만 받는다.
+/// 완료했거나 취소선을 그은 항목과 순서를 바꾸는 편집 중에는 탭만 받는다.
 private struct InboxRowPress: ViewModifier {
     let canMove: Bool
     let onTap: () -> Void
@@ -302,8 +315,7 @@ private struct InboxRowView: View {
             ItemMarker(item: item)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
+                    .itemTitleStyle(item)
                 if let category = item.category {
                     Text(category.name)
                         .font(.caption)

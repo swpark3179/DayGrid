@@ -79,16 +79,29 @@ public enum ReminderPlanner {
         public let title: String
         public let isTask: Bool
         public let isCompleted: Bool
+        /// 취소선을 그은(보류·취소한) 일정·할일. 알림을 보내지 않는다.
+        public let isCancelled: Bool
         public let isAllDay: Bool
         public let startDay: LocalDate?
         public let startDate: Date?
         public let options: [ReminderOption]
 
-        public init(id: UUID, title: String, isTask: Bool, isCompleted: Bool, isAllDay: Bool, startDay: LocalDate?, startDate: Date?, options: [ReminderOption]) {
+        public init(
+            id: UUID,
+            title: String,
+            isTask: Bool,
+            isCompleted: Bool,
+            isCancelled: Bool = false,
+            isAllDay: Bool,
+            startDay: LocalDate?,
+            startDate: Date?,
+            options: [ReminderOption]
+        ) {
             self.id = id
             self.title = title
             self.isTask = isTask
             self.isCompleted = isCompleted
+            self.isCancelled = isCancelled
             self.isAllDay = isAllDay
             self.startDay = startDay
             self.startDate = startDate
@@ -179,7 +192,8 @@ public enum ReminderPlanner {
     // MARK: - 종류별
 
     private static func itemReminders(_ item: ItemInput, timeZone: TimeZone) -> [PlannedReminder] {
-        guard !(item.isTask && item.isCompleted), let startDay = item.startDay else { return [] }
+        // 끝낸 할일과 취소선을 그은 일정·할일은 알리지 않는다.
+        guard !item.isCancelled, !(item.isTask && item.isCompleted), let startDay = item.startDay else { return [] }
         return item.options.compactMap { option -> PlannedReminder? in
             let fireDate: Date
             let body: String

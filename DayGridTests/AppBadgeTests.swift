@@ -54,6 +54,27 @@ struct AppBadgeTests {
         #expect(badge == 0, "둘 다 끝내면 배지가 없다")
     }
 
+    @Test func struckThroughTasksAreNotLeftEvenIfUndone() throws {
+        // 사용자 요청(2026-11-17): 보류·취소로 취소선을 그은 할일은 끝내지 않았어도 남은 할일로 세지 않는다.
+        let held = allDayTask("보류한 할일", -1)
+        let cancelledLater = allDayTask("내일 취소한 할일", 1)
+        allDayTask("남은 할일", 0)
+        try context.save()
+        #expect(badge == 2)
+
+        held.toggleCancellation()
+        cancelledLater.toggleCancellation()
+        try context.save()
+        #expect(badge == 1, "취소선을 그은 할일은 배지에서 빠진다")
+        let days = NotificationScheduler.badgeTaskDays(in: context, timeZone: seoul)
+        #expect(TaskBadge.changes(after: today, through: today.adding(days: 30), undoneTaskDays: days).isEmpty,
+                "취소선을 그은 내일 할일은 자정에 배지를 늘리지 않는다")
+
+        held.toggleCancellation()
+        try context.save()
+        #expect(badge == 2, "취소선을 지우면 다시 남은 할일이다")
+    }
+
     @Test func aRangeTaskCountsOnceFromItsFirstDay() throws {
         allDayTask("이사 준비", -2, through: 3)
         allDayTask("다음 주 할일", 5, through: 7)

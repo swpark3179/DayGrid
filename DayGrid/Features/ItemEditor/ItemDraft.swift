@@ -18,6 +18,8 @@ struct ItemDraft: Equatable {
     var note = ""
     /// 고른 알림(`ReminderOption.bit`의 합)
     var reminderMask = 0
+    /// 취소선(보류·취소). 켜면 저장할 때 완료 표시를 지운다. 편집 화면은 있던 일정을 고칠 때만 보인다.
+    var isCancelled = false
 
     private init(start: Date, end: Date, categoryID: UUID?) {
         self.start = start
@@ -80,6 +82,7 @@ struct ItemDraft: Equatable {
         categoryID = item.category?.id
         note = item.body ?? ""
         reminderMask = item.reminderMask
+        isCancelled = item.isCancelled
     }
 
     /// 편집 화면의 "시간 지정" 토글. 종일(`isAllDay`)의 반대다.
@@ -109,6 +112,7 @@ struct ItemDraft: Equatable {
     }
 
     /// 초안을 모델에 반영한다. 할일이 아니게 되면 완료 표시도 지운다.
+    /// 취소선은 바꿀 때만 그은 시각을 새로 적는다. 그으면 완료 표시는 지운다(`Item.setCancelled`).
     ///
     /// 날짜를 끈 채 저장하면 고른 모양을 힌트로 남기고 날짜를 비운다.
     /// 날짜가 있던 항목은 "나중에" 목록의 `inboxOrder` 자리로 가고, 원래 목록에 있던 항목은 순서를 그대로 둔다.
@@ -131,6 +135,7 @@ struct ItemDraft: Equatable {
         if !isTask {
             item.completedAt = nil
         }
+        item.setCancelled(isCancelled)
         item.updatedAt = Date()
     }
 }

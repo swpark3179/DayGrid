@@ -6,7 +6,8 @@ import UIKit
 
 /// 날짜를 누르면 열리는 하루 상세 시트. 종일·기간, 시간, 할일 순으로 보여준다.
 /// 반복 할일은 보여 주지 않는다. 반복 탭에서만 다룬다(사용자 결정 2026-10-22).
-/// 행을 왼쪽으로 밀면 삭제·복제, 오른쪽으로 밀면 "나중에"(날짜를 비우고 나중에 목록으로)가 나온다.
+/// 행을 왼쪽으로 밀면 삭제·복제, 오른쪽으로 밀면 "나중에"(날짜를 비우고 나중에 목록으로)와 "취소선 긋기"가 나온다.
+/// 취소선을 그은(보류·취소한) 일정은 지우지 않고 흐리게 남는다. 할일이면 남은 할일에서 빠진다(사용자 요청 2026-11-17).
 ///
 /// 행을 꾹 누르면 옮기기가 된다(사용자 요청 2026-10-21). 시트가 내려가며 사라져 달력 전체가 보이고(사용자 요청 2026-10-23),
 /// 손가락을 떼지 않고 다른 날짜 위에서 놓으면 그만큼 날짜를 옮긴다(`Item.move(byDays:)`, 시각과 길이는 그대로).
@@ -146,6 +147,7 @@ struct DayDetailView: View {
             ) { item in
                 Button("복제", systemImage: "plus.square.on.square") { duplicate(item) }
                 Button("나중에", systemImage: "tray") { moveToInbox(item) }
+                CancellationButton(item: item) { try? modelContext.save() }
                 Button("삭제", systemImage: "trash", role: .destructive) { delete(item) }
             }
             .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
@@ -196,10 +198,14 @@ struct DayDetailView: View {
                                 .tint(.blue)
                             }
                             .swipeActions(edge: .leading) {
+                                // 끝까지 밀면 첫 번째("나중에")가 바로 실행된다. 취소선은 조금만 밀어 누른다.
                                 Button("나중에") {
                                     moveToInbox(item)
                                 }
                                 .tint(.orange)
+                                CancellationButton(item: item, showsIcon: false) {
+                                    try? modelContext.save()
+                                }
                             }
                     }
                 }
@@ -363,8 +369,7 @@ private struct AgendaRowView: View {
             ItemMarker(item: item)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
+                    .itemTitleStyle(item)
                 Text(timeText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -439,7 +444,7 @@ extension Item {
     /// 하루 상세 목록에 넣을 값. 날짜가 없으면 `nil`.
     var agendaInput: DayAgenda.Input? {
         guard let entry = calendarEntry() else { return nil }
-        return DayAgenda.Input(entry: entry, title: title, isTask: isTask, isCompleted: isCompleted)
+        return DayAgenda.Input(entry: entry, title: title, isTask: isTask, isCompleted: isCompleted, isCancelled: isCancelled)
     }
 
     /// 하루 상세 타임라인에 넣을 값. 종일이거나 날짜가 없거나 `date`에 걸치지 않으면 `nil`.

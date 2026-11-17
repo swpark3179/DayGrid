@@ -183,6 +183,7 @@ private struct DayNumberView: View {
 }
 
 /// 일정 조각 하나. 막대는 카테고리 색으로 채우고, 칩은 색 점과 제목만 그린다.
+/// 취소선을 그은(보류·취소한) 일정은 기록으로 남기되 흐리게 그린다. 막대는 색을 옅게 깔고 회색 글자에 줄을 긋는다.
 private struct EntryView: View {
     let segment: MonthGrid.Segment
     let item: Item
@@ -192,8 +193,9 @@ private struct EntryView: View {
         case .bar:
             Text(item.title)
                 .font(.system(size: 11, weight: .semibold))
-                .strikethrough(item.isCompleted)
-                .foregroundStyle(.white)
+                .strikethrough(item.isStruckThrough)
+                .foregroundStyle(item.isCancelled ? Color.secondary : Color.white)
+                .accessibilityValue(Text(verbatim: item.isCancelled ? "취소선" : ""))
                 .lineLimit(1)
                 .padding(.horizontal, 4)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -204,18 +206,17 @@ private struct EntryView: View {
                         bottomTrailingRadius: segment.continuesToNextWeek ? 0 : 4,
                         topTrailingRadius: segment.continuesToNextWeek ? 0 : 4
                     )
-                    .fill(color)
+                    .fill(item.isCancelled ? color.opacity(0.25) : color)
                 )
         case .chip:
             HStack(spacing: 3) {
                 Circle()
-                    .fill(color)
+                    .fill(item.isCancelled ? color.opacity(0.35) : color)
                     .frame(width: 6, height: 6)
                 Text(item.title)
                     .font(.system(size: 11))
-                    .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? Color.secondary : Color.primary)
                     .lineLimit(1)
+                    .itemTitleStyle(item)
             }
             .padding(.leading, 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)

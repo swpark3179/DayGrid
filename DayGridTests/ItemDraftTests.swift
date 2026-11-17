@@ -136,6 +136,38 @@ struct ItemDraftTests {
         #expect(!item.isCompleted)
     }
 
+    @Test func draftCarriesTheStrikethrough() {
+        let item = Item(title: "할일", isTask: true)
+        context.insert(item)
+        item.scheduleAllDay(from: day(2026, 10, 21), through: day(2026, 10, 21))
+        item.toggleCompletion()
+
+        var draft = ItemDraft(item: item, timeZone: seoul)
+        #expect(!draft.isCancelled)
+        draft.isCancelled = true
+        draft.apply(to: item, categories: [], timeZone: seoul)
+        #expect(item.isCancelled)
+        #expect(!item.isCompleted, "취소선을 그어 저장하면 완료 표시는 지운다")
+        let cancelledAt = item.cancelledAt
+
+        // 다른 것만 고쳐 저장하면 그은 시각은 그대로다.
+        var again = ItemDraft(item: item, timeZone: seoul)
+        #expect(again.isCancelled)
+        again.title = "고친 할일"
+        again.apply(to: item, categories: [], timeZone: seoul)
+        #expect(item.cancelledAt == cancelledAt)
+
+        // 미뤄도 취소선은 남는다.
+        again.hasDate = false
+        again.apply(to: item, categories: [], inboxOrder: -1, timeZone: seoul)
+        #expect(!item.isScheduled)
+        #expect(item.isCancelled)
+
+        again.isCancelled = false
+        again.apply(to: item, categories: [], timeZone: seoul)
+        #expect(!item.isCancelled)
+    }
+
     @Test func draftRoundTripsAnExistingItem() throws {
         let original = Item(title: "치과")
         context.insert(original)
